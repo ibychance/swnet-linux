@@ -1,0 +1,613 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configurationDescriptor version="100">
+  <logicalFolder name="root" displayName="root" projectFiles="true" kind="ROOT">
+    <logicalFolder name="f2" displayName="com" projectFiles="true">
+      <itemPath>../../com/avltree.c</itemPath>
+      <itemPath>../../com/base64.c</itemPath>
+      <itemPath>../../com/crc32.c</itemPath>
+      <itemPath>../../com/des.c</itemPath>
+      <itemPath>../../com/logger.c</itemPath>
+      <itemPath>../../com/md5.c</itemPath>
+      <itemPath>../../com/object.c</itemPath>
+      <itemPath>../../com/posix_ifos.c</itemPath>
+      <itemPath>../../com/posix_naos.c</itemPath>
+      <itemPath>../../com/posix_string.c</itemPath>
+      <itemPath>../../com/posix_thread.c</itemPath>
+      <itemPath>../../com/posix_time.c</itemPath>
+      <itemPath>../../com/posix_wait.c</itemPath>
+    </logicalFolder>
+    <logicalFolder name="HeaderFiles"
+                   displayName="Header Files"
+                   projectFiles="true">
+      <itemPath>../fque.h</itemPath>
+      <itemPath>../io.h</itemPath>
+      <itemPath>../ncb.h</itemPath>
+      <itemPath>../tcp.h</itemPath>
+      <itemPath>../udp.h</itemPath>
+      <itemPath>../worker.h</itemPath>
+    </logicalFolder>
+    <logicalFolder name="f1" displayName="icom" projectFiles="true">
+      <itemPath>../../../libnsp/icom/avltree.h</itemPath>
+      <itemPath>../../../libnsp/icom/base64.h</itemPath>
+      <itemPath>../../../libnsp/icom/clist.h</itemPath>
+      <itemPath>../../../libnsp/icom/compiler.h</itemPath>
+      <itemPath>../../../libnsp/icom/crc32.h</itemPath>
+      <itemPath>../../../libnsp/icom/des.h</itemPath>
+      <itemPath>../../../libnsp/icom/logger.h</itemPath>
+      <itemPath>../../../libnsp/icom/md5.h</itemPath>
+      <itemPath>../../../libnsp/icom/nis.h</itemPath>
+      <itemPath>../../../libnsp/icom/nisdef.h</itemPath>
+      <itemPath>../../../libnsp/icom/object.h</itemPath>
+      <itemPath>../../../libnsp/icom/posix_atomic.h</itemPath>
+      <itemPath>../../../libnsp/icom/posix_ifos.h</itemPath>
+      <itemPath>../../../libnsp/icom/posix_naos.h</itemPath>
+      <itemPath>../../../libnsp/icom/posix_string.h</itemPath>
+      <itemPath>../../../libnsp/icom/posix_thread.h</itemPath>
+      <itemPath>../../../libnsp/icom/posix_time.h</itemPath>
+      <itemPath>../../../libnsp/icom/posix_types.h</itemPath>
+      <itemPath>../../../libnsp/icom/posix_wait.h</itemPath>
+    </logicalFolder>
+    <logicalFolder name="ResourceFiles"
+                   displayName="Resource Files"
+                   projectFiles="true">
+    </logicalFolder>
+    <logicalFolder name="SourceFiles"
+                   displayName="Source Files"
+                   projectFiles="true">
+      <itemPath>../fque.c</itemPath>
+      <itemPath>../io.c</itemPath>
+      <itemPath>../mxx.c</itemPath>
+      <itemPath>../ncb.c</itemPath>
+      <itemPath>../tcp.c</itemPath>
+      <itemPath>../tcpal.c</itemPath>
+      <itemPath>../tcpio.c</itemPath>
+      <itemPath>../udp.c</itemPath>
+      <itemPath>../udpio.c</itemPath>
+      <itemPath>../worker.c</itemPath>
+    </logicalFolder>
+    <logicalFolder name="TestFiles"
+                   displayName="Test Files"
+                   projectFiles="false"
+                   kind="TEST_LOGICAL_FOLDER">
+    </logicalFolder>
+    <logicalFolder name="ExternalFiles"
+                   displayName="Important Files"
+                   projectFiles="false"
+                   kind="IMPORTANT_FILES_FOLDER">
+      <itemPath>Makefile</itemPath>
+    </logicalFolder>
+  </logicalFolder>
+  <projectmakefile>Makefile</projectmakefile>
+  <confs>
+    <conf name="Debug" type="2">
+      <toolsSet>
+        <compilerSet>GNU|GNU</compilerSet>
+        <dependencyChecking>true</dependencyChecking>
+        <rebuildPropChanged>false</rebuildPropChanged>
+      </toolsSet>
+      <compileType>
+        <cTool>
+          <architecture>1</architecture>
+          <standard>2</standard>
+          <incDir>
+            <pElem>../../../com</pElem>
+            <pElem>../../../gcc</pElem>
+          </incDir>
+          <warningLevel>3</warningLevel>
+        </cTool>
+        <ccTool>
+          <incDir>
+            <pElem>../../../com</pElem>
+            <pElem>../../../gcc</pElem>
+          </incDir>
+          <warningLevel>3</warningLevel>
+        </ccTool>
+        <linkerTool>
+          <output>/usr/local/lib/nshost.so.7.3.2</output>
+        </linkerTool>
+      </compileType>
+      <item path="../../../libnsp/icom/avltree.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/base64.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/clist.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/compiler.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/crc32.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/des.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/logger.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/md5.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/nis.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/nisdef.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/object.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_atomic.h"
+            ex="false"
+            tool="3"
+            flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_ifos.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_naos.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_string.h"
+            ex="false"
+            tool="3"
+            flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_thread.h"
+            ex="false"
+            tool="3"
+            flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_time.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_types.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_wait.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../com/avltree.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/base64.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/crc32.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/des.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/logger.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/md5.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/object.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_ifos.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_naos.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_string.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_thread.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_time.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_wait.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../fque.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../fque.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../io.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../io.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../mxx.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../ncb.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../ncb.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../tcp.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../tcp.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../tcpal.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../tcpio.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../udp.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../udp.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../udpio.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../worker.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../worker.h" ex="false" tool="3" flavor2="0">
+      </item>
+    </conf>
+    <conf name="Debug_x86_64" type="2">
+      <toolsSet>
+        <compilerSet>GNU|GNU</compilerSet>
+        <dependencyChecking>true</dependencyChecking>
+        <rebuildPropChanged>false</rebuildPropChanged>
+      </toolsSet>
+      <compileType>
+        <cTool>
+          <architecture>2</architecture>
+          <standard>2</standard>
+          <incDir>
+            <pElem>..</pElem>
+            <pElem>../../../libnsp/icom</pElem>
+          </incDir>
+          <commandLine>-D_POSIX_C_SOURCE=21000000L</commandLine>
+          <warningLevel>2</warningLevel>
+        </cTool>
+        <linkerTool>
+          <output>/usr/local/lib64/nshost.so.7.3.2</output>
+        </linkerTool>
+      </compileType>
+      <item path="../../../libnsp/icom/avltree.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/base64.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/clist.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/compiler.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/crc32.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/des.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/logger.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/md5.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/nis.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/nisdef.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/object.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_atomic.h"
+            ex="false"
+            tool="3"
+            flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_ifos.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_naos.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_string.h"
+            ex="false"
+            tool="3"
+            flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_thread.h"
+            ex="false"
+            tool="3"
+            flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_time.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_types.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_wait.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../com/avltree.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/base64.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/crc32.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/des.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/logger.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/md5.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/object.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_ifos.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_naos.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_string.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_thread.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_time.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_wait.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../fque.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../fque.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../io.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../io.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../mxx.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../ncb.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../ncb.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../tcp.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../tcp.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../tcpal.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../tcpio.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../udp.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../udp.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../udpio.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../worker.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../worker.h" ex="false" tool="3" flavor2="0">
+      </item>
+    </conf>
+    <conf name="Release" type="2">
+      <toolsSet>
+        <compilerSet>GNU|GNU</compilerSet>
+        <dependencyChecking>true</dependencyChecking>
+        <rebuildPropChanged>false</rebuildPropChanged>
+      </toolsSet>
+      <compileType>
+        <cTool>
+          <developmentMode>6</developmentMode>
+          <architecture>1</architecture>
+          <standard>2</standard>
+          <incDir>
+            <pElem>..</pElem>
+            <pElem>../../../libnsp/icom</pElem>
+          </incDir>
+          <commandLine>-D_POSIX_C_SOURCE=210000L</commandLine>
+          <warningLevel>3</warningLevel>
+        </cTool>
+        <ccTool>
+          <developmentMode>5</developmentMode>
+          <incDir>
+            <pElem>../../../com</pElem>
+            <pElem>../../../gcc</pElem>
+          </incDir>
+          <warningLevel>3</warningLevel>
+        </ccTool>
+        <fortranCompilerTool>
+          <developmentMode>5</developmentMode>
+        </fortranCompilerTool>
+        <asmTool>
+          <developmentMode>5</developmentMode>
+        </asmTool>
+        <linkerTool>
+          <output>/usr/local/lib/nshost.so.7.3.2</output>
+        </linkerTool>
+      </compileType>
+      <item path="../../../libnsp/icom/avltree.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/base64.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/clist.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/compiler.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/crc32.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/des.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/logger.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/md5.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/nis.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/nisdef.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/object.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_atomic.h"
+            ex="false"
+            tool="3"
+            flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_ifos.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_naos.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_string.h"
+            ex="false"
+            tool="3"
+            flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_thread.h"
+            ex="false"
+            tool="3"
+            flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_time.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_types.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_wait.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../com/avltree.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/base64.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/crc32.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/des.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/logger.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/md5.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/object.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_ifos.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_naos.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_string.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_thread.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_time.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_wait.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../fque.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../fque.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../io.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../io.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../mxx.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../ncb.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../ncb.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../tcp.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../tcp.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../tcpal.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../tcpio.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../udp.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../udp.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../udpio.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../worker.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../worker.h" ex="false" tool="3" flavor2="0">
+      </item>
+    </conf>
+    <conf name="Release_x86_64" type="2">
+      <toolsSet>
+        <compilerSet>GNU|GNU</compilerSet>
+        <dependencyChecking>true</dependencyChecking>
+        <rebuildPropChanged>false</rebuildPropChanged>
+      </toolsSet>
+      <compileType>
+        <cTool>
+          <developmentMode>6</developmentMode>
+          <architecture>2</architecture>
+          <standard>2</standard>
+          <incDir>
+            <pElem>..</pElem>
+            <pElem>../../../libnsp/icom</pElem>
+          </incDir>
+          <commandLine>-D_POSIX_C_SOURCE=210000L</commandLine>
+          <warningLevel>2</warningLevel>
+        </cTool>
+        <linkerTool>
+          <output>/usr/local/lib64/nshost.so.7.3.2</output>
+        </linkerTool>
+      </compileType>
+      <item path="../../../libnsp/icom/avltree.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/base64.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/clist.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/compiler.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/crc32.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/des.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/logger.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/md5.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/nis.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/nisdef.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/object.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_atomic.h"
+            ex="false"
+            tool="3"
+            flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_ifos.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_naos.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_string.h"
+            ex="false"
+            tool="3"
+            flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_thread.h"
+            ex="false"
+            tool="3"
+            flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_time.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_types.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../libnsp/icom/posix_wait.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../com/avltree.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/base64.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/crc32.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/des.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/logger.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/md5.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/object.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_ifos.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_naos.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_string.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_thread.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_time.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../../com/posix_wait.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../fque.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../fque.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../io.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../io.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../mxx.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../ncb.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../ncb.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../tcp.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../tcp.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../tcpal.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../tcpio.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../udp.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../udp.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../udpio.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../worker.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="../worker.h" ex="false" tool="3" flavor2="0">
+      </item>
+    </conf>
+  </confs>
+</configurationDescriptor>
