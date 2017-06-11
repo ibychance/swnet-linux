@@ -272,6 +272,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
             /* 成功完成 SYN, 此时可以关注数据包 */
             ncb->on_read_ = &tcp_rx;
             ncb->on_write_ = &tcp_tx;
+            ncb->on_parse_ = &tcp_parse;
         }
     } else {
         ncb_report_debug_information(ncb, "[TCP]failed connect remote endpoint %s:%d, err=%d\n", r_ipstr, port_remote, e);

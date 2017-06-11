@@ -37,6 +37,15 @@ struct {
     pthread_node_t *send_;
 } pthread_manager = {0, NULL, 0, NULL};
 
+struct {
+    int thcnt_;
+    posix__pthread_t *parser_;
+    struct list_head task_head_; /* task_node_t */
+    posix__pthread_mutex_t task_lock_;
+    posix__waitable_handle_t waiter_;
+    posix__boolean_t stop_;
+}pthread_parser;
+
 static int refcnt = 0;
 
 static int run_task(task_node_t *task, pthread_node_t *pthread_node) {
@@ -45,11 +54,12 @@ static int run_task(task_node_t *task, pthread_node_t *pthread_node) {
     objhld_t hld;
     int retval;
 
-    assert(NULL != task && NULL != pthread_node);
+    assert(NULL != task);
 
     hld = task->hld_;
+    handler = NULL;
+    retval = -1;
     
-
     /* 对象已经不存在， 任务无法处理 */
     ncb = objrefr(hld);
     if (!ncb) {
@@ -57,8 +67,6 @@ static int run_task(task_node_t *task, pthread_node_t *pthread_node) {
     }
 
     do {
-        retval = -1;
-
         if (task->ttype_ == kTaskType_Destroy) {
             ncb_report_debug_information(ncb, "destroy task from kernel.");
             objclos(hld);
@@ -71,10 +79,15 @@ static int run_task(task_node_t *task, pthread_node_t *pthread_node) {
             handler = ncb->on_read_;
         } else if (task->ttype_ == kTaskType_Write) {
             handler = ncb->on_write_;
+        } else if (task->ttype_ == kTaskType_Parse) {
+            handler = ncb->on_parse_;
         } else {
             break;
         }
 
+        if (!handler) {
+            break;
+        }
         /*
          * 重新明确公用处理例程返回值定义
          * 1. Rx:
@@ -98,6 +111,34 @@ static int run_task(task_node_t *task, pthread_node_t *pthread_node) {
 
     objdefr(hld);
     return retval;
+}
+
+static void *parser(void *p){
+    task_node_t *task;
+    
+    while (!pthread_parser.stop_){
+        if (posix__waitfor_waitable_handle(&pthread_parser.waiter_, -1) < 0) {
+            break;
+        }
+        
+        while (1) {
+            posix__pthread_mutex_lock(&pthread_parser.task_lock_);
+            if (NULL == (task = list_first_entry_or_null(&pthread_parser.task_head_, task_node_t, link_))) {
+                posix__pthread_mutex_unlock(&pthread_parser.task_lock_);
+                break;
+            }
+            list_del(&task->link_);
+            posix__pthread_mutex_unlock(&pthread_parser.task_lock_);
+
+            /* 如果发生IO阻止(返回值大于0)， 则任务保留 */
+            if (run_task(task, p) <= 0) {
+                free(task);
+            }
+        }
+    }
+    
+    pthread_exit((void *) 0);
+    return NULL;
 }
 
 static void *run(void *p) {
@@ -185,6 +226,30 @@ static void uninit_pthread_node(pthread_node_t *pthread_node) {
     posix__pthread_mutex_release(&pthread_node->task_lock_);
 }
 
+int pthread_parser_init(){
+    int i;
+    
+    /* 核心数量 * 2 +2 是什么鬼 */
+    pthread_parser.thcnt_ = 2 * get_nprocs() + 2;
+    pthread_parser.parser_ = (posix__pthread_t *)malloc(pthread_parser.thcnt_ * sizeof(posix__pthread_t));
+    if (!pthread_parser.parser_){
+        return -1;
+    }
+    
+    INIT_LIST_HEAD(&pthread_parser.task_head_);
+    posix__pthread_mutex_init(&pthread_parser.task_lock_);
+    posix__init_synchronous_waitable_handle(&pthread_parser.waiter_);
+    
+    for (i = 0; i <pthread_parser.thcnt_; i++ ){
+        if (posix__pthread_create(&pthread_parser.parser_[i], &parser, NULL) < 0) {
+            posix__uninit_waitable_handle(&pthread_parser.waiter_);
+            posix__pthread_mutex_release(&pthread_parser.task_lock_);
+            return -1;
+        }
+    }
+    return 0;
+}
+
 int pthread_manager_init(int rthcnt, int wthcnt) {
     int nothcnt;
     int arthcnt, awthcnt;
@@ -195,23 +260,21 @@ int pthread_manager_init(int rthcnt, int wthcnt) {
     }
 
     /* 核心数量 * 2 +2 是什么鬼 */
-    nothcnt = 2 * get_nprocs() + 2;
+    nothcnt = get_nprocs();
 
     arthcnt = ((rthcnt <= 0) ? nothcnt : rthcnt);
     awthcnt = ((wthcnt <= 0) ? nothcnt : wthcnt);
 
     pthread_manager.recv_thcnt_ = arthcnt;
     pthread_manager.send_thcnt_ = awthcnt;
-
+    
     if (NULL == (pthread_manager.recv_ = (pthread_node_t *) malloc(sizeof (pthread_node_t) * pthread_manager.recv_thcnt_))) {
         return -1;
     }
     if (NULL == (pthread_manager.send_ = (pthread_node_t *) malloc(sizeof (pthread_node_t) * pthread_manager.send_thcnt_))) {
-        free(pthread_manager.recv_);
-        pthread_manager.recv_ = NULL;
         return -1;
     }
-
+    
     for (i = 0; i < pthread_manager.recv_thcnt_; i++) {
         init_pthread_node(&pthread_manager.recv_[i]);
     }
@@ -220,6 +283,7 @@ int pthread_manager_init(int rthcnt, int wthcnt) {
         init_pthread_node(&pthread_manager.send_[i]);
     }
 
+    pthread_parser_init();
     return 0;
 }
 
@@ -290,6 +354,8 @@ int post_task(objhld_t hld, enum task_type_t ttype) {
         return -EINVAL;
     }
 
+    pthread_node = NULL;
+    
     /* 线程调度方式， 采用对象固定线程
      * IO 对象拥有自己的一个读线程和一个写线程
      * 但任何一个读/写线程都可能被多个IO对象拥有
@@ -298,27 +364,34 @@ int post_task(objhld_t hld, enum task_type_t ttype) {
         pthread_node = select_worker(hld, pthread_manager.recv_, pthread_manager.recv_thcnt_);
     } else if (kTaskType_Write == ttype) {
         pthread_node = select_worker(hld, pthread_manager.send_, pthread_manager.send_thcnt_);
-    } else {
-        return -1;
     }
-
-    if (!pthread_node) {
-        return -1;
-    }
-
+    
     /* 分配任务， 指定任务操作的 NCB 对象 */
     if (NULL == (task = (task_node_t *) malloc(sizeof (task_node_t)))) {
         return -1;
     }
     task->ttype_ = ttype;
     task->hld_ = hld;
+    
+    if (kTaskType_Parse == ttype){
+         posix__pthread_mutex_lock(&pthread_parser.task_lock_);
+        list_add_tail(&task->link_, &pthread_parser.task_head_);
+        posix__pthread_mutex_unlock(&pthread_parser.task_lock_);
+        posix__sig_waitable_handle(&pthread_parser.waiter_);
+        return 0;
+    }
 
-    /* IO 对象插入线程的任务列表 */
-    posix__pthread_mutex_lock(&pthread_node->task_lock_);
-    list_add_tail(&task->link_, &pthread_node->task_head_);
-    posix__pthread_mutex_unlock(&pthread_node->task_lock_);
+    if (pthread_node) {
+        /* IO 对象插入线程的任务列表 */
+        posix__pthread_mutex_lock(&pthread_node->task_lock_);
+        list_add_tail(&task->link_, &pthread_node->task_head_);
+        posix__pthread_mutex_unlock(&pthread_node->task_lock_);
 
-    /* 通知等待中的线程, 可以执行 */
-    posix__sig_waitable_handle(&pthread_node->waiter_);
-    return 0;
+        /* 通知等待中的线程, 可以执行 */
+        posix__sig_waitable_handle(&pthread_node->waiter_);
+        return 0;
+    }
+    
+    free(task);
+    return -1;
 }

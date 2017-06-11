@@ -22,12 +22,21 @@
 #include "io.h"
 #include "worker.h"
 #include "fque.h"
+#include "clist.h"
+
+#define RX_NODE_BUFFER_SIZE (0x11000)
 
 enum ncb__protocol_type_t {
     kProtocolType_Unknown = 0,
     kProtocolType_TCP,
     kProtocolType_UDP,
 };
+
+typedef struct {
+    char                buffer_[RX_NODE_BUFFER_SIZE];
+    uint32_t            offset_;    
+    struct list_head    link_;
+}rx_node_t;
 
 typedef struct _ncb {
     int hld_;
@@ -39,7 +48,10 @@ typedef struct _ncb {
     int packet_size_;
     int recv_analyze_offset_;
     char *recv_buffer_;
-
+    struct list_head rx_list_;
+    posix__pthread_mutex_t rx_lock_;
+    posix__boolean_t rx_parsing_;
+    
     /* 发送操作的顺序队列 */
     packet_fifo_t packet_fifo_;
 
@@ -68,7 +80,8 @@ typedef struct _ncb {
     /* IO 响应例程 */
     int (*on_read_)(struct _ncb *);
     int (*on_write_)(struct _ncb *);
-
+    int (*on_parse_)(struct _ncb *);
+    
     /* 重要:
      * 用于 write 操作发生 EAGAIN 后
      * 一旦发生 EAGAIN, 后续操作只能通过 EPOLLOUT 触发，具体处理措施为

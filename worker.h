@@ -16,6 +16,7 @@ enum task_type_t {
     kTaskType_Read,
     kTaskType_Write,
     kTaskType_Destroy,
+    kTaskType_Parse,
 };
 
 extern

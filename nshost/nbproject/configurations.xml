@@ -211,7 +211,6 @@
       <compileType>
         <cTool>
           <architecture>2</architecture>
-          <standard>2</standard>
           <incDir>
             <pElem>../../libnsp/icom</pElem>
           </incDir>
@@ -461,7 +460,6 @@
         <cTool>
           <developmentMode>6</developmentMode>
           <architecture>2</architecture>
-          <standard>2</standard>
           <incDir>
             <pElem>../../libnsp/icom</pElem>
           </incDir>

@@ -13,6 +13,10 @@ int ncb_init(ncb_t *ncb) {
 
     if (ncb) {
         memset(ncb, 0, sizeof (ncb_t));
+        
+        /* 直接收包的队列初始化 */
+        INIT_LIST_HEAD(&ncb->rx_list_);
+        posix__pthread_mutex_init(&ncb->rx_lock_);
 
         fque_init(&ncb->packet_fifo_);
 

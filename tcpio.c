@@ -65,6 +65,7 @@ int tcp_syn(ncb_t *ncb_server) {
         /* 接收上来的链接， 关注数据包 */
         ncb_client->on_read_ = &tcp_rx;
         ncb_client->on_write_ = &tcp_tx;
+        ncb_client->on_parse_ = &tcp_parse;
         
          /*回调通知上层, 有链接到来*/
         c_event.Event = EVT_TCP_ACCEPTED;
@@ -87,21 +88,29 @@ int tcp_syn(ncb_t *ncb_server) {
     return -1;
 }
 
-int tcp_rx(ncb_t *ncb) {
-    int recvcb;
+int tcp_parse(ncb_t *ncb) {
+    rx_node_t *rx_node;
     int overplus;
     int offset;
     int cpcb;
-    int errcode;
-
-    recvcb = read(ncb->fd_, ncb->recv_buffer_, TCP_BUFFER_SIZE);
-    errcode = errno;
-    if (recvcb > 0) {
+    int recvcb;
+    
+    posix__pthread_mutex_lock(&ncb->rx_lock_);
+    rx_node = list_first_entry_or_null(&ncb->rx_list_, rx_node_t, link_);
+    if (rx_node){
+        list_del(&rx_node->link_);
+    }else{
+        ncb->rx_parsing_ = posix__false;
+    }
+    posix__pthread_mutex_unlock(&ncb->rx_lock_);
+    
+    if (rx_node) {
+        recvcb = rx_node->offset_;
         cpcb = recvcb;
         overplus = recvcb;
         offset = 0;
         do {
-            overplus = tcp_parse_pkt(ncb, ncb->recv_buffer_ + offset, cpcb);
+            overplus = tcp_parse_pkt(ncb, rx_node->buffer_ + offset, cpcb);
             if (overplus < 0) {
                 /* 底层协议解析出错，直接关闭该链接 */
                 return -1;
@@ -109,12 +118,48 @@ int tcp_rx(ncb_t *ncb) {
             offset += (cpcb - overplus);
             cpcb = overplus;
         } while (overplus > 0);
+        
+        free(rx_node);
+        
+        /* 只要当前链表非空， 就无条件再追加一个解析任务， 顶多空转一圈 */
+        post_task(ncb->hld_, kTaskType_Parse);
+    }
+    
+    return 0;
+}
+
+int tcp_rx(ncb_t *ncb) {
+    int recvcb;
+    int errcode;
+    rx_node_t *rx_node;
+    
+    if (NULL == (rx_node = (rx_node_t *)malloc(sizeof(rx_node_t)))){
+        return -1;
+    }
+    
+    recvcb = read(ncb->fd_, rx_node->buffer_, sizeof(rx_node->buffer_));
+    errcode = errno;
+    if (recvcb > 0) {
+        rx_node->offset_ = recvcb;
+        
+        posix__pthread_mutex_lock(&ncb->rx_lock_);
+        list_add_tail(&rx_node->link_, &ncb->rx_list_);
+        
+        /* 为了保证到达包的线性原则，每个ncb必须保证只有一个任务处于解析状态 */
+        if (!ncb->rx_parsing_){
+            ncb->rx_parsing_ = posix__true;
+            post_task(ncb->hld_, kTaskType_Parse);
+        }
+        posix__pthread_mutex_unlock(&ncb->rx_lock_);
 
         /*这个过程确定在 tcp_receive_thread_proc 线程锁内执行 
           为了防止任何一个链接饿死, 这里对任何链接都不作recv完的处理, 而是采用追加任务的方法 */
         post_task(ncb->hld_, kTaskType_Read);
+        return 0;
     }
 
+    free(rx_node);
+    
     /*对端断开*/
     if (0 == recvcb) {
         return -1;
