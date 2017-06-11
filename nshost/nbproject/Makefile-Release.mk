@@ -78,11 +78,11 @@ LDLIBSOPTIONS=
 
 # Build Targets
 .build-conf: ${BUILD_SUBPROJECTS}
-	"${MAKE}"  -f nbproject/Makefile-${CND_CONF}.mk /usr/local/lib/nshost.so.7.3.2
+	"${MAKE}"  -f nbproject/Makefile-${CND_CONF}.mk /usr/local/lib64/nshost.so.8.0.1
 
-/usr/local/lib/nshost.so.7.3.2: ${OBJECTFILES}
-	${MKDIR} -p /usr/local/lib
-	${LINK.c} -o /usr/local/lib/nshost.so.7.3.2 ${OBJECTFILES} ${LDLIBSOPTIONS} -shared -fPIC
+/usr/local/lib64/nshost.so.8.0.1: ${OBJECTFILES}
+	${MKDIR} -p /usr/local/lib64
+	${LINK.c} -o /usr/local/lib64/nshost.so.8.0.1 ${OBJECTFILES} ${LDLIBSOPTIONS} -shared -fPIC
 
 ${OBJECTDIR}/_ext/e17b0838/avltree.o: ../../libnsp/com/avltree.c
 	${MKDIR} -p ${OBJECTDIR}/_ext/e17b0838

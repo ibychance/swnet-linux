@@ -102,7 +102,7 @@
           <warningLevel>3</warningLevel>
         </ccTool>
         <linkerTool>
-          <output>/usr/local/lib/nshost.so.7.3.2</output>
+          <output>/usr/local/lib64/nshost.so.8.0.1</output>
         </linkerTool>
       </compileType>
       <item path="../../libnsp/com/avltree.c" ex="false" tool="0" flavor2="0">
@@ -219,7 +219,7 @@
           <warningLevel>2</warningLevel>
         </cTool>
         <linkerTool>
-          <output>/usr/local/lib64/nshost.so.7.3.2</output>
+          <output>/usr/local/lib64/nshost.so.8.0.1</output>
         </linkerTool>
       </compileType>
       <item path="../../libnsp/com/avltree.c" ex="false" tool="0" flavor2="0">
@@ -351,7 +351,7 @@
           <developmentMode>5</developmentMode>
         </asmTool>
         <linkerTool>
-          <output>/usr/local/lib/nshost.so.7.3.2</output>
+          <output>/usr/local/lib64/nshost.so.8.0.1</output>
         </linkerTool>
       </compileType>
       <item path="../../libnsp/com/avltree.c" ex="false" tool="0" flavor2="0">
@@ -469,7 +469,7 @@
           <warningLevel>2</warningLevel>
         </cTool>
         <linkerTool>
-          <output>/usr/local/lib64/nshost.so.7.3.2</output>
+          <output>/usr/local/lib64/nshost.so.8.0.1</output>
         </linkerTool>
       </compileType>
       <item path="../../libnsp/com/avltree.c" ex="false" tool="0" flavor2="0">
