@@ -139,9 +139,14 @@ int tcp_userio(ncb_t *ncb) {
          free(userio_node);
          
         /* 只要当前链表非空， 就无条件再追加一个解析任务， 顶多空转一圈 */
+         //post_task(ncb->hld_, kTaskType_User);
+         
+         /* 在解这个包的过程中， 可能有别的节点加入
+          * 如果没有， 则不需要再次主动投递任务 */
          posix__pthread_mutex_lock(&ncb->userio_lock_);
          if (!list_empty(&ncb->userio_list_)) {
-             post_task(ncb->hld_, kTaskType_User);
+             //post_task(ncb->hld_, kTaskType_User);
+             retval = 1;
          }else {
             ncb->if_userio_running_ = posix__false;
         }

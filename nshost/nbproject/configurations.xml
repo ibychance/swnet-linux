@@ -76,6 +76,17 @@
                    kind="IMPORTANT_FILES_FOLDER">
       <itemPath>Makefile</itemPath>
     </logicalFolder>
+    <logicalFolder name="TestFiles"
+                   displayName="Test Files"
+                   projectFiles="false"
+                   kind="TEST_LOGICAL_FOLDER">
+    </logicalFolder>
+    <logicalFolder name="ExternalFiles"
+                   displayName="Important Files"
+                   projectFiles="false"
+                   kind="IMPORTANT_FILES_FOLDER">
+      <itemPath>Makefile</itemPath>
+    </logicalFolder>
   </logicalFolder>
   <projectmakefile>Makefile</projectmakefile>
   <confs>
@@ -328,11 +339,9 @@
         <cTool>
           <developmentMode>6</developmentMode>
           <architecture>1</architecture>
-          <standard>2</standard>
           <incDir>
             <pElem>../../libnsp/icom</pElem>
           </incDir>
-          <commandLine>-D_POSIX_C_SOURCE=210000L</commandLine>
           <warningLevel>3</warningLevel>
         </cTool>
         <ccTool>
@@ -350,7 +359,7 @@
           <developmentMode>5</developmentMode>
         </asmTool>
         <linkerTool>
-          <output>/usr/local/lib64/nshost.so.8.0.1</output>
+          <output>/usr/local/lib/nshost.so.8.0.1</output>
         </linkerTool>
       </compileType>
       <item path="../../libnsp/com/avltree.c" ex="false" tool="0" flavor2="0">

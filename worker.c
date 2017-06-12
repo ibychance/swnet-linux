@@ -114,6 +114,7 @@ static int run_task(task_node_t *task, pthread_node_t *pthread_node) {
 static void *user(void *p){
     task_node_t *task;
     ncb_t *ncb;
+    int retval;
     
     while (!pthread_parser.stop_){
         if (posix__waitfor_waitable_handle(&pthread_parser.waiter_, -1) < 0) {
@@ -129,13 +130,23 @@ static void *user(void *p){
             list_del(&task->link_);
             posix__pthread_mutex_unlock(&pthread_parser.task_lock_);
             
+            retval = -1;
+            
             ncb = objrefr(task->hld_);
             if (ncb) {
-                ncb->on_userio_(ncb);
+                retval = ncb->on_userio_(ncb);
                 objdefr(task->hld_);
             }
             
-            free(task);
+            if (retval <= 0) {
+                free(task);
+            }else{
+                /* task ¸´ÓÃ */
+                posix__pthread_mutex_lock(&pthread_parser.task_lock_);
+                INIT_LIST_HEAD(&task->link_);
+                list_add_tail(&task->link_,&pthread_parser.task_head_ );
+                posix__pthread_mutex_unlock(&pthread_parser.task_lock_);
+            }
         }
     }
     

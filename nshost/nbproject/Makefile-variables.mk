@@ -24,9 +24,9 @@ CND_PACKAGE_NAME_Debug_x86_64=libnshost.so.tar
 CND_PACKAGE_PATH_Debug_x86_64=dist/Debug_x86_64/GNU-Linux/package/libnshost.so.tar
 # Release configuration
 CND_PLATFORM_Release=GNU-Linux
-CND_ARTIFACT_DIR_Release=/usr/local/lib64
+CND_ARTIFACT_DIR_Release=/usr/local/lib
 CND_ARTIFACT_NAME_Release=nshost.so.8.0.1
-CND_ARTIFACT_PATH_Release=/usr/local/lib64/nshost.so.8.0.1
+CND_ARTIFACT_PATH_Release=/usr/local/lib/nshost.so.8.0.1
 CND_PACKAGE_DIR_Release=dist/Release/GNU-Linux/package
 CND_PACKAGE_NAME_Release=libnshost.so.tar
 CND_PACKAGE_PATH_Release=dist/Release/GNU-Linux/package/libnshost.so.tar
