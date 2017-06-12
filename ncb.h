@@ -32,11 +32,22 @@ enum ncb__protocol_type_t {
     kProtocolType_UDP,
 };
 
-typedef struct {
+enum ncb_user_event_type_t {
+    kUserEvent_Rx = 0,
+    kUserEvent_Syn,
+};
+
+struct user_event_node_t {
+    enum ncb_user_event_type_t     event;
+    int     fd;
+    struct list_head    link;
+    char    event_body[0];
+};
+
+struct user_rx_node_t {
     char                buffer_[RX_NODE_BUFFER_SIZE];
     uint32_t            offset_;    
-    struct list_head    link_;
-}rx_node_t;
+};
 
 typedef struct _ncb {
     int hld_;
@@ -48,9 +59,9 @@ typedef struct _ncb {
     int packet_size_;
     int recv_analyze_offset_;
     char *recv_buffer_;
-    struct list_head rx_list_;
-    posix__pthread_mutex_t rx_lock_;
-    posix__boolean_t rx_parsing_;
+    struct list_head userio_list_;
+    posix__pthread_mutex_t userio_lock_;
+    posix__boolean_t if_userio_running_;
     
     /* 发送操作的顺序队列 */
     packet_fifo_t packet_fifo_;
@@ -80,7 +91,7 @@ typedef struct _ncb {
     /* IO 响应例程 */
     int (*on_read_)(struct _ncb *);
     int (*on_write_)(struct _ncb *);
-    int (*on_parse_)(struct _ncb *);
+    int (*on_userio_)(struct _ncb *);
     
     /* 重要:
      * 用于 write 操作发生 EAGAIN 后
@@ -113,5 +124,7 @@ extern
 void ncb_uninit(int ignore, void */*ncb_t * */ncb);
 extern
 void ncb_report_debug_information(ncb_t *ncb, const char *fmt, ...);
+extern
+void ncb_post_user_task(ncb_t *ncb, struct user_event_node_t *event);
 
 #endif

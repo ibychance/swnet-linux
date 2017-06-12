@@ -23,7 +23,7 @@ int tcp_update_opts(ncb_t *ncb);
 extern
 int tcp_syn(ncb_t *ncb_server);
 extern
-int tcp_parse(ncb_t *ncb);
+int tcp_userio(ncb_t *ncb);
 extern
 int tcp_rx(ncb_t *ncb);
 extern

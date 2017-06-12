@@ -79,8 +79,8 @@ static int run_task(task_node_t *task, pthread_node_t *pthread_node) {
             handler = ncb->on_read_;
         } else if (task->ttype_ == kTaskType_Write) {
             handler = ncb->on_write_;
-        } else if (task->ttype_ == kTaskType_Parse) {
-            handler = ncb->on_parse_;
+        } else if (task->ttype_ == kTaskType_User) {
+            handler = ncb->on_userio_;
         } else {
             break;
         }
@@ -373,7 +373,7 @@ int post_task(objhld_t hld, enum task_type_t ttype) {
     task->ttype_ = ttype;
     task->hld_ = hld;
     
-    if (kTaskType_Parse == ttype){
+    if (kTaskType_User == ttype){
          posix__pthread_mutex_lock(&pthread_parser.task_lock_);
         list_add_tail(&task->link_, &pthread_parser.task_head_);
         posix__pthread_mutex_unlock(&pthread_parser.task_lock_);
