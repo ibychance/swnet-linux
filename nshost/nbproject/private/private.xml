@@ -10,12 +10,15 @@
         <group name="work">
             <file>file:/D:/work/git/lab/swnet-linux/tcp.c</file>
             <file>file:/D:/work/git/lab/swnet-linux/tcpio.c</file>
+            <file>file:/D:/work/git/lab/libnsp/icom/compiler.h</file>
             <file>file:/D:/work/git/lab/swnet-linux/ncb.c</file>
             <file>file:/D:/work/git/lab/swnet-linux/tcp.h</file>
             <file>file:/D:/work/git/lab/swnet-linux/worker.c</file>
             <file>file:/D:/work/git/lab/swnet-linux/udp.h</file>
+            <file>file:/D:/work/git/lab/libnsp/icom/clist.h</file>
             <file>file:/D:/work/git/lab/swnet-linux/worker.h</file>
             <file>file:/D:/work/git/lab/swnet-linux/ncb.h</file>
+            <file>file:/D:/work/git/lab/swnet-linux/io.c</file>
         </group>
     </open-files>
 </project-private>

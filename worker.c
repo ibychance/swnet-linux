@@ -79,8 +79,6 @@ static int run_task(task_node_t *task, pthread_node_t *pthread_node) {
             handler = ncb->on_read_;
         } else if (task->ttype_ == kTaskType_Write) {
             handler = ncb->on_write_;
-        } else if (task->ttype_ == kTaskType_User) {
-            handler = ncb->on_userio_;
         } else {
             break;
         }
@@ -113,8 +111,9 @@ static int run_task(task_node_t *task, pthread_node_t *pthread_node) {
     return retval;
 }
 
-static void *parser(void *p){
+static void *user(void *p){
     task_node_t *task;
+    ncb_t *ncb;
     
     while (!pthread_parser.stop_){
         if (posix__waitfor_waitable_handle(&pthread_parser.waiter_, -1) < 0) {
@@ -129,11 +128,14 @@ static void *parser(void *p){
             }
             list_del(&task->link_);
             posix__pthread_mutex_unlock(&pthread_parser.task_lock_);
-
-            /* 如果发生IO阻止(返回值大于0)， 则任务保留 */
-            if (run_task(task, p) <= 0) {
-                free(task);
+            
+            ncb = objrefr(task->hld_);
+            if (ncb) {
+                ncb->on_userio_(ncb);
+                objdefr(task->hld_);
             }
+            
+            free(task);
         }
     }
     
@@ -241,7 +243,7 @@ int pthread_parser_init(){
     posix__init_synchronous_waitable_handle(&pthread_parser.waiter_);
     
     for (i = 0; i <pthread_parser.thcnt_; i++ ){
-        if (posix__pthread_create(&pthread_parser.parser_[i], &parser, NULL) < 0) {
+        if (posix__pthread_create(&pthread_parser.parser_[i], &user, NULL) < 0) {
             posix__uninit_waitable_handle(&pthread_parser.waiter_);
             posix__pthread_mutex_release(&pthread_parser.task_lock_);
             return -1;
@@ -374,7 +376,7 @@ int post_task(objhld_t hld, enum task_type_t ttype) {
     task->hld_ = hld;
     
     if (kTaskType_User == ttype){
-         posix__pthread_mutex_lock(&pthread_parser.task_lock_);
+        posix__pthread_mutex_lock(&pthread_parser.task_lock_);
         list_add_tail(&task->link_, &pthread_parser.task_head_);
         posix__pthread_mutex_unlock(&pthread_parser.task_lock_);
         posix__sig_waitable_handle(&pthread_parser.waiter_);

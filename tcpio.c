@@ -139,7 +139,14 @@ int tcp_userio(ncb_t *ncb) {
          free(userio_node);
          
         /* 只要当前链表非空， 就无条件再追加一个解析任务， 顶多空转一圈 */
-        post_task(ncb->hld_, kTaskType_User);
+         posix__pthread_mutex_lock(&ncb->userio_lock_);
+         if (!list_empty(&ncb->userio_list_)) {
+             post_task(ncb->hld_, kTaskType_User);
+         }else {
+            ncb->if_userio_running_ = posix__false;
+        }
+         posix__pthread_mutex_unlock(&ncb->userio_lock_);
+        
     }
 
     return retval;
@@ -188,7 +195,7 @@ int tcp_rx(ncb_t *ncb) {
     int errcode;
     struct user_event_node_t *rx_node;
     struct user_rx_node_t *rx_part;
-
+    
     if (NULL == (rx_node = (struct user_event_node_t *) malloc(sizeof (struct user_event_node_t) + sizeof(struct user_rx_node_t)))) {
         return -1;
     }
