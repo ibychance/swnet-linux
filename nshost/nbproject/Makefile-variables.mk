@@ -17,8 +17,8 @@ CND_PACKAGE_PATH_Debug=dist/Debug/GNU-Linux/package/libnshost.so.tar
 # Debug_x86_64 configuration
 CND_PLATFORM_Debug_x86_64=GNU-Linux
 CND_ARTIFACT_DIR_Debug_x86_64=/usr/local/lib64
-CND_ARTIFACT_NAME_Debug_x86_64=nshost.so.8.0.1
-CND_ARTIFACT_PATH_Debug_x86_64=/usr/local/lib64/nshost.so.8.0.1
+CND_ARTIFACT_NAME_Debug_x86_64=nshost.so.8.1.1
+CND_ARTIFACT_PATH_Debug_x86_64=/usr/local/lib64/nshost.so.8.1.1
 CND_PACKAGE_DIR_Debug_x86_64=dist/Debug_x86_64/GNU-Linux/package
 CND_PACKAGE_NAME_Debug_x86_64=libnshost.so.tar
 CND_PACKAGE_PATH_Debug_x86_64=dist/Debug_x86_64/GNU-Linux/package/libnshost.so.tar

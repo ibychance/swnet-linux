@@ -37,13 +37,13 @@ static int udp_update_opts(ncb_t *ncb) {
 
 int udp_init() {
     if (io_init() >= 0) {
-        return pthread_manager_init(0, 0);
+        return wtpinit();
     }
     return -1;
 }
 
 void udp_uninit() {
-    pthread_manager_uninit();
+    wtpuninit();
     io_uninit();
 }
 

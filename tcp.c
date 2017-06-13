@@ -48,13 +48,13 @@ int tcp_update_opts(ncb_t *ncb) {
 /* tcp impls */
 int tcp_init() {
     if (io_init() >= 0) {
-        return pthread_manager_init(0, 0);
+        return wtpinit(0, 0);
     }
     return -1;
 }
 
 void tcp_uninit() {
-    pthread_manager_uninit();
+    wtpuninit();
     io_uninit();
 }
 
@@ -272,7 +272,6 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
             /* 成功完成 SYN, 此时可以关注数据包 */
             ncb->on_read_ = &tcp_rx;
             ncb->on_write_ = &tcp_tx;
-            ncb->on_userio_ = &tcp_userio;
         }
     } else {
         ncb_report_debug_information(ncb, "[TCP]failed connect remote endpoint %s:%d, err=%d\n", r_ipstr, port_remote, e);
@@ -306,7 +305,6 @@ int tcp_listen(HTCPLINK lnk, int block) {
         /* 该 NCB 对象只可能读网络数据， 而且一定是接收链接 */
         ncb->on_read_ = &tcp_syn;
         ncb->on_write_ = NULL;
-        ncb->on_userio_ = &tcp_userio;
         
         retval = 0;
     } while (0);

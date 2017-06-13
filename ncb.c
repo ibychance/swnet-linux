@@ -14,10 +14,6 @@ int ncb_init(ncb_t *ncb) {
     if (ncb) {
         memset(ncb, 0, sizeof (ncb_t));
         
-        /* 直接收包的队列初始化 */
-        INIT_LIST_HEAD(&ncb->userio_list_);
-        posix__pthread_mutex_init(&ncb->userio_lock_);
-
         fque_init(&ncb->packet_fifo_);
 
         /* IO 阻止标志， 初始化为 "非阻止" */
@@ -100,16 +96,4 @@ void ncb_report_debug_information(ncb_t *ncb, const char *fmt, ...) {
     if (ncb->user_callback_) {
         ncb->user_callback_(&c_event, &c_data);
     }
-}
-
-void ncb_post_user_task(ncb_t *ncb, struct user_event_node_t *event){
-    posix__pthread_mutex_lock(&ncb->userio_lock_);
-    list_add_tail(&event->link, &ncb->userio_list_);
-
-    /* 为了保证到达包的线性原则，每个ncb必须保证只有一个任务处于解析状态 */
-    if (!ncb->if_userio_running_) {
-        ncb->if_userio_running_ = posix__true;
-        post_task(ncb->hld_, kTaskType_User);
-    }
-    posix__pthread_mutex_unlock(&ncb->userio_lock_);
 }
