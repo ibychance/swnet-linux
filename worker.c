@@ -15,6 +15,7 @@
 #include "posix_wait.h"
 #include "posix_atomic.h"
 #include "posix_types.h"
+#include "posix_ifos.h"
 
 struct task_node_t {
     objhld_t hld;
@@ -33,7 +34,7 @@ struct worker_thread_manager_t {
 } ;
 
 static int refcnt = 0;
-
+extern uint64_t itime;
 static struct worker_thread_manager_t task_thread_pool;
 
 void add_task(struct task_node_t *task){
@@ -44,6 +45,20 @@ void add_task(struct task_node_t *task){
         ++task_thread_pool.task_list_size;
         posix__pthread_mutex_unlock(&task_thread_pool.task_lock);
     }
+}
+
+struct task_node_t *get_task(){
+    struct task_node_t *task;
+    
+    posix__pthread_mutex_lock(&task_thread_pool.task_lock);
+    if (NULL != (task = list_first_entry_or_null(&task_thread_pool.task_list, struct task_node_t, link))) {
+         --task_thread_pool.task_list_size;
+        list_del(&task->link);
+        INIT_LIST_HEAD(&task->link);
+    }
+    posix__pthread_mutex_unlock(&task_thread_pool.task_lock);
+    
+    return task;
 }
 
 static int run_task(struct task_node_t *task) {
@@ -73,10 +88,52 @@ static int run_task(struct task_node_t *task) {
         }
         
         /* 对象没有指定读写例程， 任务无法处理 */
-        if (task->type == kTaskType_Read) {
-            handler = ncb->on_read_;
-        } else if (task->type == kTaskType_Write) {
-            handler = ncb->on_write_;
+        if (task->type == kTaskType_RxOrder || task->type == kTaskType_RxAttempt) {
+            
+            handler = ncb->ncb_read;
+
+            /* 在任务初步检查过程中， 进行 Rx 操作的序列性校验 
+             * 校验后如果认为需要因为保障序列性而放弃本线程的本次任务，则置空 handler*/
+            if (ncb->proto_type == kProtocolType_TCP) {
+                posix__pthread_mutex_lock(&ncb->rx_prot_lock);
+                do {
+                    if (!ncb->rx_running) {
+                        ncb->rx_running = posix__true;
+                        break;
+                    }
+
+                    /* 正在执行中，需要对来自 epoll 的任务做累加计数处理
+                     * 并在后续过程中将其转换为 attempt 任务 */
+                    if (task->type == kTaskType_RxOrder) {
+                        ncb->rx_order_count++;
+                        handler = NULL;
+                        break;
+                    }
+
+                    /* 正在执行中， 收到尝试任务， 此时判断 order 计数是否为空
+                     * 为空则放弃本次任务
+                     * 不为空则允许执行, 同时递减 order 计数 
+                     *
+                     * 这个逻辑主要用于保证如下特殊情景:
+                     * tcp_rx 运行中读出数据，将内核缓冲区读空，发起一次 attempt 任务后， 已经发现EAGAIN, 但是还没有解除"运行中"状态
+                     * 此时 epoll 触发，并且该任务的线程得到优先调度， 很快的走到任务池中
+                     * 如果仅仅凭tcp_rx 对状态的判断， 不足以保证不丢失数据
+                     * 现行的策略则可以保证每个epoll触发都能在正常流程后增加一次 attempt */
+                    if ((task->type == kTaskType_RxAttempt) && (ncb->rx_order_count > 0)) {
+                        --ncb->rx_order_count;
+                        break;
+                    }
+
+                    /* 没有任何 order 计数的 attempt 任务，说明该任务来自于 Rx 过程的自检
+                     * Rx 过程要求读到 EAGAIN 为止, 只要没有发生 EAGAIN, Rx 过程都会触发继续自检 */
+                    if ((task->type == kTaskType_RxAttempt) && (ncb->rx_order_count == 0)) {
+                        break;
+                    }
+                } while (0);
+                posix__pthread_mutex_unlock(&ncb->rx_prot_lock);
+            }
+        } else if (task->type == kTaskType_TxOrder) {
+            handler = ncb->ncb_write;
         } else {
             break;
         }
@@ -117,16 +174,9 @@ static void *run(void *p) {
             break;
         }
 
-        while (1) {
-            posix__pthread_mutex_lock(&task_thread_pool.task_lock);
-            if (NULL == (task = list_first_entry_or_null(&task_thread_pool.task_list, struct task_node_t, link))) {
-                posix__pthread_mutex_unlock(&task_thread_pool.task_lock);
-                break;
-            }
-            list_del(&task->link);
-            posix__pthread_mutex_unlock(&task_thread_pool.task_lock);
-
-            /* 如果发生IO阻止(返回值大于0)， 则任务保留 */
+        /* 如果发生IO阻止(返回值大于0)， 则任务保留
+             * 否则任务均销毁 */
+        while (NULL != (task = get_task())) {
             if (run_task(task) <= 0) {
                 free(task);
             }
@@ -146,7 +196,7 @@ int wtpinit() {
 
     /* 核心数量 * 2 +2 是什么鬼 */
     task_thread_pool.task_list_size = 0;
-    task_thread_pool.thread_count = get_nprocs() * 2 + 2;
+    task_thread_pool.thread_count = get_nprocs() * 2;// + 2;
 
     if (NULL == (task_thread_pool.threads = (posix__pthread_t *)malloc(task_thread_pool.thread_count * sizeof(posix__pthread_t)))){
         return -1;

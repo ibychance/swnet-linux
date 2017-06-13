@@ -14,7 +14,7 @@ static int udp_update_opts(ncb_t *ncb) {
     if (!ncb) {
         return -1;
     }
-    fd = ncb->fd_;
+    fd = ncb->sockfd;
 
     if (setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (char *) &RECV_BUFFER_SIZE, sizeof ( RECV_BUFFER_SIZE)) < 0) {
         ncb_report_debug_information(ncb, "failed to set SO_RCVBUF, errno=%d.\n", errno);
@@ -36,7 +36,7 @@ static int udp_update_opts(ncb_t *ncb) {
 }
 
 int udp_init() {
-    if (io_init() >= 0) {
+    if (ioinit() >= 0) {
         return wtpinit();
     }
     return -1;
@@ -44,7 +44,7 @@ int udp_init() {
 
 void udp_uninit() {
     wtpuninit();
-    io_uninit();
+    iouninit();
 }
 
 HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16_t l_port, int flag) {
@@ -87,10 +87,10 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         ncb_init(ncb);
 
         /* 复制参数 */
-        ncb->user_callback_ = user_callback;
-        ncb->fd_ = fd;
+        ncb->nis_callback = user_callback;
+        ncb->sockfd = fd;
         ncb->hld_ = hld;
-        ncb->proto_type_ = kProtocolType_UDP;
+        ncb->proto_type = kProtocolType_UDP;
 
         /*ET模型必须保持所有文件描述符异步进行*/
         if (io_raise_asio(fd) < 0) {
@@ -103,15 +103,13 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         }
 
         /*分配包缓冲区*/
-        ncb->packet_size_ = UDP_BUFFER_SIZE;
-        ncb->packet_ = (char *) malloc(ncb->packet_size_);
-        if (!ncb->packet_) {
+        ncb->packet = (char *) malloc(UDP_BUFFER_SIZE);
+        if (!ncb->packet) {
             break;
         }
-        memset(ncb->packet_, 0, ncb->packet_size_);
 
         /* 处理广播对象 */
-        ncb->flag_ = flag;
+        ncb->flag = flag;
         if (flag & UDP_FLAG_BROADCAST) {
             enable_broadcast = 1;
             if (setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &enable_broadcast, sizeof (enable_broadcast)) < 0) {
@@ -120,17 +118,17 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         }
 
         /* 获取本地地址 */
-        getsockname(ncb->fd_, (struct sockaddr *) &ncb->addr_local_, &addrlen);
+        getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen);
 
         /* 附加到 EPOLL */
-        retval = io_attach(ncb->fd_, hld);
+        retval = ioatth(ncb->sockfd, hld);
         if (retval < 0) {
             break;
         }
 
         /* 关注数据包 */
-        ncb->on_read_ = &udp_rx;
-        ncb->on_write_ = &udp_tx;
+        ncb->ncb_read = &udp_rx;
+        ncb->ncb_write = &udp_tx;
         return hld;
     } while (0);
 
@@ -160,7 +158,7 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const c
 
     buffer = NULL;
     do {
-        if (fque_size(&ncb->packet_fifo_) >= UDP_MAXIMUM_SENDER_CACHED_CNT) {
+        if (fque_size(&ncb->tx_fifo) >= UDP_MAXIMUM_SENDER_CACHED_CNT) {
             break;
         }
 
@@ -178,10 +176,10 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const c
         addr.sin_family = AF_INET;
         addr.sin_addr.s_addr = inet_addr(r_ipstr);
         addr.sin_port = htons(r_port);
-        if (fque_push(&ncb->packet_fifo_, buffer, cb, &addr) < 0) {
+        if (fque_push(&ncb->tx_fifo, buffer, cb, &addr) < 0) {
             break;
         }
-        post_task(hld, kTaskType_Write);
+        post_task(hld, kTaskType_TxOrder);
 
         objdefr(hld);
         return 0;
@@ -201,8 +199,8 @@ int udp_getaddr(HUDPLINK lnk, uint32_t *ipv4, uint16_t *port) {
     ncb = objrefr(hld);
     if (!ncb) return -1;
 
-    *ipv4 = htonl(ncb->addr_local_.sin_addr.s_addr);
-    *port = htons(ncb->addr_local_.sin_port);
+    *ipv4 = htonl(ncb->local_addr.sin_addr.s_addr);
+    *port = htons(ncb->local_addr.sin_port);
 
     objdefr(hld);
     return 0;
@@ -216,7 +214,7 @@ int udp_setopt(HUDPLINK lnk, int level, int opt, const char *val, int len) {
     ncb = objrefr(hld);
     if (!ncb) return -1;
 
-    retval = setsockopt(ncb->fd_, level, opt, val, len);
+    retval = setsockopt(ncb->sockfd, level, opt, val, len);
 
     objdefr(hld);
     return retval;
@@ -230,7 +228,7 @@ int udp_getopt(HUDPLINK lnk, int level, int opt, char *val, int *len) {
     ncb = objrefr(hld);
     if (!ncb) return -1;
 
-    retval = getsockopt(ncb->fd_, level, opt, val, (socklen_t *) & len);
+    retval = getsockopt(ncb->sockfd, level, opt, val, (socklen_t *) & len);
 
     objdefr(hld);
     return retval;

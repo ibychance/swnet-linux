@@ -12,18 +12,18 @@
 #include <sys/epoll.h>
 
 extern
-int io_init();
+int ioinit();
 extern
-void io_uninit();
+void iouninit();
 extern
-int io_attach(int fd, int hld);
+int ioatth(int fd, int hld);
 extern
-int io_detach(int fd);
+int iodeth(int fd);
 extern
 int io_raise_asio(int fd);
 extern
-int io_readonly(void *ncbptr,int hld); 
+int iordonly(void *ncbptr,int hld); 
 extern
-int io_rdwr(void *ncbptr, int hld);
+int iordwr(void *ncbptr, int hld);
 
 #endif /* IO_H */

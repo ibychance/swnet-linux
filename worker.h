@@ -13,8 +13,9 @@
 
 enum task_type_t {
     kTaskType_Unknown = 0,
-    kTaskType_Read,
-    kTaskType_Write,
+    kTaskType_RxOrder,
+    kTaskType_RxAttempt,
+    kTaskType_TxOrder,
     kTaskType_Destroy,
 };
 

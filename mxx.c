@@ -22,32 +22,32 @@ int nis_setctx(HLNK lnk, const void * user_context, int user_context_size) {
     ncb = objrefr(hld);
     if (!ncb) return -1;
 
-    ncb->user_context_size_ = 0;
+    ncb->context_size = 0;
 
     /*指定空指针和0长度，可以清空当前的用户上下文*/
     if (!user_context || 0 == user_context_size) {
-        if (ncb->user_context_ && ncb->user_context_size_ > 0) {
-            free(ncb->user_context_);
-            ncb->user_context_ = NULL;
+        if (ncb->context && ncb->context_size > 0) {
+            free(ncb->context);
+            ncb->context = NULL;
         }
         objdefr(hld);
         return 0;
     }
 
     /*确认是否变更了用户上下文的长度*/
-    if (user_context_size != ncb->user_context_size_ && ncb->user_context_) {
-        free(ncb->user_context_);
-        ncb->user_context_ = NULL;
+    if (user_context_size != ncb->context_size && ncb->context) {
+        free(ncb->context);
+        ncb->context = NULL;
     }
-    if (!ncb->user_context_) {
-        ncb->user_context_ = (char *) malloc(user_context_size);
-        if (!ncb->user_context_) {
+    if (!ncb->context) {
+        ncb->context = (char *) malloc(user_context_size);
+        if (!ncb->context) {
             objdefr(hld);
             return -1;
         }
     }
-    ncb->user_context_size_ = user_context_size;
-    memcpy(ncb->user_context_, user_context, ncb->user_context_size_);
+    ncb->context_size = user_context_size;
+    memcpy(ncb->context, user_context, ncb->context_size);
     objdefr(hld);
     return 0;
 }
@@ -61,14 +61,14 @@ int nis_getctx(HLNK lnk, void * user_context, int *user_context_size/*OPT*/) {
     ncb = objrefr(hld);
     if (!ncb) return -1;
 
-    if (!ncb->user_context_ || 0 == ncb->user_context_size_) {
+    if (!ncb->context || 0 == ncb->context_size) {
         objdefr(hld);
         return -1;
     }
 
-    if (user_context_size) *user_context_size = ncb->user_context_size_;
+    if (user_context_size) *user_context_size = ncb->context_size;
 
-    memcpy(user_context, ncb->user_context_, ncb->user_context_size_);
+    memcpy(user_context, ncb->context, ncb->context_size);
     objdefr(hld);
     return 0;
 }
@@ -81,14 +81,14 @@ void *nis_refctx(HLNK lnk, int *user_context_size) {
     ncb = objrefr(hld);
     if (!ncb) return NULL;
 
-    if (!ncb->user_context_ || 0 == ncb->user_context_size_) {
+    if (!ncb->context || 0 == ncb->context_size) {
         objdefr(hld);
         return NULL;
     }
 
-    ctxdata = ncb->user_context_;
+    ctxdata = ncb->context;
     if (user_context_size) {
-        *user_context_size = ncb->user_context_size_;
+        *user_context_size = ncb->context_size;
     }
 
     objdefr(hld);
@@ -103,7 +103,7 @@ int nis_ctxsize(HLNK lnk) {
     ncb = objrefr(hld);
     if (!ncb) return -1;
 
-    cb = ncb->user_context_size_;
+    cb = ncb->context_size;
 
     objdefr(hld);
     return cb;

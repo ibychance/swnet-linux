@@ -61,7 +61,7 @@ OBJECTFILES= \
 
 
 # C Compiler Flags
-CFLAGS=-m64 -D_POSIX_C_SOURCE=21000000L
+CFLAGS=-m64
 
 # CC Compiler Flags
 CCFLAGS=

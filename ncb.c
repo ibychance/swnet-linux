@@ -14,7 +14,11 @@ int ncb_init(ncb_t *ncb) {
     if (ncb) {
         memset(ncb, 0, sizeof (ncb_t));
         
-        fque_init(&ncb->packet_fifo_);
+        posix__pthread_mutex_init(&ncb->rx_prot_lock);
+        ncb->rx_order_count = 0;
+        ncb->rx_running = posix__false;
+        
+        fque_init(&ncb->tx_fifo);
 
         /* IO 阻止标志， 初始化为 "非阻止" */
         ncb->write_io_blocked_ = posix__false;
@@ -35,38 +39,40 @@ void ncb_uninit(int ignore, void *p) {
 
     ncb = (ncb_t *) p;
 
-    if (ncb->fd_ > 0) {
-        shutdown(ncb->fd_, 2);
-        close(ncb->fd_);
-        ncb->fd_ = -1;
+    if (ncb->sockfd > 0) {
+        shutdown(ncb->sockfd, 2);
+        close(ncb->sockfd);
+        ncb->sockfd = -1;
     }
 
-    if (ncb->packet_ && ncb->packet_size_ > 0) {
-        free(ncb->packet_);
-        ncb->packet_ = NULL;
+    if (ncb->packet) {
+        free(ncb->packet);
+        ncb->packet = NULL;
     }
 
-    if (ncb->recv_buffer_) {
-        free(ncb->recv_buffer_);
-        ncb->recv_buffer_ = NULL;
+    if (ncb->rx_buffer) {
+        free(ncb->rx_buffer);
+        ncb->rx_buffer = NULL;
     }
 
     /*释放用户上下文内存*/
-    if (ncb->user_context_ && ncb->user_context_size_ > 0) {
-        free(ncb->user_context_);
-        ncb->user_context_ = NULL;
-        ncb->user_context_size_ = 0;
+    if (ncb->context && ncb->context_size > 0) {
+        free(ncb->context);
+        ncb->context = NULL;
+        ncb->context_size = 0;
     }
 
-    if (ncb->user_callback_ && ncb->hld_ >= 0) {
+    if (ncb->nis_callback && ncb->hld_ >= 0) {
         c_event.Ln.Tcp.Link = ncb->hld_;
         c_event.Event = EVT_CLOSED;
         c_data.e.LinkOption.OptionLink = ncb->hld_;
-        ncb->user_callback_(&c_event, &c_data);
+        ncb->nis_callback(&c_event, &c_data);
     }
 
     /*清空所有仍在缓冲区的未发送包, 这里没有线程安全问题 */
-    fque_uninit(&ncb->packet_fifo_);
+    fque_uninit(&ncb->tx_fifo);
+    
+    posix__pthread_mutex_uninit(&ncb->rx_prot_lock);
 }
 
 void ncb_report_debug_information(ncb_t *ncb, const char *fmt, ...) {
@@ -93,7 +99,7 @@ void ncb_report_debug_information(ncb_t *ncb, const char *fmt, ...) {
     logstr[retval] = 0;
 
     c_data.e.DebugLog.logstr = &logstr[0];
-    if (ncb->user_callback_) {
-        ncb->user_callback_(&c_event, &c_data);
+    if (ncb->nis_callback) {
+        ncb->nis_callback(&c_event, &c_data);
     }
 }
