@@ -20,9 +20,9 @@ enum task_type_t {
 };
 
 extern
-int pthread_manager_init(int rthcnt, int wthcnt);
+int wtpinit();
 extern
-void pthread_manager_uninit();
+void wtpuninit();
 extern
 int post_task(objhld_t hld, enum task_type_t ttype);
 

@@ -359,7 +359,7 @@
           <developmentMode>5</developmentMode>
         </asmTool>
         <linkerTool>
-          <output>/usr/local/lib/nshost.so.8.0.1</output>
+          <output>/usr/local/lib/nshost.so.8.1.1</output>
         </linkerTool>
       </compileType>
       <item path="../../libnsp/com/avltree.c" ex="false" tool="0" flavor2="0">

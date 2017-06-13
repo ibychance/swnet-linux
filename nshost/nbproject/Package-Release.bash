@@ -13,8 +13,8 @@ CND_BUILDDIR=build
 CND_DLIB_EXT=so
 NBTMPDIR=${CND_BUILDDIR}/${CND_CONF}/${CND_PLATFORM}/tmp-packaging
 TMPDIRNAME=tmp-packaging
-OUTPUT_PATH=/usr/local/lib/nshost.so.8.0.1
-OUTPUT_BASENAME=nshost.so.8.0.1
+OUTPUT_PATH=/usr/local/lib/nshost.so.8.1.1
+OUTPUT_BASENAME=nshost.so.8.1.1
 PACKAGE_TOP_DIR=libnshost.so/
 
 # Functions
