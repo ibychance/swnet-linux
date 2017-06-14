@@ -93,7 +93,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         ncb->proto_type = kProtocolType_UDP;
 
         /*ET模型必须保持所有文件描述符异步进行*/
-        if (io_raise_asio(fd) < 0) {
+        if (setasio(fd) < 0) {
             break;
         }
 

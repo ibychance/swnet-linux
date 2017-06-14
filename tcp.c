@@ -10,38 +10,44 @@
 int tcp_update_opts(ncb_t *ncb) {
     int optval;
     struct linger lgr;
-    int fd;
-
+    int disable_nagle;
+    int enable_automatic_keepalive;
+    
     if (!ncb) {
         return -1;
     }
-    fd = ncb->sockfd;
 
     optval = TCP_BUFFER_SIZE;
-    if (setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (char *) &optval, sizeof ( optval)) < 0) {
+    if (setsockopt(ncb->sockfd, SOL_SOCKET, SO_RCVBUF, (char *) &optval, sizeof ( optval)) < 0) {
         ncb_report_debug_information(ncb, "failed to set SO_RCVBUF, errno=%d\n", errno);
         return -1;
     }
-
-    if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, (char *) &optval, sizeof ( optval)) < 0) {
+    if (setsockopt(ncb->sockfd, SOL_SOCKET, SO_SNDBUF, (char *) &optval, sizeof ( optval)) < 0) {
         ncb_report_debug_information(ncb, "failed to set SO_SNDBUF, errno=%d\n", errno);
         return -1;
     }
 
     lgr.l_onoff = 0;
     lgr.l_linger = 1;
-    if (setsockopt(fd, SOL_SOCKET, SO_LINGER, (char *) &lgr, sizeof ( struct linger)) < 0) {
+    if (setsockopt(ncb->sockfd, SOL_SOCKET, SO_LINGER, (char *) &lgr, sizeof ( struct linger)) < 0) {
         ncb_report_debug_information(ncb, "failed to set SO_LINGER, errno=%d\n", errno);
         return -1;
     }
 
     /* 为保证小包效率， 禁用 Nginx 算法 */
-    optval = NS_TCP_NODELAY_SET;
-    if (setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (char *) &optval, sizeof ( optval)) < 0) {
+    disable_nagle = 1;
+    if (setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (char *) &disable_nagle, sizeof ( disable_nagle)) < 0) {
         ncb_report_debug_information(ncb, "failed to set TCP_NODELAY, errno=%d\n", errno);
         return -1;
     }
 
+    // 启用 TCP 心跳
+    enable_automatic_keepalive = 1;
+    if (setsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (const char *) &enable_automatic_keepalive, sizeof ( enable_automatic_keepalive)) < 0) {
+        ncb_report_debug_information(ncb, "failed to set SO_KEEPALIVE, errno=%d\n", errno);
+        return -1;
+    }
+    
     return 0;
 }
 
@@ -109,7 +115,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
         memcpy(&ncb->local_addr, &addrlocal, sizeof (addrlocal));
 
         /*ET模型必须保持所有文件描述符异步进行*/
-        if (io_raise_asio(ncb->sockfd) < 0) {
+        if (setasio(ncb->sockfd) < 0) {
             break;
         }
 

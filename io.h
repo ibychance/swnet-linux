@@ -20,7 +20,9 @@ int ioatth(int fd, int hld);
 extern
 int iodeth(int fd);
 extern
-int io_raise_asio(int fd);
+int setasio(int fd);
+extern
+int setsyio(int fd);
 extern
 int iordonly(void *ncbptr,int hld); 
 extern

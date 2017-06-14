@@ -4,7 +4,6 @@
 
 #include "posix_ifos.h"
 
-extern uint64_t itime;
 
 int tcp_syn(ncb_t *ncb_server) {
     int fd_client;
@@ -59,7 +58,7 @@ int tcp_syn(ncb_t *ncb_server) {
         getsockname(fd_client, (struct sockaddr *) &ncb_client->local_addr, &addrlen); /* 本地的地址信息 */
        
          /*ET模型必须保持所有文件描述符异步进行*/
-        if (io_raise_asio(ncb_client->sockfd) < 0){
+        if (setasio(ncb_client->sockfd) < 0){
             break;
         }
 
@@ -112,16 +111,18 @@ int tcp_rx(ncb_t *ncb) {
     int offset;
     int cpcb;
     int errcode;
+    
+    printf("tcp Rx  %llu\n", posix__clock_gettime());
 
-    recvcb = read(ncb->sockfd, ncb->rx_buffer, TCP_BUFFER_SIZE);
+    recvcb = recv(ncb->sockfd, ncb->rx_buffer, TCP_BUFFER_SIZE, 0);
     errcode = errno;
     if (recvcb > 0) {
         cpcb = recvcb;
         overplus = recvcb;
         offset = 0;
         do {
-            // printf("[%u]escaped: %u\n", posix__gettid(), posix__clock_gettime() - itime);
             overplus = tcp_parse_pkt(ncb, ncb->rx_buffer + offset, cpcb);
+            printf("tcp parsed  %llu\n", posix__clock_gettime());
             if (overplus < 0) {
                 /* 底层协议解析出错，直接关闭该链接 */
                 return -1;
@@ -170,6 +171,8 @@ int tcp_tx(ncb_t *ncb){
     packet_node_t *packet;
     int retval;
     
+    printf("tcp Tx  %llu\n", posix__clock_gettime());
+    
     retval = 0;
     errcode = 0;
     if (!ncb) {
@@ -184,16 +187,19 @@ int tcp_tx(ncb_t *ncb){
     if (NULL == (packet = fque_get(&ncb->tx_fifo))){
         return 0;
     }
-    
+    setsyio(ncb->sockfd);
     /* 仅对头节点执行操作 */
     while(packet->offset_ < packet->wcb_) {
-        retval = write(ncb->sockfd, packet->packet_ + packet->offset_, packet->wcb_ - packet->offset_);
+        //retval = write(ncb->sockfd, packet->packet_ + packet->offset_, packet->wcb_ - packet->offset_);
+        retval = send(ncb->sockfd, packet->packet_ + packet->offset_, packet->wcb_ - packet->offset_, 0);
         errcode = errno;
         if (retval <= 0){
             break;
         }
         packet->offset_ += retval;
     }
+    setasio(ncb->sockfd);
+    printf("Tx over  %llu\n", posix__clock_gettime());
     
     /* 写入缓冲区已满， 激活并等待 EPOLLOUT 才能继续执行下一片写入
      * 此时需要处理队列头节点， 将未处理完的节点还原回队列头 */
