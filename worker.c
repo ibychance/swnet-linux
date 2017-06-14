@@ -73,8 +73,6 @@ static int run_task(struct task_node_t *task) {
     handler = NULL;
     retval = -1;
     
-    printf("running task  %llu\n", posix__clock_gettime());
-    
     /* 对象已经不存在， 任务无法处理 */
     ncb = objrefr(hld);
     if (!ncb) {
@@ -178,12 +176,6 @@ static void *run(void *p) {
         /* 如果发生IO阻止(返回值大于0)， 则任务保留
              * 否则任务均销毁 */
         while (NULL != (task = get_task())) {
-//            if (0 == itime) {
-//                itime = posix__clock_gettime();
-//            }else{
-//                printf("[%llu] task type=%u, interval=%llu\n", posix__gettid(), task->type, posix__clock_gettime() - itime);
-//                itime = posix__clock_gettime();
-//            }
             if (run_task(task) <= 0) {
                 free(task);
             }
@@ -203,7 +195,7 @@ int wtpinit() {
 
     /* 核心数量 * 2 +2 是什么鬼 */
     task_thread_pool.task_list_size = 0;
-    task_thread_pool.thread_count = 1;//get_nprocs() * 2;// + 2;
+    task_thread_pool.thread_count = get_nprocs() * 2;// + 2;
 
     if (NULL == (task_thread_pool.threads = (posix__pthread_t *)malloc(task_thread_pool.thread_count * sizeof(posix__pthread_t)))){
         return -1;

@@ -47,8 +47,6 @@ static int refcnt = 0;
 
 #define USE_IO_DPC (0)
 
-uint64_t otime = 0;
-
 static void io_run(struct epoll_event *evts, int sigcnt){
     int i;
     objhld_t hld;
@@ -84,9 +82,6 @@ static void io_run(struct epoll_event *evts, int sigcnt){
          * TCP 写缓冲区 cat /proc/sys/net/ipv4/tcp_wmem 
          */
         if (evts[i].events & EPOLLOUT) {
-            
-            printf("EPOLLOUT  %llu\n", posix__clock_gettime());
-            
             ncb = objrefr(hld);
             if (ncb) {
                 /* EPOLLOUT 到达， 解除该对象的 IO 阻止
@@ -139,7 +134,6 @@ static void *epoll_proc(void *argv) {
     struct event_node *e_node;
 
     while (epoll_object.epoll_actived_) {
-        printf("epoll wait: %llu\n", posix__clock_gettime());
 #if USE_IO_DPC
         e_node = (struct event_node *) malloc(sizeof (struct event_node));
         assert(e_node);
@@ -148,9 +142,6 @@ static void *epoll_proc(void *argv) {
         if ( e_node->evt_count_ < 0) {
 #else
         sigcnt = epoll_wait(epoll_object.fd_, evts, EPOLL_SIZE, -1);
-        
-        printf("epoll awaken: %llu\n", posix__clock_gettime());
-        
         if (sigcnt < 0) {
 #endif
             errcode = errno;
@@ -162,8 +153,6 @@ static void *epoll_proc(void *argv) {
             printf("[EPOLL] error on epoll_wait, errno=%d.\n", errcode);
             break;
         }
-        
-        printf("epoll working: %llu\n", posix__clock_gettime());
         
 #if USE_IO_DPC
         posix__pthread_mutex_lock(&epoll_object.event_lock_);
