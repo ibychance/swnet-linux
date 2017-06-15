@@ -37,7 +37,7 @@ int udp_rx(ncb_t *ncb) {
 
 int udp_tx(ncb_t *ncb) {
     int errcode;
-    packet_node_t *packet;
+    struct packet_node_t *packet;
     int retval;
 
     retval = 0;
@@ -56,15 +56,15 @@ int udp_tx(ncb_t *ncb) {
     }
 
     /* 仅对头节点执行操作 */
-    while (packet->offset_ < packet->wcb_) {
-        assert(packet->wcb_ > 0);
-        retval = sendto(ncb->sockfd, packet->packet_ + packet->offset_, packet->wcb_ - packet->offset_,
-                0, (struct sockaddr *) &packet->target_, sizeof ( packet->target_));
+    while (packet->offset < packet->wcb) {
+        assert(packet->wcb > 0);
+        retval = sendto(ncb->sockfd, packet->data + packet->offset, packet->wcb - packet->offset,
+                0, (struct sockaddr *) &packet->udp_target, sizeof ( packet->udp_target));
         errcode = errno;
         if (retval <= 0) {
             break;
         }
-        packet->offset_ += retval;
+        packet->offset += retval;
     }
 
     /* 写入缓冲区已满， 激活并等待 EPOLLOUT 才能继续执行下一片写入 */

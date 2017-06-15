@@ -21,7 +21,7 @@ int ncb_init(ncb_t *ncb) {
         fque_init(&ncb->tx_fifo);
 
         /* IO 阻止标志， 初始化为 "非阻止" */
-        ncb->write_io_blocked_ = posix__false;
+        ncb->write_io_blocked = posix__false;
         return 0;
     }
 

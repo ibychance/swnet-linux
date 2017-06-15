@@ -48,7 +48,7 @@ typedef struct _ncb {
     
     
     /* 发送操作的顺序队列 */
-    packet_fifo_t tx_fifo;
+    struct packet_fifo_t tx_fifo;
 
     /* 地址结构信息 */
     struct sockaddr_in remot_addr;
@@ -84,18 +84,18 @@ typedef struct _ncb {
      * 1. 一旦发生逻辑阻挡， 则任务无法继续, 该次任务请求将被丢弃
      * 2. 此项IO阻塞和读线程无关, 必须保证读写互不影响， 否则可能导致因为 io blocked 而无法继续收包
      */
-    posix__boolean_t write_io_blocked_;
+    posix__boolean_t write_io_blocked;
 } ncb_t;
 
 /* 布尔状态表达， 非0则IO阻止， 否则 IO 可行 */
-#define ncb_if_wblocked(ncb)    (ncb->write_io_blocked_)
+#define ncb_if_wblocked(ncb)    (ncb->write_io_blocked)
 
 /* 对这个 NCB 执行 IO 阻塞 */
 #define ncb_mark_wblocked(ncb)   \
-        do { if (!ncb->write_io_blocked_) posix__atomic_xchange(&ncb->write_io_blocked_, posix__true); } while (0);
+        do { if (!ncb->write_io_blocked) posix__atomic_xchange(&ncb->write_io_blocked, posix__true); } while (0);
 
 /* 对这个 NCB 取消 IO 阻塞 */
-#define ncb_cancel_wblock(ncb) posix__atomic_xchange(&ncb->write_io_blocked_, posix__false);
+#define ncb_cancel_wblock(ncb) posix__atomic_xchange(&ncb->write_io_blocked, posix__false);
 
 #define ncb_lb_marked(ncb) ((ncb) ? ((NULL != ncb->lbdata) && (ncb->lbsize > 0)) : (posix__false))
 

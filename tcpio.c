@@ -165,7 +165,7 @@ int tcp_rx(ncb_t *ncb) {
  */
 int tcp_tx(ncb_t *ncb){
     int errcode;
-    packet_node_t *packet;
+    struct packet_node_t *packet;
     int retval;
     
     retval = 0;
@@ -184,14 +184,13 @@ int tcp_tx(ncb_t *ncb){
     }
     
     /* 仅对头节点执行操作 */
-    while(packet->offset_ < packet->wcb_) {
-        //retval = write(ncb->sockfd, packet->packet_ + packet->offset_, packet->wcb_ - packet->offset_);
-        retval = send(ncb->sockfd, packet->packet_ + packet->offset_, packet->wcb_ - packet->offset_, 0);
+    while(packet->offset < packet->wcb) {
+        retval = send(ncb->sockfd, packet->data + packet->offset, packet->wcb - packet->offset, 0);
         errcode = errno;
         if (retval <= 0){
             break;
         }
-        packet->offset_ += retval;
+        packet->offset += retval;
     }
     
     /* 写入缓冲区已满， 激活并等待 EPOLLOUT 才能继续执行下一片写入

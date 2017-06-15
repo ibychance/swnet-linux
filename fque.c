@@ -4,100 +4,100 @@
 #include <string.h>
 #include <errno.h>
 
-void fque_init(packet_fifo_t *fque) {
+void fque_init(struct packet_fifo_t *fque) {
     if (fque) {
-        INIT_LIST_HEAD(&fque->head_);
-        fque->size_ = 0;
-        posix__pthread_mutex_init(&fque->lock_);
+        INIT_LIST_HEAD(&fque->head);
+        fque->size = 0;
+        posix__pthread_mutex_init(&fque->lock);
     }
 }
 
-void fque_uninit(packet_fifo_t *fque) {
-    packet_node_t *node;
+void fque_uninit(struct packet_fifo_t *fque) {
+    struct packet_node_t *node;
 
     if (fque) {
-        posix__pthread_mutex_lock(&fque->lock_);
-        while ((node = list_first_entry_or_null(&fque->head_, packet_node_t, link_)) != NULL) {
-            free(node->packet_);
-            list_del(&node->link_);
+        posix__pthread_mutex_lock(&fque->lock);
+        while ((node = list_first_entry_or_null(&fque->head, struct packet_node_t, link)) != NULL) {
+            free(node->data);
+            list_del(&node->link);
             free(node);
         }
-        posix__pthread_mutex_unlock(&fque->lock_);
-        posix__pthread_mutex_release(&fque->lock_);
+        posix__pthread_mutex_unlock(&fque->lock);
+        posix__pthread_mutex_release(&fque->lock);
     }
 }
 
 /* 注意， 内部不对数据作深拷贝*/
-int fque_push(packet_fifo_t *fque, unsigned char *data, int cb, const struct sockaddr_in *target) {
-    packet_node_t *node;
+int fque_push(struct packet_fifo_t *fque, unsigned char *data, int cb, const struct sockaddr_in *target) {
+    struct packet_node_t *node;
     int retval;
 
     if (!fque || !data || cb <= 0) {
         return -1;
     }
 
-    node = (packet_node_t *) malloc(sizeof (packet_node_t));
+    node = (struct packet_node_t *) malloc(sizeof (struct packet_node_t));
     if (!node) {
         return -1;
     }
-    node->packet_ = data;
-    node->wcb_ = cb;
-    node->offset_ = 0;
+    node->data = data;
+    node->wcb = cb;
+    node->offset = 0;
     if (target) {
-        memcpy(&node->target_, target, sizeof (node->target_));
+        memcpy(&node->udp_target, target, sizeof (node->udp_target));
     }
 
-    posix__pthread_mutex_lock(&fque->lock_);
-    list_add_tail(&node->link_, &fque->head_);
-    retval = ++fque->size_;
-    posix__pthread_mutex_unlock(&fque->lock_);
+    posix__pthread_mutex_lock(&fque->lock);
+    list_add_tail(&node->link, &fque->head);
+    retval = ++fque->size;
+    posix__pthread_mutex_unlock(&fque->lock);
 
     return retval;
 }
 
-int fque_revert(packet_fifo_t *fque, packet_node_t *node) {
+int fque_revert(struct packet_fifo_t *fque, struct packet_node_t *node) {
     int retval;
 
     if (!fque || !node) {
         return -EINVAL;
     }
 
-    posix__pthread_mutex_lock(&fque->lock_);
-    list_add(&node->link_, &fque->head_);
-    retval = ++fque->size_;
-    posix__pthread_mutex_unlock(&fque->lock_);
+    posix__pthread_mutex_lock(&fque->lock);
+    list_add(&node->link, &fque->head);
+    retval = ++fque->size;
+    posix__pthread_mutex_unlock(&fque->lock);
 
     return retval;
 }
 
-packet_node_t *fque_get(packet_fifo_t *fque) {
-    packet_node_t *node;
+struct packet_node_t *fque_get(struct packet_fifo_t *fque) {
+    struct packet_node_t *node;
 
     if (!fque) {
         return NULL;
     }
 
-    posix__pthread_mutex_lock(&fque->lock_);
-    if (NULL != (node = list_first_entry_or_null(&fque->head_, packet_node_t, link_))) {
-        list_del(&node->link_);
-        INIT_LIST_HEAD(&node->link_);
-        --fque->size_;
+    posix__pthread_mutex_lock(&fque->lock);
+    if (NULL != (node = list_first_entry_or_null(&fque->head, struct packet_node_t, link))) {
+        list_del(&node->link);
+        INIT_LIST_HEAD(&node->link);
+        --fque->size;
     }
-    posix__pthread_mutex_unlock(&fque->lock_);
+    posix__pthread_mutex_unlock(&fque->lock);
 
     return node;
 }
 
 extern
-int fque_size(packet_fifo_t *fque) {
+int fque_size(struct packet_fifo_t *fque) {
     int retval;
 
     retval = -1;
 
     if (fque) {
-        posix__pthread_mutex_lock(&fque->lock_);
-        retval = fque->size_;
-        posix__pthread_mutex_unlock(&fque->lock_);
+        posix__pthread_mutex_lock(&fque->lock);
+        retval = fque->size;
+        posix__pthread_mutex_unlock(&fque->lock);
     }
 
     return retval;

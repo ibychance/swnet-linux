@@ -26,21 +26,31 @@
 /* 1024 is just a hint for the kernel */
 #define EPOLL_SIZE    (1024)
 
+#if defined USE_IO_DPC
+#undef USE_IO_DPC
+#endif
+
+#define USE_IO_DPC  (0)
+
+#if USE_IO_DPC
 struct event_node {
     int evt_count_;
     struct epoll_event events_[EPOLL_SIZE];
     struct list_head link_;
 };
+#endif
 
 static struct {
     int fd_;
     posix__boolean_t epoll_actived_;
     posix__pthread_t epoll_thread_; /* EPOLL 线程 */
     struct list_head event_head_; /* struct event_node 组成的事件延迟处理队列 */
+#if USE_IO_DPC
     posix__pthread_mutex_t event_lock_;
     posix__boolean_t delay_actived_;
     posix__waitable_handle_t delay_waiter_; /* 唤醒延迟处理线程 */
     posix__pthread_t delay_thread_; /* 延迟处理线程 */
+#endif
 } epoll_object;
 
 static int refcnt = 0;
@@ -97,6 +107,7 @@ static void io_run(struct epoll_event *evts, int sigcnt){
     }
 }
 
+#if USE_IO_DPC
 static void *delay_proc(void *argv) {
     int sigcnt;
     struct epoll_event *evts;
@@ -126,6 +137,7 @@ static void *delay_proc(void *argv) {
     
     return NULL;
 }
+#endif
 
 static void *epoll_proc(void *argv) {
     struct epoll_event evts[EPOLL_SIZE];
@@ -188,14 +200,16 @@ int ioinit() {
 
     do {
         retval = -1;
-
-        INIT_LIST_HEAD(&epoll_object.event_head_);
-
+        
         /* 创建 EPOLL 的 IO 线程 */
         epoll_object.epoll_actived_ = posix__true;
         if (posix__pthread_create(&epoll_object.epoll_thread_, &epoll_proc, NULL) < 0) {
             break;
         }
+
+#if USE_IO_DPC
+        INIT_LIST_HEAD(&epoll_object.event_head_);
+        posix__pthread_mutex_init(&epoll_object.event_lock_);
 
         /* 创建 EPOLL 的 BH 线程 */
         epoll_object.delay_actived_ = posix__true;
@@ -205,8 +219,8 @@ int ioinit() {
         if (posix__pthread_create(&epoll_object.epoll_thread_, &delay_proc, NULL) < 0) {
             break;
         }
-
-        posix__pthread_mutex_init(&epoll_object.event_lock_);
+#endif
+        
         retval = 0;
     } while (0);
 
@@ -215,17 +229,21 @@ int ioinit() {
 
         epoll_object.epoll_actived_ = posix__false;
         posix__pthread_join(&epoll_object.epoll_thread_, NULL);
+        
+#if USE_IO_DPC
         epoll_object.delay_actived_ = posix__false;
         posix__pthread_join(&epoll_object.delay_thread_, NULL);
-        
         posix__uninit_waitable_handle(&epoll_object.delay_waiter_);
+#endif
     }
     return retval;
 }
 
 void iouninit() {
+#if USE_IO_DPC
     struct event_node *enode;
-
+#endif
+    
     if (0 == refcnt) {
         return;
     }
@@ -248,6 +266,7 @@ void iouninit() {
         return;
     }
 
+#if USE_IO_DPC
     if (epoll_object.delay_actived_) {
         posix__atomic_xchange(&epoll_object.delay_actived_, posix__false);
         posix__sig_waitable_handle(&epoll_object.delay_waiter_);
@@ -264,6 +283,7 @@ void iouninit() {
     posix__pthread_mutex_unlock(&epoll_object.event_lock_);
     INIT_LIST_HEAD(&epoll_object.event_head_);
     posix__pthread_mutex_release(&epoll_object.event_lock_);
+#endif
 }
 
 int ioatth(int fd, int hld) {
