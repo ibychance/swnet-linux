@@ -9,7 +9,7 @@ LDFLAGS=-shared
 ifeq ($(DEBUG_SYMBOLS),TRUE)
 	CFLAGS+=-g
 else
-	CFLAGS+=-o3
+	CFLAGS+=-O3
 endif
 
 all:$(TARGET)
