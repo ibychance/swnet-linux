@@ -1,10 +1,10 @@
-TARGET=nshost.so.$(VERSION)
+TARGET=nshost.so.8.1.1
 
-SRCS=$(wildcard *.c)
+SRCS=$(wildcard *.c) $(wildcard ../libnsp/com/*.c)
 OBJS=$(patsubst %.c,%.o,$(SRCS))
 
-CFLAGS+=-I ../../libnsp/icom -fPIC -Wall
-LDFLAGS=-L ../ -lnsp -lpthread -lrt -ldl -shared
+CFLAGS+=-I ../libnsp/icom -fPIC -Wall
+LDFLAGS=-shared
 
 ifeq ($(DEBUG_SYMBOLS),TRUE)
 	CFLAGS+=-g
@@ -24,5 +24,3 @@ clean:
 	$(RM) $(OBJS) $(TARGET) ../$(TARGET)
 
 .PHONY:clean all
-
-include ../Makefile.rule

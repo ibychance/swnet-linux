@@ -131,7 +131,9 @@ static void *epoll_proc(void *argv) {
     struct epoll_event evts[EPOLL_SIZE];
     int sigcnt;
     int errcode;
+#if USE_IO_DPC
     struct event_node *e_node;
+#endif
 
     while (epoll_object.epoll_actived_) {
 #if USE_IO_DPC
