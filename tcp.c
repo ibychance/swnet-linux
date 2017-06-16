@@ -108,7 +108,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
 
     do {
         ncb_init(ncb);
-        ncb->hld_ = hld;
+        ncb->hld = hld;
         ncb->sockfd = fd;
         ncb->proto_type = kProtocolType_TCP;
         ncb->nis_callback = user_callback;
@@ -266,7 +266,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
         getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* 本地的地址信息 */
 
 
-        retval = ioatth(ncb->sockfd, ncb->hld_);
+        retval = ioatth(ncb->sockfd, ncb->hld);
         if (retval >= 0) {
             /* 成功连接后需要确定本地和对端的地址信息 */
             addrlen = sizeof (struct sockaddr);
@@ -302,7 +302,7 @@ int tcp_listen(HTCPLINK lnk, int block) {
             break;
         }
 
-        if (ioatth(ncb->sockfd, ncb->hld_) < 0) {
+        if (ioatth(ncb->sockfd, ncb->hld) < 0) {
             break;
         }
 

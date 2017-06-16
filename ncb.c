@@ -62,10 +62,10 @@ void ncb_uninit(int ignore, void *p) {
         ncb->context_size = 0;
     }
 
-    if (ncb->nis_callback && ncb->hld_ >= 0) {
-        c_event.Ln.Tcp.Link = ncb->hld_;
+    if (ncb->nis_callback && ncb->hld >= 0) {
+        c_event.Ln.Tcp.Link = ncb->hld;
         c_event.Event = EVT_CLOSED;
-        c_data.e.LinkOption.OptionLink = ncb->hld_;
+        c_data.e.LinkOption.OptionLink = ncb->hld;
         ncb->nis_callback(&c_event, &c_data);
     }
 
@@ -86,7 +86,7 @@ void ncb_report_debug_information(ncb_t *ncb, const char *fmt, ...) {
         return;
     }
 
-    c_event.Ln.Udp.Link = ncb->hld_;
+    c_event.Ln.Udp.Link = ncb->hld;
     c_event.Event = EVT_DEBUG_LOG;
 
     va_start(ap, fmt);

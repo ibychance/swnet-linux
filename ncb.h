@@ -31,7 +31,7 @@ enum ncb__protocol_type_t {
 };
 
 typedef struct _ncb {
-    int hld_;
+    int hld;
     int sockfd;
     enum ncb__protocol_type_t proto_type;
 

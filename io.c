@@ -40,19 +40,20 @@ struct event_node {
 };
 #endif
 
-static struct {
-    int fd_;
-    posix__boolean_t epoll_actived_;
-    posix__pthread_t epoll_thread_; /* EPOLL 线程 */
-    struct list_head event_head_; /* struct event_node 组成的事件延迟处理队列 */
+struct epoll_object_t{
+    int epfd;
+    posix__boolean_t actived;
+    posix__pthread_t thread; /* EPOLL 线程 */
 #if USE_IO_DPC
+    struct list_head event_head_; /* struct event_node 组成的事件延迟处理队列 */
     posix__pthread_mutex_t event_lock_;
     posix__boolean_t delay_actived_;
     posix__waitable_handle_t delay_waiter_; /* 唤醒延迟处理线程 */
     posix__pthread_t delay_thread_; /* 延迟处理线程 */
 #endif
-} epoll_object;
+} ;
 
+static struct epoll_object_t epoll_object;
 static int refcnt = 0;
 
 #define USE_IO_DPC (0)
@@ -147,15 +148,15 @@ static void *epoll_proc(void *argv) {
     struct event_node *e_node;
 #endif
 
-    while (epoll_object.epoll_actived_) {
+    while (epoll_object.actived) {
 #if USE_IO_DPC
         e_node = (struct event_node *) malloc(sizeof (struct event_node));
         assert(e_node);
          
-        e_node->evt_count_ = epoll_wait(epoll_object.fd_, e_node->events_, EPOLL_SIZE, -1);
+        e_node->evt_count_ = epoll_wait(epoll_object.epfd, e_node->events_, EPOLL_SIZE, -1);
         if ( e_node->evt_count_ < 0) {
 #else
-        sigcnt = epoll_wait(epoll_object.fd_, evts, EPOLL_SIZE, -1);
+        sigcnt = epoll_wait(epoll_object.epfd, evts, EPOLL_SIZE, -1);
         if (sigcnt < 0) {
 #endif
             errcode = errno;
@@ -192,8 +193,8 @@ int ioinit() {
     /* 对一个已经关闭的链接执行 write, 返回 EPIPE 的同时会 raise 一个SIGPIPE 信号，需要忽略处理 */
     signal(SIGPIPE, SIG_IGN);
 
-    epoll_object.fd_ = epoll_create(EPOLL_SIZE);
-    if (epoll_object.fd_ < 0) {
+    epoll_object.epfd = epoll_create(EPOLL_SIZE);
+    if (epoll_object.epfd < 0) {
         printf("[EPOLL] failed to allocate file descriptor.\n");
         return -1;
     }
@@ -202,8 +203,8 @@ int ioinit() {
         retval = -1;
         
         /* 创建 EPOLL 的 IO 线程 */
-        epoll_object.epoll_actived_ = posix__true;
-        if (posix__pthread_create(&epoll_object.epoll_thread_, &epoll_proc, NULL) < 0) {
+        epoll_object.actived = posix__true;
+        if (posix__pthread_create(&epoll_object.thread, &epoll_proc, NULL) < 0) {
             break;
         }
 
@@ -216,7 +217,7 @@ int ioinit() {
         if (posix__init_synchronous_waitable_handle(&epoll_object.delay_waiter_) < 0) {
             break;
         }
-        if (posix__pthread_create(&epoll_object.epoll_thread_, &delay_proc, NULL) < 0) {
+        if (posix__pthread_create(&epoll_object.thread, &delay_proc, NULL) < 0) {
             break;
         }
 #endif
@@ -225,10 +226,9 @@ int ioinit() {
     } while (0);
 
     if (retval < 0) {
-        close(epoll_object.fd_);
-
-        epoll_object.epoll_actived_ = posix__false;
-        posix__pthread_join(&epoll_object.epoll_thread_, NULL);
+        close(epoll_object.epfd);
+        epoll_object.actived = posix__false;
+        posix__pthread_join(&epoll_object.thread, NULL);
         
 #if USE_IO_DPC
         epoll_object.delay_actived_ = posix__false;
@@ -254,15 +254,15 @@ void iouninit() {
     }
 
     /* EPOLL 描述符如果已经打开， 则关闭 */
-    if (epoll_object.fd_ > 0) {
-        close(epoll_object.fd_);
-        epoll_object.fd_ = -1;
+    if (epoll_object.epfd > 0) {
+        close(epoll_object.epfd);
+        epoll_object.epfd = -1;
     }
 
     /* IO 对象被激活， 则结束 */
-    if (epoll_object.epoll_actived_) {
-        posix__atomic_xchange(&epoll_object.epoll_actived_, posix__false);
-        posix__pthread_join(&epoll_object.epoll_thread_, NULL);
+    if (epoll_object.actived) {
+        posix__atomic_xchange(&epoll_object.actived, posix__false);
+        posix__pthread_join(&epoll_object.thread, NULL);
         return;
     }
 
@@ -270,7 +270,7 @@ void iouninit() {
     if (epoll_object.delay_actived_) {
         posix__atomic_xchange(&epoll_object.delay_actived_, posix__false);
         posix__sig_waitable_handle(&epoll_object.delay_waiter_);
-        posix__pthread_join(&epoll_object.epoll_thread_, NULL);
+        posix__pthread_join(&epoll_object.thread, NULL);
         posix__uninit_waitable_handle(&epoll_object.delay_waiter_);
     }
 
@@ -289,13 +289,13 @@ void iouninit() {
 int ioatth(int fd, int hld) {
     struct epoll_event e_evt;
 
-    if (-1 == epoll_object.fd_) {
+    if (-1 == epoll_object.epfd) {
         return -1;
     }
 
     e_evt.data.fd = hld;
     e_evt.events = (EPOLLET | EPOLLRDHUP | EPOLLIN); /* | EPOLLOUT);*/
-    return epoll_ctl(epoll_object.fd_, EPOLL_CTL_ADD, fd, &e_evt);
+    return epoll_ctl(epoll_object.epfd, EPOLL_CTL_ADD, fd, &e_evt);
 }
 
 int iordonly(void *ncbptr, int hld){
@@ -304,7 +304,7 @@ int iordonly(void *ncbptr, int hld){
 
     ncb = (ncb_t *)ncbptr;
     
-    if (!ncb || (-1 == epoll_object.fd_)){
+    if (!ncb || (-1 == epoll_object.epfd)){
         return -EINVAL;
     }
     
@@ -312,7 +312,7 @@ int iordonly(void *ncbptr, int hld){
 
     e_evt.data.fd = hld;
     e_evt.events = EPOLLET | EPOLLRDHUP | EPOLLIN;
-    return epoll_ctl(epoll_object.fd_, EPOLL_CTL_MOD, ncb->sockfd, &e_evt);
+    return epoll_ctl(epoll_object.epfd, EPOLL_CTL_MOD, ncb->sockfd, &e_evt);
 }
 
 int iordwr(void *ncbptr, int hld){
@@ -321,7 +321,7 @@ int iordwr(void *ncbptr, int hld){
 
     ncb = (ncb_t *)ncbptr;
     
-    if (!ncb || (-1 == epoll_object.fd_)) {
+    if (!ncb || (-1 == epoll_object.epfd)) {
         return -1;
     }
     
@@ -329,12 +329,12 @@ int iordwr(void *ncbptr, int hld){
 
     e_evt.data.fd = hld;
     e_evt.events = EPOLLET | EPOLLRDHUP | EPOLLIN | EPOLLOUT;
-    return epoll_ctl(epoll_object.fd_, EPOLL_CTL_MOD, ncb->sockfd, &e_evt);
+    return epoll_ctl(epoll_object.epfd, EPOLL_CTL_MOD, ncb->sockfd, &e_evt);
 }
 
 int iodeth(int fd) {
     struct epoll_event evt;
-    return epoll_ctl(epoll_object.fd_, EPOLL_CTL_DEL, fd, &evt);
+    return epoll_ctl(epoll_object.epfd, EPOLL_CTL_DEL, fd, &evt);
 }
 
 int setasio(int fd) {

@@ -27,7 +27,7 @@ int tcp_syn(ncb_t *ncb_server) {
         // syn 操作等效于 Rx 操作
         posix__pthread_mutex_lock(&ncb_server->rx_prot_lock);
         if (ncb_server->rx_order_count > 0){
-            post_task(ncb_server->hld_, kTaskType_RxAttempt);
+            post_task(ncb_server->hld, kTaskType_RxAttempt);
         }else{
             ncb_server->rx_running = posix__false;
         }
@@ -37,7 +37,7 @@ int tcp_syn(ncb_t *ncb_server) {
 
     /* 为了防止有残留在内核缓冲区的syn请求不能被正确处理， 这里只要不是EAGAIN，均增加一个读取任务，
      * 性能损耗最多就一个空转 */
-    post_task(ncb_server->hld_, kTaskType_RxAttempt);
+    post_task(ncb_server->hld, kTaskType_RxAttempt);
      
     hld_client = objallo(sizeof ( ncb_t), &objentry, &ncb_uninit, NULL, 0);
     if (hld_client < 0) {
@@ -48,7 +48,7 @@ int tcp_syn(ncb_t *ncb_server) {
     
     do {
         ncb_init(ncb_client);
-        ncb_client->hld_ = hld_client;
+        ncb_client->hld = hld_client;
         ncb_client->sockfd = fd_client;
         ncb_client->proto_type = kProtocolType_TCP;
         ncb_client->nis_callback = ncb_server->nis_callback;
@@ -86,7 +86,7 @@ int tcp_syn(ncb_t *ncb_server) {
         
          /*回调通知上层, 有链接到来*/
         c_event.Event = EVT_TCP_ACCEPTED;
-        c_event.Ln.Tcp.Link = ncb_server->hld_;
+        c_event.Ln.Tcp.Link = ncb_server->hld;
         c_data.e.Accept.AcceptLink = hld_client;
         if (ncb_server->nis_callback) {
             ncb_server->nis_callback(&c_event, &c_data);
@@ -130,7 +130,7 @@ int tcp_rx(ncb_t *ncb) {
 
         /*这个过程确定在 tcp_receive_thread_proc 线程锁内执行 
           为了防止任何一个链接饿死, 这里对任何链接都不作recv完的处理, 而是采用追加任务的方法 */
-        post_task(ncb->hld_, kTaskType_RxAttempt);
+        post_task(ncb->hld, kTaskType_RxAttempt);
     }
 
     /*对端断开*/
@@ -150,7 +150,7 @@ int tcp_rx(ncb_t *ncb) {
          * 否则， 将标志位设置为 Rx 不在运行中*/
         posix__pthread_mutex_lock(&ncb->rx_prot_lock);
         if (ncb->rx_order_count > 0){
-            post_task(ncb->hld_, kTaskType_RxAttempt);
+            post_task(ncb->hld, kTaskType_RxAttempt);
         }else{
             ncb->rx_running = posix__false;
         }
@@ -197,7 +197,7 @@ int tcp_tx(ncb_t *ncb){
      * 此时需要处理队列头节点， 将未处理完的节点还原回队列头 */
     if ((EAGAIN == errcode ) && (retval < 0)){
         fque_revert(&ncb->tx_fifo, packet);
-        iordwr(ncb, ncb->hld_);
+        iordwr(ncb, ncb->hld);
         return EAGAIN;
     }
     
@@ -210,7 +210,7 @@ int tcp_tx(ncb_t *ncb){
     }
     
     /* 对端断开， 或， 其他不可容忍的错误 */
-    printf("failed write to socket.hld=%d, error message=%s.\n", ncb->hld_, strerror(errcode));
-    objclos(ncb->hld_);
+    printf("failed write to socket.hld=%d, error message=%s.\n", ncb->hld, strerror(errcode));
+    objclos(ncb->hld);
     return -1;
 }

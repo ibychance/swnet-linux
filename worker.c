@@ -34,7 +34,6 @@ struct worker_thread_manager_t {
 } ;
 
 static int refcnt = 0;
-uint64_t itime = 0;
 static struct worker_thread_manager_t task_thread_pool;
 
 void add_task(struct task_node_t *task){
@@ -154,7 +153,7 @@ static int run_task(struct task_node_t *task) {
         if (retval/*EAGAIN*/ > 0) {
             add_task(task);
         } else if (retval < 0) {
-            objclos(ncb->hld_);
+            objclos(ncb->hld);
         } else /*0 == retval*/ {
             ;
         }

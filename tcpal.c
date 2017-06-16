@@ -18,7 +18,7 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
 
     /* 没有指定包头模板， 直接回调整个TCP包 */
     if (0 == ncb->template.cb_) {
-        c_event.Ln.Tcp.Link = (HTCPLINK) ncb->hld_;
+        c_event.Ln.Tcp.Link = (HTCPLINK) ncb->hld;
         c_event.Event = EVT_RECEIVEDATA;
         c_data.e.Packet.Size = cpcb;
         c_data.e.Packet.Data = (const char *) ((char *) data);
@@ -44,7 +44,7 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
 
         /*完成组包, 回调给上层模块*/
         if (ncb->nis_callback) {
-            c_event.Ln.Tcp.Link = ncb->hld_;
+            c_event.Ln.Tcp.Link = ncb->hld;
             c_event.Event = EVT_RECEIVEDATA;
             c_data.e.Packet.Data = (ncb->lbdata + ncb->template.cb_);
             c_data.e.Packet.Size = ncb->lbsize - ncb->template.cb_;
@@ -119,7 +119,7 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
         retcb = (overplus - (total_packet_length - ncb->rx_parse_offset));
 
         /*完成组包, 回调给上层模块*/
-        c_event.Ln.Tcp.Link = ncb->hld_;
+        c_event.Ln.Tcp.Link = ncb->hld;
         c_event.Event = EVT_RECEIVEDATA;
         c_data.e.Packet.Data = (ncb->packet + ncb->template.cb_);
         c_data.e.Packet.Size = user_data_size;

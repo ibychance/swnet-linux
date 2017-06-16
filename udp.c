@@ -89,7 +89,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         /* 复制参数 */
         ncb->nis_callback = user_callback;
         ncb->sockfd = fd;
-        ncb->hld_ = hld;
+        ncb->hld = hld;
         ncb->proto_type = kProtocolType_UDP;
 
         /*ET模型必须保持所有文件描述符异步进行*/
