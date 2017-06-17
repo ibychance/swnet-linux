@@ -11,21 +11,25 @@
 
 #include <sys/epoll.h>
 
+enum io_poll_mask_t {
+    kPollMask_Oneshot = 1,          // 允许epoll增加 EPOLLONESHOT
+    kPollMask_Read = 2,             // 允许epoll关注 EPOLLIN
+    kPollMask_Write = 4,            // 允许epoll关注 EPOLLOUT
+};
+
 extern
 int ioinit();
 extern
 void iouninit();
 extern
-int ioatth(int fd, int hld);
+int ioatth(void *ncbptr, enum io_poll_mask_t mask);
+extern
+int iomod(void *ncbptr, enum io_poll_mask_t mask );
 extern
 int iodeth(int fd);
 extern
 int setasio(int fd);
 extern
 int setsyio(int fd);
-extern
-int iordonly(void *ncbptr,int hld); 
-extern
-int iordwr(void *ncbptr, int hld);
 
 #endif /* IO_H */

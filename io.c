@@ -26,42 +26,18 @@
 /* 1024 is just a hint for the kernel */
 #define EPOLL_SIZE    (1024)
 
-#if defined USE_IO_DPC
-#undef USE_IO_DPC
-#endif
-
-#define USE_IO_DPC  (0)
-
-#if USE_IO_DPC
-struct event_node {
-    int evt_count_;
-    struct epoll_event events_[EPOLL_SIZE];
-    struct list_head link_;
-};
-#endif
-
 struct epoll_object_t{
     int epfd;
     posix__boolean_t actived;
     posix__pthread_t thread; /* EPOLL 线程 */
-#if USE_IO_DPC
-    struct list_head event_head_; /* struct event_node 组成的事件延迟处理队列 */
-    posix__pthread_mutex_t event_lock_;
-    posix__boolean_t delay_actived_;
-    posix__waitable_handle_t delay_waiter_; /* 唤醒延迟处理线程 */
-    posix__pthread_t delay_thread_; /* 延迟处理线程 */
-#endif
 } ;
 
 static struct epoll_object_t epoll_object;
 static int refcnt = 0;
 
-#define USE_IO_DPC (0)
-
 static void io_run(struct epoll_event *evts, int sigcnt){
     int i;
     objhld_t hld;
-    ncb_t *ncb;
     
     for (i = 0; i < sigcnt; i++) {
         hld = evts[i].data.fd;
@@ -70,7 +46,7 @@ static void io_run(struct epoll_event *evts, int sigcnt){
         }
 
         if (evts[i].events & EPOLLRDHUP) {
-            post_task(hld, kTaskType_Destroy);
+            post_read_task(hld, kTaskType_Destroy);
             continue;
         }
 
@@ -82,83 +58,37 @@ static void io_run(struct epoll_event *evts, int sigcnt){
          * TCP 读缓冲区  cat /proc/sys/net/ipv4/tcp_rmem 
          */
         if (evts[i].events & EPOLLIN) {
-            post_task(hld, kTaskType_RxOrder);
+            //printf("[%u] io EPOLLIN %llu\n", posix__gettid(), posix__clock_gettime());
+            post_read_task(hld, kTaskType_RxOrder);
         }
 
         /*
+         * ET模式下，EPOLLOUT触发条件有：
+            1.缓冲区满-->缓冲区非满；
+            2.同时监听EPOLLOUT和EPOLLIN事件 时，当有IN 事件发生，都会顺带一个OUT事件；
+            3.一个客户端connect过来，accept成功后会触发一次OUT事件。
+
          * 注意事项:
-         * 1. EPOLLOUT 一旦被关注， 则每个写入缓冲区不满 EPOLLIN 都会携带触发一次
+         * 1. (EPOLLIN | EPOLLOUT) 一旦被关注， 则每个写入缓冲区不满 EPOLLIN 都会携带触发一次, 损耗性能， 且不容易操作 oneshot
          * 2. 平常无需关注 EPOLLOUT
          * 3. 一旦写入操作发生 EAGAIN, 则下一个写入操作能且只能由 EPOLLOUT 发起(关注状态切换)
          * TCP 写缓冲区 cat /proc/sys/net/ipv4/tcp_wmem 
          */
         if (evts[i].events & EPOLLOUT) {
-            ncb = objrefr(hld);
-            if (ncb) {
-                /* EPOLLOUT 到达， 解除该对象的 IO 阻止
-                 *  解除对象对 EPOLLOUT 的关注 */
-                iordonly(ncb, hld);
-
-                /* 投递写任务 */
-                post_task(hld, kTaskType_TxOrder);
-
-                objdefr(hld);
-            }
+             //printf("[%u] io EPOLLOUT %llu\n", posix__gettid(), posix__clock_gettime());
+            post_write_task(hld, kTaskType_TxOrder);
         }
     }
 }
-
-#if USE_IO_DPC
-static void *delay_proc(void *argv) {
-    int sigcnt;
-    struct epoll_event *evts;
-    struct event_node *e_node;
-
-    while (epoll_object.delay_actived_) {
-        if (posix__waitfor_waitable_handle(&epoll_object.delay_waiter_, -1) < 0) {
-            break;
-        }
-
-        while (1) {
-            posix__pthread_mutex_lock(&epoll_object.event_lock_);
-            if (NULL == (e_node = list_first_entry_or_null(&epoll_object.event_head_, struct event_node, link_))) {
-                posix__pthread_mutex_unlock(&epoll_object.event_lock_);
-                break;
-            }
-            list_del(&e_node->link_);
-            posix__pthread_mutex_unlock(&epoll_object.event_lock_);
-
-            sigcnt = e_node->evt_count_;
-            evts = &e_node->events_[0];
-
-            io_run(evts, sigcnt);
-            free(e_node);
-        }
-    }
-    
-    return NULL;
-}
-#endif
 
 static void *epoll_proc(void *argv) {
     struct epoll_event evts[EPOLL_SIZE];
     int sigcnt;
     int errcode;
-#if USE_IO_DPC
-    struct event_node *e_node;
-#endif
 
     while (epoll_object.actived) {
-#if USE_IO_DPC
-        e_node = (struct event_node *) malloc(sizeof (struct event_node));
-        assert(e_node);
-         
-        e_node->evt_count_ = epoll_wait(epoll_object.epfd, e_node->events_, EPOLL_SIZE, -1);
-        if ( e_node->evt_count_ < 0) {
-#else
         sigcnt = epoll_wait(epoll_object.epfd, evts, EPOLL_SIZE, -1);
         if (sigcnt < 0) {
-#endif
             errcode = errno;
 
             /* EINTR表示被更高级的系统调用打断，包括一次recv无法完成的缓冲区接收 */
@@ -168,15 +98,7 @@ static void *epoll_proc(void *argv) {
             printf("[EPOLL] error on epoll_wait, errno=%d.\n", errcode);
             break;
         }
-        
-#if USE_IO_DPC
-        posix__pthread_mutex_lock(&epoll_object.event_lock_);
-        list_add_tail(&e_node->link_, &epoll_object.event_head_);
-        posix__pthread_mutex_unlock(&epoll_object.event_lock_);
-        posix__sig_waitable_handle(&epoll_object.delay_waiter_);
-#else
         io_run(evts, sigcnt);
-#endif
     }
 
     printf("[EPOLL] services trunk loop terminated.\n");
@@ -207,20 +129,6 @@ int ioinit() {
         if (posix__pthread_create(&epoll_object.thread, &epoll_proc, NULL) < 0) {
             break;
         }
-
-#if USE_IO_DPC
-        INIT_LIST_HEAD(&epoll_object.event_head_);
-        posix__pthread_mutex_init(&epoll_object.event_lock_);
-
-        /* 创建 EPOLL 的 BH 线程 */
-        epoll_object.delay_actived_ = posix__true;
-        if (posix__init_synchronous_waitable_handle(&epoll_object.delay_waiter_) < 0) {
-            break;
-        }
-        if (posix__pthread_create(&epoll_object.thread, &delay_proc, NULL) < 0) {
-            break;
-        }
-#endif
         
         retval = 0;
     } while (0);
@@ -229,20 +137,11 @@ int ioinit() {
         close(epoll_object.epfd);
         epoll_object.actived = posix__false;
         posix__pthread_join(&epoll_object.thread, NULL);
-        
-#if USE_IO_DPC
-        epoll_object.delay_actived_ = posix__false;
-        posix__pthread_join(&epoll_object.delay_thread_, NULL);
-        posix__uninit_waitable_handle(&epoll_object.delay_waiter_);
-#endif
     }
     return retval;
 }
 
 void iouninit() {
-#if USE_IO_DPC
-    struct event_node *enode;
-#endif
     
     if (0 == refcnt) {
         return;
@@ -265,70 +164,53 @@ void iouninit() {
         posix__pthread_join(&epoll_object.thread, NULL);
         return;
     }
-
-#if USE_IO_DPC
-    if (epoll_object.delay_actived_) {
-        posix__atomic_xchange(&epoll_object.delay_actived_, posix__false);
-        posix__sig_waitable_handle(&epoll_object.delay_waiter_);
-        posix__pthread_join(&epoll_object.thread, NULL);
-        posix__uninit_waitable_handle(&epoll_object.delay_waiter_);
-    }
-
-    /* 清空所有的未处理 EPOLL 事件节点 */
-    posix__pthread_mutex_lock(&epoll_object.event_lock_);
-    while (NULL != (enode = list_first_entry_or_null(&epoll_object.event_head_, struct event_node, link_))) {
-        list_del(&enode->link_);
-        free(enode);
-    }
-    posix__pthread_mutex_unlock(&epoll_object.event_lock_);
-    INIT_LIST_HEAD(&epoll_object.event_head_);
-    posix__pthread_mutex_release(&epoll_object.event_lock_);
-#endif
 }
 
-int ioatth(int fd, int hld) {
+int ioatth(void *ncbptr, enum io_poll_mask_t mask) {
     struct epoll_event e_evt;
+    ncb_t *ncb;
 
     if (-1 == epoll_object.epfd) {
         return -1;
     }
-
-    e_evt.data.fd = hld;
-    e_evt.events = (EPOLLET | EPOLLRDHUP | EPOLLIN); /* | EPOLLOUT);*/
-    return epoll_ctl(epoll_object.epfd, EPOLL_CTL_ADD, fd, &e_evt);
-}
-
-int iordonly(void *ncbptr, int hld){
-    ncb_t *ncb;
-    struct epoll_event e_evt;
-
-    ncb = (ncb_t *)ncbptr;
     
-    if (!ncb || (-1 == epoll_object.epfd)){
-        return -EINVAL;
+    ncb = (ncb_t *)ncbptr;
+
+    e_evt.data.fd = ncb->hld;
+    e_evt.events = (EPOLLET | EPOLLRDHUP); 
+    if (mask & kPollMask_Oneshot) {
+        e_evt.events |= EPOLLONESHOT;
     }
-    
-    ncb_cancel_wblock(ncb);
-
-    e_evt.data.fd = hld;
-    e_evt.events = EPOLLET | EPOLLRDHUP | EPOLLIN;
-    return epoll_ctl(epoll_object.epfd, EPOLL_CTL_MOD, ncb->sockfd, &e_evt);
+    if (mask & kPollMask_Read) {
+        e_evt.events |= EPOLLIN;
+    }
+    if (mask & kPollMask_Write){
+        e_evt.events |= EPOLLOUT;
+    }
+    return epoll_ctl(epoll_object.epfd, EPOLL_CTL_ADD, ncb->sockfd, &e_evt);
 }
 
-int iordwr(void *ncbptr, int hld){
+int iomod(void *ncbptr, enum io_poll_mask_t mask ) {
     struct epoll_event e_evt;
     ncb_t *ncb;
 
-    ncb = (ncb_t *)ncbptr;
-    
-    if (!ncb || (-1 == epoll_object.epfd)) {
+    if (-1 == epoll_object.epfd) {
         return -1;
     }
     
-    ncb_mark_wblocked(ncb);
+    ncb = (ncb_t *)ncbptr;
 
-    e_evt.data.fd = hld;
-    e_evt.events = EPOLLET | EPOLLRDHUP | EPOLLIN | EPOLLOUT;
+    e_evt.data.fd = ncb->hld;
+    e_evt.events = (EPOLLET | EPOLLRDHUP | EPOLLIN); 
+    if (mask & kPollMask_Oneshot) {
+        e_evt.events |= EPOLLONESHOT;
+    }
+    if (mask & kPollMask_Read) {
+        e_evt.events |= EPOLLIN;
+    }
+    if (mask & kPollMask_Write){
+        e_evt.events |= EPOLLOUT;
+    }
     return epoll_ctl(epoll_object.epfd, EPOLL_CTL_MOD, ncb->sockfd, &e_evt);
 }
 

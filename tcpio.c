@@ -27,17 +27,17 @@ int tcp_syn(ncb_t *ncb_server) {
         // syn 操作等效于 Rx 操作
         posix__pthread_mutex_lock(&ncb_server->rx_prot_lock);
         if (ncb_server->rx_order_count > 0){
-            post_task(ncb_server->hld, kTaskType_RxAttempt);
+            post_read_task(ncb_server->hld, kTaskType_RxTest);
         }else{
             ncb_server->rx_running = posix__false;
         }
         posix__pthread_mutex_unlock(&ncb_server->rx_prot_lock);
-        return 0;
+        return EAGAIN;
     }
 
     /* 为了防止有残留在内核缓冲区的syn请求不能被正确处理， 这里只要不是EAGAIN，均增加一个读取任务，
      * 性能损耗最多就一个空转 */
-    post_task(ncb_server->hld, kTaskType_RxAttempt);
+    // post_read_task(ncb_server->hld, kTaskType_RxTest);
      
     hld_client = objallo(sizeof ( ncb_t), &objentry, &ncb_uninit, NULL, 0);
     if (hld_client < 0) {
@@ -92,7 +92,7 @@ int tcp_syn(ncb_t *ncb_server) {
             ncb_server->nis_callback(&c_event, &c_data);
         }
         
-        if (ioatth(fd_client, hld_client ) < 0){
+        if (ioatth(ncb_client, kPollMask_Read ) < 0){
             break;
         }
         
@@ -127,10 +127,6 @@ int tcp_rx(ncb_t *ncb) {
             offset += (cpcb - overplus);
             cpcb = overplus;
         } while (overplus > 0);
-
-        /*这个过程确定在 tcp_receive_thread_proc 线程锁内执行 
-          为了防止任何一个链接饿死, 这里对任何链接都不作recv完的处理, 而是采用追加任务的方法 */
-        post_task(ncb->hld, kTaskType_RxAttempt);
     }
 
     /*对端断开*/
@@ -150,11 +146,12 @@ int tcp_rx(ncb_t *ncb) {
          * 否则， 将标志位设置为 Rx 不在运行中*/
         posix__pthread_mutex_lock(&ncb->rx_prot_lock);
         if (ncb->rx_order_count > 0){
-            post_task(ncb->hld, kTaskType_RxAttempt);
+            post_read_task(ncb->hld, kTaskType_RxTest);
         }else{
             ncb->rx_running = posix__false;
         }
         posix__pthread_mutex_unlock(&ncb->rx_prot_lock);
+        return EAGAIN;
     }
     
     return 0;
@@ -174,18 +171,18 @@ int tcp_tx(ncb_t *ncb){
         return -1;
     }
     
-    /* 如果写IO阻塞， 则直接返回重新尝试 */
-    if (ncb_if_wblocked(ncb)){
-        return EAGAIN;
-    }
+    //printf("[%u]write 1. %llu\n", posix__gettid(), posix__clock_gettime());
     
     if (NULL == (packet = fque_get(&ncb->tx_fifo))){
-        return 0;
+        return 1;
     }
+    
+    //printf("[%u]write 2. %llu\n", posix__gettid(), posix__clock_gettime());
     
     /* 仅对头节点执行操作 */
     while(packet->offset < packet->wcb) {
-        retval = send(ncb->sockfd, packet->data + packet->offset, packet->wcb - packet->offset, 0);
+        retval = write(ncb->sockfd, packet->data + packet->offset, packet->wcb - packet->offset);
+        //printf("[%u]write 2.5 %llu\n", posix__gettid(), posix__clock_gettime());
         errcode = errno;
         if (retval <= 0){
             break;
@@ -193,11 +190,13 @@ int tcp_tx(ncb_t *ncb){
         packet->offset += retval;
     }
     
+    //printf("[%u]write 3. %llu\n", posix__gettid(), posix__clock_gettime());
+    
     /* 写入缓冲区已满， 激活并等待 EPOLLOUT 才能继续执行下一片写入
-     * 此时需要处理队列头节点， 将未处理完的节点还原回队列头 */
+     * 此时需要处理队列头节点， 将未处理完的节点还原回队列头
+     * oneshot 方式强制关注写入操作完成点 */
     if ((EAGAIN == errcode ) && (retval < 0)){
         fque_revert(&ncb->tx_fifo, packet);
-        iordwr(ncb, ncb->hld);
         return EAGAIN;
     }
     
@@ -211,6 +210,5 @@ int tcp_tx(ncb_t *ncb){
     
     /* 对端断开， 或， 其他不可容忍的错误 */
     printf("failed write to socket.hld=%d, error message=%s.\n", ncb->hld, strerror(errcode));
-    objclos(ncb->hld);
     return -1;
 }

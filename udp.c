@@ -37,14 +37,16 @@ static int udp_update_opts(ncb_t *ncb) {
 
 int udp_init() {
     if (ioinit() >= 0) {
-        return wtpinit();
+        read_pool_init();
+        write_pool_init();
     }
     return -1;
 }
 
 void udp_uninit() {
-    wtpuninit();
     iouninit();
+    read_pool_uninit();
+    write_pool_uninit();
 }
 
 HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16_t l_port, int flag) {
@@ -121,7 +123,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen);
 
         /* 附加到 EPOLL */
-        retval = ioatth(ncb->sockfd, hld);
+        retval = ioatth(ncb, kPollMask_Read);
         if (retval < 0) {
             break;
         }
@@ -158,7 +160,8 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const c
 
     buffer = NULL;
     do {
-        if (fque_size(&ncb->tx_fifo) >= UDP_MAXIMUM_SENDER_CACHED_CNT) {
+        /* 发送队列过长， 或者当前处于发送IO隔离阶段， 无法进行发送操作 */
+        if ((fque_size(&ncb->tx_fifo) >= UDP_MAXIMUM_SENDER_CACHED_CNT) || ncb_if_wblocked(ncb)) {
             break;
         }
 
@@ -179,7 +182,7 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const c
         if (fque_push(&ncb->tx_fifo, buffer, cb, &addr) < 0) {
             break;
         }
-        post_task(hld, kTaskType_TxOrder);
+        post_write_task(hld, kTaskType_TxTest);
 
         objdefr(hld);
         return 0;

@@ -12,7 +12,7 @@ int tcp_update_opts(ncb_t *ncb) {
     struct linger lgr;
     int disable_nagle;
     int enable_automatic_keepalive;
-    
+
     if (!ncb) {
         return -1;
     }
@@ -47,21 +47,23 @@ int tcp_update_opts(ncb_t *ncb) {
         ncb_report_debug_information(ncb, "failed to set SO_KEEPALIVE, errno=%d\n", errno);
         return -1;
     }
-    
+
     return 0;
 }
 
 /* tcp impls */
 int tcp_init() {
     if (ioinit() >= 0) {
-        return wtpinit(0, 0);
+        read_pool_init();
+        write_pool_init();
     }
     return -1;
 }
 
 void tcp_uninit() {
-    wtpuninit();
     iouninit();
+    read_pool_uninit();
+    write_pool_uninit();
 }
 
 HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16_t l_port) {
@@ -265,8 +267,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
         getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* 对端的地址信息 */
         getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* 本地的地址信息 */
 
-
-        retval = ioatth(ncb->sockfd, ncb->hld);
+        retval = ioatth(ncb, kPollMask_Read);
         if (retval >= 0) {
             /* 成功连接后需要确定本地和对端的地址信息 */
             addrlen = sizeof (struct sockaddr);
@@ -302,14 +303,14 @@ int tcp_listen(HTCPLINK lnk, int block) {
             break;
         }
 
-        if (ioatth(ncb->sockfd, ncb->hld) < 0) {
+        if (ioatth(ncb, kPollMask_Read) < 0) {
             break;
         }
 
         /* 该 NCB 对象只可能读网络数据， 而且一定是接收链接 */
         ncb->ncb_read = &tcp_syn;
         ncb->ncb_write = NULL;
-        
+
         retval = 0;
     } while (0);
 
@@ -335,7 +336,8 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
     }
 
     do {
-        if (fque_size(&ncb->tx_fifo) >= TCP_MAXIMUM_SENDER_CACHED_CNT) {
+        /* 发送队列过长， 或者当前处于发送IO隔离阶段， 无法进行发送操作 */
+        if ((fque_size(&ncb->tx_fifo) >= TCP_MAXIMUM_SENDER_CACHED_CNT) || ncb_if_wblocked(ncb)) {
             break;
         }
 
@@ -365,8 +367,8 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
         if (fque_push(&ncb->tx_fifo, buffer, cb + ncb->template.cb_, NULL) < 0) {
             break;
         }
-        
-        post_task(hld, kTaskType_TxOrder);
+
+        post_write_task(hld, kTaskType_TxTest);
 
         objdefr(hld);
         return 0;

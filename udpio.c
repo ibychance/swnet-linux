@@ -21,10 +21,6 @@ int udp_rx(ncb_t *ncb) {
         if (ncb->nis_callback) {
             ncb->nis_callback(&c_event, &c_data);
         }
-
-        /*这个过程确定在 tcp_receive_thread_proc 线程锁内执行 
-           为了防止任何一个链接饿死, 这里对任何链接都不作recv完的处理, 而是采用追加任务的方法 */
-        post_task(ncb->hld, kTaskType_RxOrder);
     }
 
     /* ECONNRESET 104 Connection reset by peer */
@@ -70,7 +66,8 @@ int udp_tx(ncb_t *ncb) {
     /* 写入缓冲区已满， 激活并等待 EPOLLOUT 才能继续执行下一片写入 */
     if ((EAGAIN == errcode) && (retval < 0)) {
         fque_revert(&ncb->tx_fifo, packet);
-        iordwr(ncb, ncb->hld);
+        ncb_mark_wblocked(ncb);
+        iomod(ncb, kPollMask_Read | kPollMask_Write);
         return EAGAIN;
     }
 
