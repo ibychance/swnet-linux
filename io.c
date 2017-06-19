@@ -47,7 +47,6 @@ static void io_run(struct epoll_event *evts, int sigcnt){
 
         if (evts[i].events & EPOLLRDHUP) {
             post_read_task(hld, kTaskType_Destroy);
-            continue;
         }
 
         /*
@@ -58,7 +57,6 @@ static void io_run(struct epoll_event *evts, int sigcnt){
          * TCP ¶Á»º³åÇø  cat /proc/sys/net/ipv4/tcp_rmem 
          */
         if (evts[i].events & EPOLLIN) {
-            //printf("[%u] io EPOLLIN %llu\n", posix__gettid(), posix__clock_gettime());
             post_read_task(hld, kTaskType_RxOrder);
         }
 
@@ -75,7 +73,6 @@ static void io_run(struct epoll_event *evts, int sigcnt){
          * TCP Ð´»º³åÇø cat /proc/sys/net/ipv4/tcp_wmem 
          */
         if (evts[i].events & EPOLLOUT) {
-             //printf("[%u] io EPOLLOUT %llu\n", posix__gettid(), posix__clock_gettime());
             post_write_task(hld, kTaskType_TxOrder);
         }
     }

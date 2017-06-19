@@ -97,7 +97,6 @@ static int run_task(struct task_node_t *task) {
              * 如果仅仅凭tcp_rx 对状态的判断， 不足以保证不丢失数据
              * 现行的策略则可以保证每个epoll触发都能在正常流程后增加一次 RxTest */
             if ((task->type == kTaskType_RxTest) && (ncb->rx_order_count > 0)) {
-                //printf("read decrement.\n");
                 --ncb->rx_order_count;
                 break;
             }
@@ -111,7 +110,6 @@ static int run_task(struct task_node_t *task) {
             /* 正在执行中，需要对来自 epoll 的任务做累加计数处理
              * 并在后续过程中将其转换为 RxTest 任务, 但本次任务将被阻止 */
             if (task->type == kTaskType_RxOrder) {
-                //printf("read increment.\n");
                 ncb->rx_order_count++;
             }
             objdefr(hld);
@@ -121,13 +119,11 @@ static int run_task(struct task_node_t *task) {
         posix__pthread_mutex_unlock(&ncb->rx_prot_lock);
     }
 
-    //printf("[%u]befor ncb read %llu\n", posix__gettid(), posix__clock_gettime());
     retval = ncb->ncb_read(ncb);
     
     /* 本轮顺利从内核缓冲区读出数据，复用任务，发起自检
      * 为了防止任何一个链接饿死, 这里对任何链接都不作recv完的处理, 而是采用追加任务的方法 */
     if (0 == retval){
-        //printf("[%u] read ok %llu\n", posix__gettid(), posix__clock_gettime());
         task->type = kTaskType_RxTest;
         add_task(task);
     }
@@ -139,7 +135,7 @@ static int run_task(struct task_node_t *task) {
     
     /* EAGAIN  */
     else if (retval > 0){
-        //printf("[%u]read EAGAIN %llu\n", posix__gettid(), posix__clock_gettime());
+        ;
     }
 
     objdefr(hld);

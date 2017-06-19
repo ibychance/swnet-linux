@@ -80,7 +80,6 @@ static int run_task(struct write_thread_node *thread, struct task_node_t *task) 
         }
     }
     
-    //printf("[%u]befor ncb write %llu\n", posix__gettid(), posix__clock_gettime());
     /*
      * 代码走到此处，只能有两种情况
      * 1. 没有发生IO隔离
@@ -95,19 +94,12 @@ static int run_task(struct write_thread_node *thread, struct task_node_t *task) 
     
     /* 本次节点顺利写入内核  */
     else if (0 == retval) {
-        //printf("[%u]write ok. %llu\n", posix__gettid(), posix__clock_gettime());
-        
         /* 如果是在IO隔离期间发生的完成写入，则取消IO隔离，同时切换EPOLL关注读出缓冲区
          */
         if (task->type == kTaskType_TxOrder && ncb_if_wblocked(ncb) ) {
             ncb_cancel_wblock(ncb);
             iomod(ncb, kPollMask_Read);
-            //printf("write block canceled.\n");
         }
-        
-        /* 调度线程发起一个 TxTest 用于尝试下一个待写入片段, 保留任务内存 */
-//        task->type = kTaskType_TxTest;
-//        add_task(thread, task);
     }
     
     /* 
@@ -115,14 +107,13 @@ static int run_task(struct write_thread_node *thread, struct task_node_t *task) 
      * 设置IO隔离， 同时将EPOLL设置为关注写入缓冲区
      */
     else if (EAGAIN == retval ){
-        //printf("[%u]write EAGAIN %llu\n", posix__gettid(), posix__clock_gettime());
         ncb_mark_wblocked(ncb);
         iomod(ncb, kPollMask_Read | kPollMask_Write);
     }
     
     /* 没有任何数据需要写入， 本轮轮空 */
     else {
-        //printf("[%u]write nothing %llu\n", posix__gettid(), posix__clock_gettime());;
+        ;
     }
     
     objdefr(hld);

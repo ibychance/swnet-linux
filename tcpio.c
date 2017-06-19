@@ -171,26 +171,19 @@ int tcp_tx(ncb_t *ncb){
         return -1;
     }
     
-    //printf("[%u]write 1. %llu\n", posix__gettid(), posix__clock_gettime());
-    
     if (NULL == (packet = fque_get(&ncb->tx_fifo))){
         return 1;
     }
     
-    //printf("[%u]write 2. %llu\n", posix__gettid(), posix__clock_gettime());
-    
     /* 仅对头节点执行操作 */
     while(packet->offset < packet->wcb) {
         retval = write(ncb->sockfd, packet->data + packet->offset, packet->wcb - packet->offset);
-        //printf("[%u]write 2.5 %llu\n", posix__gettid(), posix__clock_gettime());
         errcode = errno;
         if (retval <= 0){
             break;
         }
         packet->offset += retval;
     }
-    
-    //printf("[%u]write 3. %llu\n", posix__gettid(), posix__clock_gettime());
     
     /* 写入缓冲区已满， 激活并等待 EPOLLOUT 才能继续执行下一片写入
      * 此时需要处理队列头节点， 将未处理完的节点还原回队列头
