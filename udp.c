@@ -148,6 +148,7 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const c
     struct sockaddr_in addr;
     objhld_t hld = (objhld_t) lnk;
     unsigned char *buffer;
+    int retval, offset;
 
     if (!maker || !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > MTU)) {
         return -1;
@@ -179,11 +180,28 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const c
         addr.sin_family = AF_INET;
         addr.sin_addr.s_addr = inet_addr(r_ipstr);
         addr.sin_port = htons(r_port);
-        if (fque_push(&ncb->tx_fifo, buffer, cb, &addr) < 0) {
-            break;
+        
+         /* 如果写IO阻塞， 则只能使用任务模式 */
+        if (ncb_if_wblocked(ncb)) {
+            fque_push(&ncb->tx_fifo, buffer, cb, &addr);
+            post_write_task(hld, kTaskType_TxTest);
         }
-        post_write_task(hld, kTaskType_TxTest);
-
+        
+        /* 因为UDP并不强保证包序，因此可以尝试直接发送数据, 且不用关注线程问题 */
+        else {
+            offset = 0;
+            retval = udp_direct_tx(ncb, buffer, &offset, cb, &addr);
+            if (retval < 0) {
+                break; 
+            }
+            if (0 != retval) {
+                if (EAGAIN != retval) {
+                    break;
+                }
+                fque_priority_push(&ncb->tx_fifo, buffer, cb - offset, offset, &addr);
+                post_write_task(hld, kTaskType_TxTest);
+            }
+        }
         objdefr(hld);
         return 0;
     } while (0);

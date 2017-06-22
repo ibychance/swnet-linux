@@ -16,6 +16,15 @@
 /* udp io */
 extern
 int udp_rx(ncb_t *ncb);
+
+/*
+ * 返回值定义:
+ * 0          全部数据写入内核
+ * >0         发生错误， 返回errno
+ * <0        致命错误， 无需处理
+ */
+extern
+int udp_direct_tx(ncb_t *ncb, const unsigned char *data, int *offset, int size, const struct sockaddr_in *target);
 extern
 int udp_tx(ncb_t *ncb);
 

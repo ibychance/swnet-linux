@@ -31,13 +31,34 @@ int udp_rx(ncb_t *ncb) {
     return 0;
 }
 
+int udp_direct_tx(ncb_t *ncb, const unsigned char *data, int *offset, int size, const struct sockaddr_in *target){
+    int retval;
+    int wcb;
+    
+    if (!ncb || !data || !offset || size <= 0 || !target ) {
+        return EINVAL;
+    }
+    
+    wcb = size;
+    while (*offset < wcb){
+        retval = sendto(ncb->sockfd, data + *offset, wcb - *offset,
+                0, (struct sockaddr *) target, sizeof ( struct sockaddr_in ));
+        if (retval < 0){
+            return errno;
+        }
+        if (0 == retval){
+            return -1;
+        }
+        *offset += retval;
+    }
+    
+    return 0;
+}
+
 int udp_tx(ncb_t *ncb) {
-    int errcode;
     struct packet_node_t *packet;
     int retval;
 
-    retval = 0;
-    errcode = 0;
     if (!ncb) {
         return -1;
     }
@@ -50,36 +71,25 @@ int udp_tx(ncb_t *ncb) {
     if (NULL == (packet = fque_get(&ncb->tx_fifo))) {
         return -1;
     }
-
-    /* 仅对头节点执行操作 */
-    while (packet->offset < packet->wcb) {
-        assert(packet->wcb > 0);
-        retval = sendto(ncb->sockfd, packet->data + packet->offset, packet->wcb - packet->offset,
-                0, (struct sockaddr *) &packet->udp_target, sizeof ( packet->udp_target));
-        errcode = errno;
-        if (retval <= 0) {
+    
+     /* 仅对头节点执行操作 */
+    do {
+        retval = udp_direct_tx(ncb, packet->data, &packet->offset, packet->wcb, &packet->udp_target);
+        if (retval <= 0){
             break;
         }
-        packet->offset += retval;
-    }
-
-    /* 写入缓冲区已满， 激活并等待 EPOLLOUT 才能继续执行下一片写入 */
-    if ((EAGAIN == errcode) && (retval < 0)) {
-        fque_revert(&ncb->tx_fifo, packet);
-        ncb_mark_wblocked(ncb);
-        iomod(ncb, kPollMask_Read | kPollMask_Write);
-        return EAGAIN;
-    }
+        
+        /* 写入缓冲区已满， 激活并等待 EPOLLOUT 才能继续执行下一片写入 */
+        if ((EAGAIN == retval)) {
+            fque_revert(&ncb->tx_fifo, packet);
+            ncb_mark_wblocked(ncb);
+            iomod(ncb, kPollMask_Read | kPollMask_Write);
+            return EAGAIN;
+        }
+        
+    }while( 0 );
 
     /* 除了需要还原队列头节点的情况， 其余任何情况都已经不再关注包节点， 可以释放 */
     PACKET_NODE_FREE(packet);
-
-    /* 写入操作正常完成 */
-    if (retval > 0) {
-        return 0;
-    }
-
-    /* 不可容忍的错误 */
-    ncb_report_debug_information(ncb, "failed write to socket, error message=%s.\n", strerror(errcode));
-    return -1;
+    return retval;
 }

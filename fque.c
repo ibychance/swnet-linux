@@ -27,6 +27,33 @@ void fque_uninit(struct packet_fifo_t *fque) {
     }
 }
 
+int fque_priority_push(struct packet_fifo_t *fque, unsigned char *data, int cb, int offset, const struct sockaddr_in *target) {
+    struct packet_node_t *node;
+    int retval;
+
+    if (!fque || !data || cb <= 0) {
+        return -1;
+    }
+
+    node = (struct packet_node_t *) malloc(sizeof (struct packet_node_t));
+    if (!node) {
+        return -1;
+    }
+    node->data = data;
+    node->wcb = cb;
+    node->offset = offset;
+    if (target) {
+        memcpy(&node->udp_target, target, sizeof (node->udp_target));
+    }
+
+    posix__pthread_mutex_lock(&fque->lock);
+    list_add(&node->link, &fque->head);
+    retval = ++fque->size;
+    posix__pthread_mutex_unlock(&fque->lock);
+
+    return retval;
+}
+
 /* 注意， 内部不对数据作深拷贝*/
 int fque_push(struct packet_fifo_t *fque, unsigned char *data, int cb, const struct sockaddr_in *target) {
     struct packet_node_t *node;

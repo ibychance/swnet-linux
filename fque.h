@@ -32,7 +32,8 @@ void fque_init(struct packet_fifo_t *fque);
 extern
 void fque_uninit(struct packet_fifo_t *fque);
 
-
+extern
+int fque_priority_push(struct packet_fifo_t *fque, unsigned char *data, int cb, int offset, const struct sockaddr_in *target);
 extern
 int fque_push(struct packet_fifo_t *fque, unsigned char *data, int cb, const struct sockaddr_in *target); /* 注意， 内部不对数据作深拷贝, 该指针必须保证是堆内存*/
 
