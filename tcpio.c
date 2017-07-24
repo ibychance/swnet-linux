@@ -4,8 +4,8 @@
 
 #include "posix_ifos.h"
 
-
-int tcp_syn(ncb_t *ncb_server) {
+static
+int tcpi_syn(ncb_t *ncb_server) {
     int fd_client;
     struct sockaddr_in addr_income;
     socklen_t addrlen;
@@ -19,30 +19,25 @@ int tcp_syn(ncb_t *ncb_server) {
      fd_client = accept(ncb_server->sockfd, (struct sockaddr *) &addr_income, &addrlen);
      errcode = errno;
      if (fd_client < 0) {
+         
+         /* 系统调用中断， 可以立即执行再一次读取操作 */
+         if (errcode == EINTR) {
+             return 0;
+         }
+         
          /*已经没有数据可供读出，不需要继续为工作线程投递读取任务，等待下一次的EPOLL边界触发通知*/
-        if ((errcode != EAGAIN) && (errcode != EINTR) && (errcode != EWOULDBLOCK)) {
-            return -1;
+        if ((errcode == EAGAIN) || (errcode == EWOULDBLOCK)) {
+            return EAGAIN;
         }
-        
-        // syn 操作等效于 Rx 操作
-        posix__pthread_mutex_lock(&ncb_server->rx_prot_lock);
-        if (ncb_server->rx_order_count > 0){
-            post_read_task(ncb_server->hld, kTaskType_RxTest);
-        }else{
-            ncb_server->rx_running = posix__false;
-        }
-        posix__pthread_mutex_unlock(&ncb_server->rx_prot_lock);
-        return EAGAIN;
+         
+        return -1;
     }
-
-    /* 为了防止有残留在内核缓冲区的syn请求不能被正确处理， 这里只要不是EAGAIN，均增加一个读取任务，
-     * 性能损耗最多就一个空转 */
-    // post_read_task(ncb_server->hld, kTaskType_RxTest);
      
+     /* 已经得到了对端链接， 无需在处理客户链接的初始化等操作时，返回失败 */
     hld_client = objallo(sizeof ( ncb_t), &objentry, &ncb_uninit, NULL, 0);
     if (hld_client < 0) {
         close(fd_client);
-        return -1;
+        return 0;
     }
     ncb_client = objrefr(hld_client);
     
@@ -105,12 +100,26 @@ int tcp_syn(ncb_t *ncb_server) {
     return 0;
 }
 
-int tcp_rx(ncb_t *ncb) {
+int tcp_syn(ncb_t *ncb_server) {
+    int retval;
+    
+    tcp_save_info(ncb_server);
+    
+    do {
+        retval = tcpi_syn(ncb_server);
+    } while (0 == retval);
+    return retval;
+}
+
+static
+int tcpi_rx(ncb_t *ncb){
     int recvcb;
     int overplus;
     int offset;
     int cpcb;
     int errcode;
+    
+    tcp_save_info(ncb);
     
     recvcb = recv(ncb->sockfd, ncb->rx_buffer, TCP_BUFFER_SIZE, 0);
     errcode = errno;
@@ -133,28 +142,38 @@ int tcp_rx(ncb_t *ncb) {
     if (0 == recvcb) {
         return -1;
     }
-
+    
     /* ECONNRESET 104 Connection reset by peer */
     if (recvcb < 0) {
-        /*已经没有数据可供读出，不需要继续为工作线程投递读取任务，等待下一次的EPOLL边界触发通知*/
-        if ((errcode != EAGAIN) && (errcode != EINTR) && (errcode != EWOULDBLOCK)) {
-            return -1;
+        
+        /* 任何系统中断导致的读数据返回，且还没有任何数据来得及写入应用层缓冲区
+         * 此时应该立即再执行一次读操作 */
+        if (errcode == EINTR) {
+            return 0;
         }
         
-        /* 发生EAGAIN, 则证明当前缓冲区无数据可读，此时需要对TCP的Rx整体状态进行调整 
-         * 如果有 order 计数存在， 则继续投递 attempt 任务
-         * 否则， 将标志位设置为 Rx 不在运行中*/
-        posix__pthread_mutex_lock(&ncb->rx_prot_lock);
-        if (ncb->rx_order_count > 0){
-            post_read_task(ncb->hld, kTaskType_RxTest);
-        }else{
-            ncb->rx_running = posix__false;
+        /*已经没有数据可供读出，不需要继续为工作线程投递读取任务，等待下一次的EPOLL边界触发通知*/
+        if ((errcode == EAGAIN) || (errcode == EWOULDBLOCK)) {
+            return EAGAIN;
         }
-        posix__pthread_mutex_unlock(&ncb->rx_prot_lock);
-        return EAGAIN;
+        
+        return -1;
     }
     
+    
     return 0;
+}
+
+int tcp_rx(ncb_t *ncb) {
+    int retval;
+    
+    tcp_save_info(ncb);
+    
+    /* 将接收缓冲区读空为止 */
+    do {
+        retval = tcpi_rx(ncb);
+    } while (0 == retval);
+    return retval;
 }
 
 /*
@@ -179,29 +198,36 @@ int tcp_tx(ncb_t *ncb){
     while(packet->offset < packet->wcb) {
         retval = write(ncb->sockfd, packet->data + packet->offset, packet->wcb - packet->offset);
         errcode = errno;
-        if (retval <= 0){
+        
+        /* 对端断开， 或， 其他不可容忍的错误 */
+        if (0 == retval){
+            printf("failed write to socket.hld=%d, error message=%s.\n", ncb->hld, strerror(errcode));
+            retval = -1;
             break;
         }
+        
+        if (retval < 0){
+            
+            /* 写入缓冲区已满， 激活并等待 EPOLLOUT 才能继续执行下一片写入
+            * 此时需要处理队列头节点， 将未处理完的节点还原回队列头
+            * oneshot 方式强制关注写入操作完成点 */
+            if (EAGAIN == errcode ) {
+                fque_revert(&ncb->tx_fifo, packet);
+                return EAGAIN;
+            }
+            
+            /* 中断信号导致的写操作中止，而且没有任何一个字节完成写入，可以就地恢复 */
+            if (EINTR == errcode){
+                continue;
+            }
+            
+            printf("failed write to socket.hld=%d, error message=%s.\n", ncb->hld, strerror(errcode));
+            return -1;
+        }
+        
         packet->offset += retval;
     }
     
-    /* 写入缓冲区已满， 激活并等待 EPOLLOUT 才能继续执行下一片写入
-     * 此时需要处理队列头节点， 将未处理完的节点还原回队列头
-     * oneshot 方式强制关注写入操作完成点 */
-    if ((EAGAIN == errcode ) && (retval < 0)){
-        fque_revert(&ncb->tx_fifo, packet);
-        return EAGAIN;
-    }
-    
-    /* 除了需要还原队列头节点的情况， 其余任何情况都已经不再关注包节点， 可以释放 */
     PACKET_NODE_FREE(packet);
-    
-    /* 写入操作正常完成 */
-    if (retval > 0){
-        return 0;
-    }
-    
-    /* 对端断开， 或， 其他不可容忍的错误 */
-    printf("failed write to socket.hld=%d, error message=%s.\n", ncb->hld, strerror(errcode));
-    return -1;
+    return retval;
 }

@@ -28,15 +28,9 @@ struct task_node_t {
 };
 
 extern
-int read_pool_init();
-extern
 int write_pool_init();
 extern
-void read_pool_uninit();
-extern
 void write_pool_uninit();
-extern
-int post_read_task(objhld_t hld, enum task_type_t type);
 extern
 int post_write_task(objhld_t hld, enum task_type_t type);
 

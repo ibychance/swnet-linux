@@ -3,7 +3,8 @@
 
 #include "udp.h"
 
-int udp_rx(ncb_t *ncb) {
+static
+int udpi_rx(ncb_t *ncb) {
     int recvcb;
     struct sockaddr_in remote;
     socklen_t addrlen;
@@ -22,13 +23,31 @@ int udp_rx(ncb_t *ncb) {
             ncb->nis_callback(&c_event, &c_data);
         }
     }
-
-    /* ECONNRESET 104 Connection reset by peer */
-    if ((recvcb == 0) || ((recvcb < 0) && (EAGAIN != errno))) {
+    
+    if (0 == recvcb) {
         return -1;
     }
-
+    
+    /* ECONNRESET 104 Connection reset by peer */
+    if (recvcb < 0){
+        if (EAGAIN == errno){
+            return EAGAIN;
+        }
+        
+        return -1;
+    }
+    
     return 0;
+}
+
+int udp_rx(ncb_t *ncb) {
+     int retval;
+    
+    do {
+        retval = udpi_rx(ncb);
+    } while (0 == retval);
+    
+    return retval;
 }
 
 int udp_direct_tx(ncb_t *ncb, const unsigned char *data, int *offset, int size, const struct sockaddr_in *target){

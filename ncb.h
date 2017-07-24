@@ -10,6 +10,9 @@
 
 #include <netdb.h>
 #include <sys/socket.h>
+#include <sys/param.h>
+#include <sys/types.h>
+#include <netinet/tcp.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -33,19 +36,13 @@ enum ncb__protocol_type_t {
 typedef struct _ncb {
     int hld;
     int sockfd;
+    int epfd;  /* 绑定的EPOLL描述符 */
     enum ncb__protocol_type_t proto_type;
 
     /* 普通收包，解包的参数字段 */
     char *packet;
     int rx_parse_offset;
     char *rx_buffer;
-    
-    /* Rx过程（TCP）需要保证包序，同时又需要epoll准确触发，一次建立的保证机制 
-     * UDP 不受此约束*/
-    posix__pthread_mutex_t rx_prot_lock;
-    int rx_order_count;
-    posix__boolean_t rx_running;
-    
     
     /* 发送操作的顺序队列 */
     struct packet_fifo_t tx_fifo;
@@ -85,6 +82,22 @@ typedef struct _ncb {
      * 2. 此项IO阻塞和读线程无关, 必须保证读写互不影响， 否则可能导致因为 io blocked 而无法继续收包
      */
     posix__boolean_t write_io_blocked;
+    
+    /* 接收超时和发送超时 */
+    struct timeval rcvtimeo;
+    struct timeval sndtimeo;
+    
+    /* IP头的 tos 项
+     * Differentiated Services Field: Dirrerentiated Services Codepoint/Explicit Congestion Not fication 指定TOS段
+     *  */
+    int iptos;
+    
+    /* getsockopt(TCP_INFO) for Linux, {Free,Net}BSD */
+    struct tcp_info *ktcp; 
+    
+    /* MSS of tcp link */
+    int mss;
+    
 } ncb_t;
 
 /* 布尔状态表达， 非0则IO阻止， 否则 IO 可行 */
@@ -105,5 +118,34 @@ extern
 void ncb_uninit(int ignore, void */*ncb_t * */ncb);
 extern
 void ncb_report_debug_information(ncb_t *ncb, const char *fmt, ...);
+
+extern
+int ncb_set_rcvtimeo(ncb_t *ncb, struct timeval *timeo);
+extern
+int ncb_get_rcvtimeo(ncb_t *ncb);
+extern
+int ncb_set_sndtimeo(ncb_t *ncb, struct timeval *timeo);
+extern
+int ncb_get_sndtimeo(ncb_t *ncb);
+
+extern
+int ncb_set_iptos(ncb_t *ncb, int tos);
+extern
+int ncb_get_iptos(ncb_t *ncb);
+
+extern
+int ncb_set_window_size(ncb_t *ncb, int dir, int size);
+extern
+int ncb_get_window_size(ncb_t *ncb, int dir, int *size);
+
+extern
+int ncb_set_linger(ncb_t *ncb, int onoff, int lin);
+extern
+int ncb_get_linger(ncb_t *ncb, int *onoff, int *lin);
+
+extern
+int ncb_set_keepalive(ncb_t *ncb, int enable);
+extern
+int ncb_get_keepalive(ncb_t *ncb, int *enabled);
 
 #endif

@@ -3,66 +3,33 @@
 #include <sys/select.h>
 #include <sys/time.h>
 
-#include <linux/tcp.h>
-
 #include "tcp.h"
 
 int tcp_update_opts(ncb_t *ncb) {
-    int optval;
-    struct linger lgr;
-    int disable_nagle;
-    int enable_automatic_keepalive;
-
     if (!ncb) {
         return -1;
     }
 
-    optval = TCP_BUFFER_SIZE;
-    if (setsockopt(ncb->sockfd, SOL_SOCKET, SO_RCVBUF, (char *) &optval, sizeof ( optval)) < 0) {
-        ncb_report_debug_information(ncb, "failed to set SO_RCVBUF, errno=%d\n", errno);
-        return -1;
-    }
-    if (setsockopt(ncb->sockfd, SOL_SOCKET, SO_SNDBUF, (char *) &optval, sizeof ( optval)) < 0) {
-        ncb_report_debug_information(ncb, "failed to set SO_SNDBUF, errno=%d\n", errno);
-        return -1;
-    }
-
-    lgr.l_onoff = 0;
-    lgr.l_linger = 1;
-    if (setsockopt(ncb->sockfd, SOL_SOCKET, SO_LINGER, (char *) &lgr, sizeof ( struct linger)) < 0) {
-        ncb_report_debug_information(ncb, "failed to set SO_LINGER, errno=%d\n", errno);
-        return -1;
-    }
-
-    /* 为保证小包效率， 禁用 Nginx 算法 */
-    disable_nagle = 1;
-    if (setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (char *) &disable_nagle, sizeof ( disable_nagle)) < 0) {
-        ncb_report_debug_information(ncb, "failed to set TCP_NODELAY, errno=%d\n", errno);
-        return -1;
-    }
-
-    // 启用 TCP 心跳
-    enable_automatic_keepalive = 1;
-    if (setsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (const char *) &enable_automatic_keepalive, sizeof ( enable_automatic_keepalive)) < 0) {
-        ncb_report_debug_information(ncb, "failed to set SO_KEEPALIVE, errno=%d\n", errno);
-        return -1;
-    }
-
+    ncb_set_window_size(ncb, SO_RCVBUF, TCP_BUFFER_SIZE );
+    ncb_set_window_size(ncb, SO_SNDBUF, TCP_BUFFER_SIZE );
+    ncb_set_linger(ncb, 0, 1);
+    ncb_set_keepalive(ncb, 1);
+     
+    tcp_set_nodelay(ncb, 1);   /* 为保证小包效率， 禁用 Nginx 算法 */
+    tcp_save_info(ncb);
+    
     return 0;
 }
 
 /* tcp impls */
 int tcp_init() {
-    if (ioinit() >= 0) {
-        read_pool_init();
-        write_pool_init();
-    }
-    return -1;
+    ioinit();
+    write_pool_init();
+    return 0;
 }
 
 void tcp_uninit() {
     iouninit();
-    read_pool_uninit();
     write_pool_uninit();
 }
 
@@ -367,7 +334,6 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
         if (fque_push(&ncb->tx_fifo, buffer, cb + ncb->template.cb_, NULL) < 0) {
             break;
         }
-
         post_write_task(hld, kTaskType_TxTest);
 
         objdefr(hld);
@@ -419,7 +385,7 @@ int tcp_setopt(HTCPLINK lnk, int level, int opt, const char *val, int len) {
     return retval;
 }
 
-int tcp_getopt(HTCPLINK lnk, int level, int opt, char *val, int *len) {
+int tcp_getopt(HTCPLINK lnk, int level, int opt, char *__restrict val, int *len) {
     ncb_t *ncb;
     objhld_t hld = (objhld_t) lnk;
     int retval;
@@ -427,8 +393,53 @@ int tcp_getopt(HTCPLINK lnk, int level, int opt, char *val, int *len) {
     ncb = objrefr(hld);
     if (!ncb) return -1;
 
-    retval = getsockopt(ncb->sockfd, level, opt, val, (socklen_t *) & len);
+    retval = getsockopt(ncb->sockfd, level, opt, (void * __restrict)val, (socklen_t *)len);
 
     objdefr(hld);
     return retval;
+}
+
+int tcp_save_info(ncb_t *ncb) {
+    socklen_t tcp_info_length = sizeof (struct tcp_info);
+
+    if (!ncb->ktcp) {
+        ncb->ktcp = (struct tcp_info *) malloc(sizeof (struct tcp_info));
+    }
+
+    if (ncb->ktcp) {
+        return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_INFO, (void * __restrict)ncb->ktcp, &tcp_info_length);
+    }
+    return -1;
+}
+
+int tcp_setmss(ncb_t *ncb, int mss) {
+    if (ncb && mss > 0) {
+        return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_MAXSEG, (const void *) &mss, sizeof(mss));
+    }
+    
+    return -EINVAL;
+}
+
+int tcp_getmss(ncb_t *ncb){
+    if (ncb){
+        socklen_t lenmss = sizeof(ncb->mss);
+        return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_MAXSEG, (void *__restrict)&ncb->mss, &lenmss);
+    }
+    return -EINVAL;
+}
+
+int tcp_set_nodelay(ncb_t *ncb, int set){
+    if (ncb ){
+        return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (const void *) &set, sizeof ( set));
+    }
+    
+    return -EINVAL;
+}
+
+int tcp_get_nodelay(ncb_t *ncb, int *set) {
+    if (ncb && set) {
+        socklen_t optlen = sizeof(int);
+        return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (void *__restrict)set, &optlen);
+    }
+    return -EINVAL;
 }

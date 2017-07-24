@@ -6,38 +6,21 @@ extern
 void (*__notify_nshost_dbglog)(const char *logstr);
 
 static int udp_update_opts(ncb_t *ncb) {
-    struct linger lgr;
-    int fd;
     static const int RECV_BUFFER_SIZE = 0xFFFF;
     static const int SEND_BUFFER_SIZE = 0xFFFF;
 
     if (!ncb) {
         return -1;
     }
-    fd = ncb->sockfd;
 
-    if (setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (char *) &RECV_BUFFER_SIZE, sizeof ( RECV_BUFFER_SIZE)) < 0) {
-        ncb_report_debug_information(ncb, "failed to set SO_RCVBUF, errno=%d.\n", errno);
-        return -1;
-    }
-
-    if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, (char *) &SEND_BUFFER_SIZE, sizeof ( SEND_BUFFER_SIZE)) < 0) {
-        ncb_report_debug_information(ncb, "failed to set SO_SNDBUF, errno=%d.\n", errno);
-        return -1;
-    }
-
-    lgr.l_onoff = 0;
-    lgr.l_linger = 1;
-    if (setsockopt(fd, SOL_SOCKET, SO_LINGER, (char *) &lgr, sizeof ( struct linger)) < 0) {
-        ncb_report_debug_information(ncb, "failed to set SO_LINGER, errno=%d.\n", errno);
-        return -1;
-    }
+    ncb_set_window_size(ncb, SO_RCVBUF, RECV_BUFFER_SIZE );
+    ncb_set_window_size(ncb, SO_SNDBUF, SEND_BUFFER_SIZE );
+    ncb_set_linger(ncb, 0, 1);
     return 0;
 }
 
 int udp_init() {
     if (ioinit() >= 0) {
-        read_pool_init();
         write_pool_init();
     }
     return -1;
@@ -45,7 +28,6 @@ int udp_init() {
 
 void udp_uninit() {
     iouninit();
-    read_pool_uninit();
     write_pool_uninit();
 }
 
