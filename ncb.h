@@ -55,18 +55,12 @@ typedef struct _ncb {
     nis_callback_t nis_callback;
     char *context;
     int context_size;
-    
-    /* 下层解包模板 */
-    tst_t template;
 
     /* 大包解读(大于 0x11000 但是不足 50MB 的TCP数据包) */
     char* lbdata; /* large block data */
     int lboffset; /* 当前已经赋值的大包数据段偏移 */
     int lbsize; /* 含包头的大包总长度 */
-
-    /* （目前只用于 UDP 的）对象标记：广播属性 */
-    int flag;
-
+    
     /* IO 响应例程 */
     int (*ncb_read)(struct _ncb *);
     int (*ncb_write)(struct _ncb *);
@@ -92,12 +86,25 @@ typedef struct _ncb {
      *  */
     int iptos;
     
-    /* getsockopt(TCP_INFO) for Linux, {Free,Net}BSD */
-    struct tcp_info *ktcp; 
+    union {
+        struct {
+             /* 下层解包模板 */
+            tst_t template;
     
-    /* MSS of tcp link */
-    int mss;
-    
+            /* getsockopt(TCP_INFO) for Linux, {Free,Net}BSD */
+            struct tcp_info *ktcp; 
+
+            /* MSS of tcp link */
+            int mss;
+        };
+        struct {
+            /* （目前只用于 UDP 的）对象标记：广播属性 */
+            int flag;
+            
+            /* 适用于 IP 组播的 mreq 对象 */
+            struct ip_mreq *mreq;
+        };
+    };
 } ncb_t;
 
 /* 布尔状态表达， 非0则IO阻止， 否则 IO 可行 */

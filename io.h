@@ -28,6 +28,8 @@ int iomod(void *ncbptr, enum io_poll_mask_t mask );
 extern
 void iodeth(void *ncbptr);
 extern
+void ioclose(void *ncbptr);
+extern
 int setasio(int fd);
 extern
 int setsyio(int fd);

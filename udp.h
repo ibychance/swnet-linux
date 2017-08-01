@@ -28,4 +28,10 @@ int udp_direct_tx(ncb_t *ncb, const unsigned char *data, int *offset, int size, 
 extern
 int udp_tx(ncb_t *ncb);
 
+extern
+int udp_set_boardcast(ncb_t *ncb, int enable);
+extern
+int udp_get_boardcast(ncb_t *ncb, int *enabled);
+
+
 #endif

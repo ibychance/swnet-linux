@@ -38,16 +38,7 @@ void ncb_uninit(int ignore, void *p) {
     /* 停止网络服务
      * 如果有epoll关联， 则取消关联
      * 关闭描述符 */
-    if (ncb->sockfd > 0) {
-        if (ncb->epfd> 0){
-            iodeth(ncb);
-             ncb->epfd = -1;
-        }
-        
-        shutdown(ncb->sockfd, 2);
-        close(ncb->sockfd);
-        ncb->sockfd = -1;
-    }
+    ioclose(ncb);
     
     /* 释放缓冲包内存 */
     if (ncb->packet) {

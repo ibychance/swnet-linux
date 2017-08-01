@@ -281,6 +281,25 @@ void iodeth(void *ncbptr) {
     epoll_ctl(ncb->epfd, EPOLL_CTL_DEL, ncb->sockfd, &evt);
 }
 
+void ioclose(void *ncbptr) {
+    ncb_t *ncb = (ncb_t *)ncbptr;
+    
+    if (!ncb){
+        return;
+    }
+    
+    if (ncb->sockfd > 0){
+         if (ncb->epfd> 0){
+            iodeth(ncb);
+            ncb->epfd = -1;
+        }
+         
+        shutdown(ncb->sockfd, 2);
+        close(ncb->sockfd);
+        ncb->sockfd = -1;
+    }
+}
+
 int setasio(int fd) {
     int opt;
 

@@ -144,8 +144,22 @@ int tcp_gettst(HTCPLINK lnk, tst_t *tst) {
     return 0;
 }
 
+/*
+ * 关闭响应变更:
+ * 对象销毁操作有可能是希望中断某些阻塞操作， 如 connect
+ * 故将销毁行为调整为直接关闭描述符后， 通过智能指针销毁对象
+ */
 void tcp_destroy(HTCPLINK lnk) {
-    objclos(lnk);
+    ncb_t *ncb;
+    objhld_t hld = (objhld_t)lnk;
+    
+    ncb = objrefr(hld);
+    if (ncb) {
+        ioclose(ncb);
+        objdefr(hld);
+    }
+    
+    objclos(hld);
 }
 
 /* <tcp_check_connection_bypoll>
@@ -379,7 +393,7 @@ int tcp_setopt(HTCPLINK lnk, int level, int opt, const char *val, int len) {
     ncb = objrefr(hld);
     if (!ncb) return -1;
 
-    retval = setsockopt(ncb->sockfd, level, opt, val, len);
+    retval = setsockopt(ncb->sockfd, level, opt, (const void *)val, len);
 
     objdefr(hld);
     return retval;
