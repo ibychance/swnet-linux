@@ -94,6 +94,7 @@ static int run_task(struct write_thread_node *thread, struct task_node_t *task) 
     
     /* 本次节点顺利写入内核  */
     else if (0 == retval) {
+        
         /* 如果是在IO隔离期间发生的完成写入，则取消IO隔离，同时切换EPOLL关注读出缓冲区
          */
         if (task->type == kTaskType_TxOrder && ncb_if_wblocked(ncb) ) {

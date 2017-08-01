@@ -159,8 +159,6 @@ int tcpi_rx(ncb_t *ncb){
         
         return -1;
     }
-    
-    
     return 0;
 }
 
@@ -229,5 +227,5 @@ int tcp_tx(ncb_t *ncb){
     }
     
     PACKET_NODE_FREE(packet);
-    return retval;
+    return 0;
 }
