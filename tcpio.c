@@ -174,58 +174,70 @@ int tcp_rx(ncb_t *ncb) {
     return retval;
 }
 
+static
+int tcp_tx_single_packet(int sockfd, struct packet_node_t *packet){
+    int wcb;
+    int errcode;
+    
+    /* 仅对头节点执行操作 */
+    while (packet->offset < packet->wcb) {
+        wcb = send(sockfd, packet->data + packet->offset, packet->wcb - packet->offset, 0 );
+
+        /* 对端断开， 或， 其他不可容忍的错误 */
+        if (0 == wcb) {
+            return -1;
+        }
+
+        if (wcb < 0) {
+             errcode = errno;
+             
+            /* 写入缓冲区已满， 激活并等待 EPOLLOUT 才能继续执行下一片写入
+             * 此时需要处理队列头节点， 将未处理完的节点还原回队列头
+             * oneshot 方式强制关注写入操作完成点 */
+            if (EAGAIN == errcode) {
+                return EAGAIN;
+            }
+
+            /* 中断信号导致的写操作中止，而且没有任何一个字节完成写入，可以就地恢复 */
+            if (EINTR == errcode) {
+                continue;
+            }
+            
+             /* 发生其他无法容忍且无法处理的错误, 这个错误返回会导致断开链接 */
+            return make_error_result(errcode);
+        }
+
+        packet->offset += wcb;
+    }
+    
+    return 0;
+}
+
 /*
  * 发送处理器
  */
 int tcp_tx(ncb_t *ncb){
-    int errcode;
     struct packet_node_t *packet;
     int retval;
     
-    retval = 0;
-    errcode = 0;
     if (!ncb) {
         return -1;
     }
     
-    if (NULL == (packet = fque_get(&ncb->tx_fifo))){
-        return 1;
-    }
-    
-    /* 仅对头节点执行操作 */
-    while(packet->offset < packet->wcb) {
-        retval = write(ncb->sockfd, packet->data + packet->offset, packet->wcb - packet->offset);
-        errcode = errno;
-        
-        /* 对端断开， 或， 其他不可容忍的错误 */
-        if (0 == retval){
-            printf("failed write to socket.hld=%d, error message=%s.\n", ncb->hld, strerror(errcode));
-            retval = -1;
-            break;
-        }
-        
-        if (retval < 0){
-            
-            /* 写入缓冲区已满， 激活并等待 EPOLLOUT 才能继续执行下一片写入
-            * 此时需要处理队列头节点， 将未处理完的节点还原回队列头
-            * oneshot 方式强制关注写入操作完成点 */
-            if (EAGAIN == errcode ) {
+    /* 若无特殊情况， 需要把所有发送缓冲包全部写入内核 */
+    while (NULL != (packet = fque_get(&ncb->tx_fifo))) {
+        retval = tcp_tx_single_packet(ncb->sockfd, packet);
+        if (retval < 0) {
+            return retval;
+        }  else {
+            if (EAGAIN == retval) {
                 fque_revert(&ncb->tx_fifo, packet);
                 return EAGAIN;
             }
-            
-            /* 中断信号导致的写操作中止，而且没有任何一个字节完成写入，可以就地恢复 */
-            if (EINTR == errcode){
-                continue;
-            }
-            
-            printf("failed write to socket.hld=%d, error message=%s.\n", ncb->hld, strerror(errcode));
-            return -1;
         }
-        
-        packet->offset += retval;
+
+        PACKET_NODE_FREE(packet);
     }
     
-    PACKET_NODE_FREE(packet);
     return 0;
 }

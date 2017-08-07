@@ -132,7 +132,6 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const c
     struct sockaddr_in addr;
     objhld_t hld = (objhld_t) lnk;
     unsigned char *buffer;
-    int retval, offset;
 
     if (!maker || !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > MTU)) {
         return -1;
@@ -145,8 +144,8 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const c
 
     buffer = NULL;
     do {
-        /* 发送队列过长， 或者当前处于发送IO隔离阶段， 无法进行发送操作 */
-        if ((fque_size(&ncb->tx_fifo) >= UDP_MAXIMUM_SENDER_CACHED_CNT) || ncb_if_wblocked(ncb)) {
+        /* 发送队列过长， 无法进行发送操作 */
+        if ((fque_size(&ncb->tx_fifo) >= UDP_MAXIMUM_SENDER_CACHED_CNT)) {
             break;
         }
 
@@ -165,26 +164,12 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const c
         addr.sin_addr.s_addr = inet_addr(r_ipstr);
         addr.sin_port = htons(r_port);
 
-        /* 如果写IO阻塞， 则只能使用任务模式 */
-        if (ncb_if_wblocked(ncb)) {
-            fque_push(&ncb->tx_fifo, buffer, cb, &addr);
-            post_write_task(hld, kTaskType_TxTest);
+        /* 向发送队列增加一个节点, 并投递激活消息 */
+        if (fque_push(&ncb->tx_fifo, buffer, cb, &addr) < 0) {
+            break;
         }
-            /* 因为UDP并不强保证包序，因此可以尝试直接发送数据, 且不用关注线程问题 */
-        else {
-            offset = 0;
-            retval = udp_direct_tx(ncb, buffer, &offset, cb, &addr);
-            if (retval < 0) {
-                break;
-            }
-            if (0 != retval) {
-                if (EAGAIN != retval) {
-                    break;
-                }
-                fque_priority_push(&ncb->tx_fifo, buffer, cb - offset, offset, &addr);
-                post_write_task(hld, kTaskType_TxTest);
-            }
-        }
+        post_write_task(hld, kTaskType_TxTest);
+        
         objdefr(hld);
         return 0;
     } while (0);
@@ -232,7 +217,7 @@ int udp_getopt(HUDPLINK lnk, int level, int opt, char *val, int *len) {
     ncb = objrefr(hld);
     if (!ncb) return -1;
 
-    retval = getsockopt(ncb->sockfd, level, opt, val, (socklen_t *) & len);
+    retval = getsockopt(ncb->sockfd, level, opt, val, (socklen_t *)len);
 
     objdefr(hld);
     return retval;

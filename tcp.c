@@ -185,28 +185,39 @@ void tcp_destroy(HTCPLINK lnk) {
  */
 
 static int tcp_check_connection(int sockfd) {
-    int ret = 0;
-    socklen_t len = sizeof (len);
-    struct timeval tm;
+    int retval;
+    socklen_t len;
+    struct timeval timeo;
     fd_set set;
     int error;
 
-    tm.tv_sec = 3;
-    tm.tv_usec = 0;
+    // 3m 作为最大超时
+    timeo.tv_sec = 3;
+    timeo.tv_usec = 0;
+    
     FD_ZERO(&set);
     FD_SET(sockfd, &set);
-    if (select(sockfd + 1, NULL, &set, NULL, &tm) > 0) {
-        getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, (socklen_t *) & len);
-        if (error == 0) {
-            ret = 0;
-        } else {
-            ret = -1;
+    
+    retval = -1;
+    len = sizeof (error);
+    do {
+        /*
+         * The nfds argument specifies the range of descriptors to be tested. 
+         * The first nfds descriptors shall be checked in each set; 
+         * that is, the descriptors from zero through nfds-1 in the descriptor sets shall be examined. 
+         * */
+        if (select(sockfd + 1, NULL, &set, NULL, &timeo) <= 0) {
+            break;
         }
-    } else {
-        ret = -1;
-    }
+        
+        if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, (socklen_t *) & len) < 0){
+            break;
+        }
+        
+        retval = error;
+    }while(0);
 
-    return ((0 != ret) ? (-1) : (0));
+    return retval;
 }
 
 int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
@@ -317,8 +328,8 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
     }
 
     do {
-        /* 发送队列过长， 或者当前处于发送IO隔离阶段， 无法进行发送操作 */
-        if ((fque_size(&ncb->tx_fifo) >= TCP_MAXIMUM_SENDER_CACHED_CNT) || ncb_if_wblocked(ncb)) {
+        /* 发送队列过长， 无法进行发送操作 */
+        if (fque_size(&ncb->tx_fifo) >= TCP_MAXIMUM_SENDER_CACHED_CNT) {
             break;
         }
 
@@ -393,7 +404,7 @@ int tcp_setopt(HTCPLINK lnk, int level, int opt, const char *val, int len) {
     ncb = objrefr(hld);
     if (!ncb) return -1;
 
-    retval = setsockopt(ncb->sockfd, level, opt, (const void *)val, len);
+    retval = setsockopt(ncb->sockfd, level, opt, (const void *)val, (socklen_t)len);
 
     objdefr(hld);
     return retval;

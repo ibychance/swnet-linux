@@ -17,6 +17,22 @@
 #include "posix_types.h"
 #include "posix_ifos.h"
 
+/*
+ * 写入(发送)操作，从接口处无条件压入队列的弊端
+ * 1. 如果多线程调用 tcp_write, 在应用层不控制顺序的前提下， nshost无法保障先后顺序按照调用线程的先后来执行
+ * 2. 每个请求都入队且要锁，增加了线程切换开销， 尤其在发送缓冲区充裕的情况下， 完全没有必要
+ * 
+ * 在接口层进行 if_blocked 判断的策略:
+ * 1, tcp_write 将直接调用 send, udp_write 将直接调用 sendto, 都直接使用调用线程的线程空间
+ * 2, 如果系统调用发生 EAGAIN, 则置位该ncb的标记， 同时将未完成的发送数据缓冲区入队
+ *     2.1 发生 EAGAIN 后， 在 blocked 标记清除前，tcp_write/udp_write 行为变更为直接入队
+ *     2.2 EPOLL_OUT 事件响应后， 从缓冲队列先进先出取出待发送数据包，进行send/sendto 尝试， 直到全部缓冲包发送完毕或者再次 EAGAIN
+ *     2.3 如果全部缓冲包发送完毕， 则重置 blocked 标记， 允许调用线程直接 send/sendto
+ * 
+ * 需要进行的测试项:
+ * 1. 发生EAGAIN 后再关注 EPOLL_OUT 事件， 是否能确保事件被抓获
+ */
+
 struct write_thread_node {
     posix__pthread_t    thread;
     posix__pthread_mutex_t task_lock;
@@ -58,7 +74,7 @@ static struct task_node_t *get_task(struct write_thread_node *thread){
     return task;
 }
 
-static int run_task(struct write_thread_node *thread, struct task_node_t *task) {
+static int run_task(struct task_node_t *task) {
     objhld_t hld;
     int retval;
     ncb_t *ncb;
@@ -134,9 +150,8 @@ static void *run(void *p) {
 
         /* 过程返回 0. 则要求保留 task 内存 */
         while (NULL != (task = get_task(thread))) {
-            if (0 != run_task(thread, task)) {
-                free(task);
-            }
+            run_task(task);
+            free(task);
         }
     }
 
@@ -208,17 +223,12 @@ int post_write_task(objhld_t hld, enum task_type_t type){
     struct write_thread_node *thread;
     
     if (NULL == (task = (struct task_node_t *)malloc(sizeof(struct task_node_t)))){
-        return -1;
+        return -ENOMEM;
     }
     task->hld = hld;
     task->type = type;
     
     thread = &write_pool.write_threads[hld % write_pool.write_thread_count];
-    
-//    posix__pthread_mutex_lock(&thread->task_lock);
-//    list_add_tail(&task->link, &thread->task_list);
-//    ++thread->task_list_size;
-//    posix__pthread_mutex_unlock(&thread->task_lock);
     
     add_task(thread, task);
     posix__sig_waitable_handle(&thread->task_signal);

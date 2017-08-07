@@ -99,6 +99,8 @@ static void io_run(struct epoll_event *evts, int sigcnt){
          * 2. 平常无需关注 EPOLLOUT
          * 3. 一旦写入操作发生 EAGAIN, 则下一个写入操作能且只能由 EPOLLOUT 发起(关注状态切换)
          * TCP 写缓冲区 cat /proc/sys/net/ipv4/tcp_wmem 
+         * 
+         * 已验证：当发生发送EAGAIN后再关注EPOLLOUT，可以在缓冲区成功空出后得到通知
          */
         if (evts[i].events & EPOLLOUT) {
             post_write_task(ncb->hld, kTaskType_TxOrder);
@@ -236,7 +238,6 @@ int ioatth(void *ncbptr, enum io_poll_mask_t mask) {
     ncb = (ncb_t *)ncbptr;
     
     e_evt.data.fd = ncb->hld;
-    //e_evt.data.ptr = ncb;
     e_evt.events = (EPOLLET | EPOLLRDHUP); 
     if (mask & kPollMask_Oneshot) {
         e_evt.events |= EPOLLONESHOT;
@@ -249,6 +250,10 @@ int ioatth(void *ncbptr, enum io_poll_mask_t mask) {
     }
     
     ncb->epfd = io_select_object();;
+    if (ncb->epfd < 0 ){
+        return -1;
+    }
+    
     return epoll_ctl(ncb->epfd, EPOLL_CTL_ADD, ncb->sockfd, &e_evt);
 }
 
