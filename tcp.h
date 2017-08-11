@@ -26,6 +26,8 @@ extern
 int tcp_rx(ncb_t *ncb);
 extern
 int tcp_tx(ncb_t *ncb);
+extern
+int tcp_tx_syn(ncb_t *ncb);
 
 /* tcp al */
 extern

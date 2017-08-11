@@ -10,14 +10,14 @@ int tcp_update_opts(ncb_t *ncb) {
         return -1;
     }
 
-    ncb_set_window_size(ncb, SO_RCVBUF, TCP_BUFFER_SIZE );
-    ncb_set_window_size(ncb, SO_SNDBUF, TCP_BUFFER_SIZE );
+    ncb_set_window_size(ncb, SO_RCVBUF, TCP_BUFFER_SIZE);
+    ncb_set_window_size(ncb, SO_SNDBUF, TCP_BUFFER_SIZE);
     ncb_set_linger(ncb, 0, 1);
     ncb_set_keepalive(ncb, 1);
-     
-    tcp_set_nodelay(ncb, 1);   /* 为保证小包效率， 禁用 Nginx 算法 */
+
+    tcp_set_nodelay(ncb, 1); /* 为保证小包效率， 禁用 Nginx 算法 */
     tcp_save_info(ncb);
-    
+
     return 0;
 }
 
@@ -151,14 +151,14 @@ int tcp_gettst(HTCPLINK lnk, tst_t *tst) {
  */
 void tcp_destroy(HTCPLINK lnk) {
     ncb_t *ncb;
-    objhld_t hld = (objhld_t)lnk;
-    
+    objhld_t hld = (objhld_t) lnk;
+
     ncb = objrefr(hld);
     if (ncb) {
         ioclose(ncb);
         objdefr(hld);
     }
-    
+
     objclos(hld);
 }
 
@@ -194,10 +194,10 @@ static int tcp_check_connection(int sockfd) {
     // 3m 作为最大超时
     timeo.tv_sec = 3;
     timeo.tv_usec = 0;
-    
+
     FD_ZERO(&set);
     FD_SET(sockfd, &set);
-    
+
     retval = -1;
     len = sizeof (error);
     do {
@@ -209,13 +209,13 @@ static int tcp_check_connection(int sockfd) {
         if (select(sockfd + 1, NULL, &set, NULL, &timeo) <= 0) {
             break;
         }
-        
-        if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, (socklen_t *) & len) < 0){
+
+        if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, (socklen_t *) & len) < 0) {
             break;
         }
-        
+
         retval = error;
-    }while(0);
+    } while (0);
 
     return retval;
 }
@@ -227,6 +227,8 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
     int e;
     socklen_t addrlen;
     int optval;
+    nis_event_t c_event;
+    tcp_data_t c_data;
 
     if (lnk < 0 || !r_ipstr || 0 == port_remote) {
         return -1;
@@ -241,7 +243,6 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
     /* 明确定义最多尝试3次 syn 操作 */
     setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
 
-
     addr_to.sin_family = PF_INET;
     addr_to.sin_port = htons(port_remote);
     addr_to.sin_addr.s_addr = inet_addr(r_ipstr);
@@ -255,24 +256,71 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
     }
 
     if (retval >= 0) {
+        /* 成功连接后需要确定本地和对端的地址信息 */
         addrlen = sizeof (addr_to);
         getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* 对端的地址信息 */
         getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* 本地的地址信息 */
 
+        /* 关注收发包 */
+        ncb->ncb_read = &tcp_rx;
+        ncb->ncb_write = &tcp_tx;
+
         retval = ioatth(ncb, kPollMask_Read);
         if (retval >= 0) {
-            /* 成功连接后需要确定本地和对端的地址信息 */
-            addrlen = sizeof (struct sockaddr);
-            getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* 对端的地址信息 */
-            getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* 本地的地址信息 */
-
-            /* 成功完成 SYN, 此时可以关注数据包 */
-            ncb->ncb_read = &tcp_rx;
-            ncb->ncb_write = &tcp_tx;
+            c_event.Event = EVT_TCP_CONNECTED;
+            c_event.Ln.Tcp.Link = lnk;
+            c_data.e.LinkOption.OptionLink = lnk;
+            ncb->nis_callback(&c_event, &c_data);
         }
     } else {
         ncb_report_debug_information(ncb, "[TCP]failed connect remote endpoint %s:%d, err=%d\n", r_ipstr, port_remote, e);
     }
+
+    objdefr((objhld_t) lnk);
+    return retval;
+}
+
+int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
+    ncb_t *ncb;
+    int retval;
+    int e;
+    int optval;
+
+    if (lnk < 0 || !r_ipstr || 0 == port_remote) {
+        return -1;
+    }
+
+    ncb = (ncb_t *) objrefr((objhld_t) lnk);
+    if (!ncb) {
+        return -1;
+    }
+
+    optval = 3;
+
+    /* 明确定义最多尝试3次 syn 操作 */
+    setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
+
+    retval = -1;
+    do {
+        /* 异步连接， 在 connect 前， 先把套接字对象加入到 EPOLL 序列， 一旦连上后会得到一个 EPOLLOUT */
+        ncb->ncb_write = &tcp_tx_syn;
+        if (ioatth(ncb, kPollMask_Write) < 0) {
+            break;
+        }
+
+        ncb->remot_addr.sin_family = PF_INET;
+        ncb->remot_addr.sin_port = htons(port_remote);
+        ncb->remot_addr.sin_addr.s_addr = inet_addr(r_ipstr);
+        retval = connect(ncb->sockfd, (const struct sockaddr *) &ncb->remot_addr, sizeof (struct sockaddr));
+        if (retval < 0) {
+            e = errno;
+            if (e != EINPROGRESS) {
+                break;
+            }
+        }
+
+        retval = 0;
+    } while (0);
 
     objdefr((objhld_t) lnk);
     return retval;
@@ -404,7 +452,7 @@ int tcp_setopt(HTCPLINK lnk, int level, int opt, const char *val, int len) {
     ncb = objrefr(hld);
     if (!ncb) return -1;
 
-    retval = setsockopt(ncb->sockfd, level, opt, (const void *)val, (socklen_t)len);
+    retval = setsockopt(ncb->sockfd, level, opt, (const void *) val, (socklen_t) len);
 
     objdefr(hld);
     return retval;
@@ -418,7 +466,7 @@ int tcp_getopt(HTCPLINK lnk, int level, int opt, char *__restrict val, int *len)
     ncb = objrefr(hld);
     if (!ncb) return -1;
 
-    retval = getsockopt(ncb->sockfd, level, opt, (void * __restrict)val, (socklen_t *)len);
+    retval = getsockopt(ncb->sockfd, level, opt, (void * __restrict)val, (socklen_t *) len);
 
     objdefr(hld);
     return retval;
@@ -439,31 +487,31 @@ int tcp_save_info(ncb_t *ncb) {
 
 int tcp_setmss(ncb_t *ncb, int mss) {
     if (ncb && mss > 0) {
-        return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_MAXSEG, (const void *) &mss, sizeof(mss));
+        return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_MAXSEG, (const void *) &mss, sizeof (mss));
     }
-    
+
     return -EINVAL;
 }
 
-int tcp_getmss(ncb_t *ncb){
-    if (ncb){
-        socklen_t lenmss = sizeof(ncb->mss);
-        return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_MAXSEG, (void *__restrict)&ncb->mss, &lenmss);
+int tcp_getmss(ncb_t *ncb) {
+    if (ncb) {
+        socklen_t lenmss = sizeof (ncb->mss);
+        return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_MAXSEG, (void *__restrict) & ncb->mss, &lenmss);
     }
     return -EINVAL;
 }
 
-int tcp_set_nodelay(ncb_t *ncb, int set){
-    if (ncb ){
+int tcp_set_nodelay(ncb_t *ncb, int set) {
+    if (ncb) {
         return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (const void *) &set, sizeof ( set));
     }
-    
+
     return -EINVAL;
 }
 
 int tcp_get_nodelay(ncb_t *ncb, int *set) {
     if (ncb && set) {
-        socklen_t optlen = sizeof(int);
+        socklen_t optlen = sizeof (int);
         return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (void *__restrict)set, &optlen);
     }
     return -EINVAL;
