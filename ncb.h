@@ -39,10 +39,8 @@ typedef struct _ncb {
     int epfd;  /* 绑定的EPOLL描述符 */
     enum ncb__protocol_type_t proto_type;
 
-    /* 普通收包，解包的参数字段 */
+    /* 应用层数据包的收包实际缓冲区 */
     char *packet;
-    int rx_parse_offset;
-    char *rx_buffer;
     
     /* 发送操作的顺序队列 */
     struct packet_fifo_t tx_fifo;
@@ -51,16 +49,13 @@ typedef struct _ncb {
     struct sockaddr_in remot_addr;
     struct sockaddr_in local_addr;
 
-    /* 用户上下文和回调例程 */
+    /* 回调例程 */
     nis_callback_t nis_callback;
+    
+    /* 用户上下文 */
     char *context;
     int context_size;
 
-    /* 大包解读(大于 0x11000 但是不足 50MB 的TCP数据包) */
-    char* lbdata; /* large block data */
-    int lboffset; /* 当前已经赋值的大包数据段偏移 */
-    int lbsize; /* 含包头的大包总长度 */
-    
     /* IO 响应例程 */
     int (*ncb_read)(struct _ncb *);
     int (*ncb_write)(struct _ncb *);
@@ -87,7 +82,19 @@ typedef struct _ncb {
     int iptos;
     
     union {
+        /* TCP 独占属性 */
         struct {
+            /* TCP 数据包应用层解析偏移 */
+            int rx_parse_offset;
+            
+            /* 因为 TCP 应用层解包将占据 packet 字段， 因此需要一个字段用于 recv */
+            char *rx_buffer;
+    
+            /* 大包解读(大于 0x11000 但是不足 50MB 的TCP数据包) */
+            char* lbdata; /* large block data */
+            int lboffset; /* 当前已经赋值的大包数据段偏移 */
+            int lbsize; /* 含包头的大包总长度 */
+    
              /* 下层解包模板 */
             tst_t template;
     
@@ -97,6 +104,8 @@ typedef struct _ncb {
             /* MSS of tcp link */
             int mss;
         };
+        
+        /* UDP 独占属性 */
         struct {
             /* （目前只用于 UDP 的）对象标记：广播属性 */
             int flag;

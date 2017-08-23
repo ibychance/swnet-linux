@@ -57,20 +57,20 @@ void ncb_uninit(int ignore, void *p) {
         ncb->context_size = 0;
     }
 
-    /* 通知上层已经完成对该网络对象的关闭 */
-    if (ncb->nis_callback && ncb->hld >= 0) {
-        c_event.Ln.Tcp.Link = ncb->hld;
-        c_event.Event = EVT_CLOSED;
-        c_data.e.LinkOption.OptionLink = ncb->hld;
-        ncb->nis_callback(&c_event, &c_data);
-    }
-
     /*清空所有仍在缓冲区的未发送包, 这里没有线程安全问题 */
     fque_uninit(&ncb->tx_fifo);
     
     /* 如果存在TCP的下层信息， 需要清除 */
     if (ncb->ktcp){
         free(ncb->ktcp);
+    }
+    
+    /* 通知上层已经完成对该网络对象的关闭 */
+    if (ncb->nis_callback && ncb->hld >= 0) {
+        c_event.Ln.Tcp.Link = ncb->hld;
+        c_event.Event = EVT_CLOSED;
+        c_data.e.LinkOption.OptionLink = ncb->hld;
+        ncb->nis_callback(&c_event, &c_data);
     }
 }
 

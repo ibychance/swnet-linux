@@ -83,8 +83,12 @@ static void io_run(struct epoll_event *evts, int sigcnt){
          * 3.考虑到多数的快速响应案例，即便上层可能发生阻塞操作，也应该由上层投递线程池，而不是由下层管理线程池
          */
         if (evts[i].events & EPOLLIN) {
-            if (ncb->ncb_read(ncb) < 0) {
-                objclos(ncb->hld);
+            if (ncb->ncb_read) {
+                if (ncb->ncb_read(ncb) < 0) {
+                    objclos(ncb->hld);
+                }
+            }else{
+                ncb_report_debug_information(ncb, "nullptr read address for EPOLLIN");
             }
         }
 
@@ -236,6 +240,9 @@ int ioatth(void *ncbptr, enum io_poll_mask_t mask) {
     ncb_t *ncb;
     
     ncb = (ncb_t *)ncbptr;
+    if (!ncb) {
+        return -EINVAL;
+    }
     
     e_evt.data.fd = ncb->hld;
     e_evt.events = (EPOLLET | EPOLLRDHUP); 
@@ -249,7 +256,7 @@ int ioatth(void *ncbptr, enum io_poll_mask_t mask) {
         e_evt.events |= EPOLLOUT;
     }
     
-    ncb->epfd = io_select_object();;
+    ncb->epfd = io_select_object();
     if (ncb->epfd < 0 ){
         return -1;
     }
@@ -262,6 +269,9 @@ int iomod(void *ncbptr, enum io_poll_mask_t mask ) {
     ncb_t *ncb;
     
     ncb = (ncb_t *)ncbptr;
+    if (!ncb) {
+        return -EINVAL;
+    }
 
     e_evt.data.fd = ncb->hld;
     e_evt.events = (EPOLLET | EPOLLRDHUP | EPOLLIN); 
@@ -282,13 +292,13 @@ void iodeth(void *ncbptr) {
     ncb_t *ncb;
     
     ncb = (ncb_t *)ncbptr;
-    
-    epoll_ctl(ncb->epfd, EPOLL_CTL_DEL, ncb->sockfd, &evt);
+    if (ncb) {
+        epoll_ctl(ncb->epfd, EPOLL_CTL_DEL, ncb->sockfd, &evt);
+    }
 }
 
 void ioclose(void *ncbptr) {
     ncb_t *ncb = (ncb_t *)ncbptr;
-    
     if (!ncb){
         return;
     }

@@ -75,10 +75,6 @@ int tcpi_syn(ncb_t *ncb_server) {
             break;
         }
 
-        /* 接收上来的链接， 关注数据包 */
-        ncb_client->ncb_read = &tcp_rx;
-        ncb_client->ncb_write = &tcp_tx;
-
         /*回调通知上层, 有链接到来*/
         c_event.Event = EVT_TCP_ACCEPTED;
         c_event.Ln.Tcp.Link = ncb_server->hld;
@@ -87,6 +83,10 @@ int tcpi_syn(ncb_t *ncb_server) {
             ncb_server->nis_callback(&c_event, &c_data);
         }
 
+        /* 接收上来的链接， 关注数据包 */
+        ncb_client->ncb_read = &tcp_rx;
+        ncb_client->ncb_write = &tcp_tx;
+        
         if (ioatth(ncb_client, kPollMask_Read) < 0) {
             break;
         }
@@ -277,8 +277,8 @@ int tcp_tx_syn(ncb_t *ncb) {
 
     e = errno;
     switch (e) {
-        case EISCONN: // 已经链接上
-        case EALREADY: // 还在进行中
+        case EISCONN: /* 已经链接上 */
+        case EALREADY: /* 还在进行中 */
             return 0;
         default:
             break;

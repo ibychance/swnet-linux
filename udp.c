@@ -106,15 +106,16 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         /* 获取本地地址 */
         getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen);
 
+        /* 关注数据包 */
+        ncb->ncb_read = &udp_rx;
+        ncb->ncb_write = &udp_tx;
+        
         /* 附加到 EPOLL */
         retval = ioatth(ncb, kPollMask_Read);
         if (retval < 0) {
             break;
         }
-
-        /* 关注数据包 */
-        ncb->ncb_read = &udp_rx;
-        ncb->ncb_write = &udp_tx;
+        
         return hld;
     } while (0);
 

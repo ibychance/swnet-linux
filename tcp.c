@@ -191,7 +191,7 @@ static int tcp_check_connection(int sockfd) {
     fd_set set;
     int error;
 
-    // 3m 作为最大超时
+    /* 3m 作为最大超时 */
     timeo.tv_sec = 3;
     timeo.tv_usec = 0;
 
@@ -255,7 +255,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
         }
     }
 
-    if (retval >= 0) {
+    if (0 == retval) {
         /* 成功连接后需要确定本地和对端的地址信息 */
         addrlen = sizeof (addr_to);
         getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* 对端的地址信息 */
@@ -274,6 +274,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
         }
     } else {
         ncb_report_debug_information(ncb, "[TCP]failed connect remote endpoint %s:%d, err=%d\n", r_ipstr, port_remote, e);
+        retval = -1;
     }
 
     objdefr((objhld_t) lnk);
@@ -343,14 +344,13 @@ int tcp_listen(HTCPLINK lnk, int block) {
             break;
         }
 
-        if (ioatth(ncb, kPollMask_Read) < 0) {
-            break;
-        }
-
         /* 该 NCB 对象只可能读网络数据， 而且一定是接收链接 */
         ncb->ncb_read = &tcp_syn;
         ncb->ncb_write = NULL;
-
+        
+        if (ioatth(ncb, kPollMask_Read) < 0) {
+            break;
+        }
         retval = 0;
     } while (0);
 

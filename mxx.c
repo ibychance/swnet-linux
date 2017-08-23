@@ -56,18 +56,24 @@ int nis_getctx(HLNK lnk, void * user_context, int *user_context_size/*OPT*/) {
     ncb_t *ncb;
     objhld_t hld = (objhld_t) lnk;
 
-    if (!user_context) return -1;
-
+    if (!user_context) {
+        return -1;
+    }
+    
     ncb = objrefr(hld);
-    if (!ncb) return -1;
-
+    if (!ncb) {
+        return -1;
+    }
+    
     if (!ncb->context || 0 == ncb->context_size) {
         objdefr(hld);
         return -1;
     }
 
-    if (user_context_size) *user_context_size = ncb->context_size;
-
+    if (user_context_size) {
+        *user_context_size = ncb->context_size;
+    }
+    
     memcpy(user_context, ncb->context, ncb->context_size);
     objdefr(hld);
     return 0;
@@ -79,8 +85,10 @@ void *nis_refctx(HLNK lnk, int *user_context_size) {
     objhld_t hld = (objhld_t) lnk;
 
     ncb = objrefr(hld);
-    if (!ncb) return NULL;
-
+    if (!ncb) {
+        return NULL;
+    }
+    
     if (!ncb->context || 0 == ncb->context_size) {
         objdefr(hld);
         return NULL;
@@ -101,8 +109,10 @@ int nis_ctxsize(HLNK lnk) {
     int cb;
 
     ncb = objrefr(hld);
-    if (!ncb) return -1;
-
+    if (!ncb) {
+        return -1;
+    }
+    
     cb = ncb->context_size;
 
     objdefr(hld);
@@ -110,8 +120,10 @@ int nis_ctxsize(HLNK lnk) {
 }
 
 int nis_getver(swnet_version_t *version) {
-    if (!version) return -1;
-
+    if (!version) {
+        return -1;
+    }
+    
     version->procedure_ = 0;
     version->main_ = 1;
     version->sub_ = 1;
@@ -123,8 +135,10 @@ int nis_gethost(const char *name, uint32_t *ipv4) {
     struct hostent *remote;
     struct in_addr addr;
 
-    if (!name || !ipv4) return -1;
-
+    if (!name || !ipv4) {
+        return -1;
+    }
+    
     *ipv4 = 0;
 
     if (isalpha(name[0])) { /* host address is a name */
@@ -138,8 +152,10 @@ int nis_gethost(const char *name, uint32_t *ipv4) {
         }
     }
 
-    if (!remote) return -1;
-
+    if (!remote) {
+        return -1;
+    }
+    
     /* 目前仅支持 IPv4 */
     if (AF_INET != remote->h_addrtype) {
         return -1;
