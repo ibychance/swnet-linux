@@ -131,6 +131,15 @@ int nis_getver(swnet_version_t *version) {
     return 0;
 }
 
+char *nis_lgethost(char *name, int cb) {
+    if (name && cb > 0) {
+        if (0 == gethostname(name, cb)) {
+            return name;
+        }
+    }
+    return name;
+}
+
 int nis_gethost(const char *name, uint32_t *ipv4) {
     struct hostent *remote;
     struct in_addr addr;
