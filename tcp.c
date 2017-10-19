@@ -358,12 +358,20 @@ int tcp_listen(HTCPLINK lnk, int block) {
     return retval;
 }
 
+static int tcp_maker(void *data, int cb, void *context) {
+    if (data && cb > 0 && context) {
+        memcpy(data, context, cb);
+        return 0;
+    }
+    return -1;
+}
+
 int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
     ncb_t *ncb;
     objhld_t hld;
     unsigned char *buffer;
 
-    if (INVALID_HTCPLINK == lnk || cb <= 0 || cb > TCP_MAXIMUM_PACKET_SIZE || !maker) {
+    if (INVALID_HTCPLINK == lnk || cb <= 0 || cb > TCP_MAXIMUM_PACKET_SIZE ) {
         return -1;
     }
 
@@ -399,8 +407,14 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
         }
 
         /*用户数据填入*/
-        if ((*maker)(buffer + ncb->template.cb_, cb, par) < 0) {
-            break;
+        if (maker) {
+            if ((*maker)(buffer + ncb->template.cb_, cb, par) < 0) {
+                break;
+            }
+        }else{
+            if (tcp_maker(buffer + ncb->template.cb_, cb, par) < 0) {
+                break;
+            }
         }
 
         /* 向发送队列增加一个节点, 并投递激活消息 */

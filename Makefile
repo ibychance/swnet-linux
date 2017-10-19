@@ -1,4 +1,4 @@
-TARGET=nshost.so.8.1.1
+TARGET=nshost.so.9.1
 
 SRCS=$(wildcard *.c) $(wildcard ../libnsp/com/*.c)
 OBJS=$(patsubst %.c,%.o,$(SRCS))
@@ -16,11 +16,10 @@ all:$(TARGET)
 
 $(TARGET):$(OBJS)
 	$(CC) $(LDFLAGS) -o $@ $^
-	mv $(TARGET) ../	
 
 %.o:%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 clean:
-	$(RM) $(OBJS) $(TARGET) ../$(TARGET)
+	$(RM) $(OBJS) $(TARGET)
 
 .PHONY:clean all

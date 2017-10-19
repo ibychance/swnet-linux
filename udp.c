@@ -128,13 +128,21 @@ void udp_destroy(HUDPLINK lnk) {
     objclos(lnk);
 }
 
+static int udp_maker(void *data, int cb, void *context) {
+    if (data && cb > 0 && context) {
+        memcpy(data, context, cb);
+        return 0;
+    }
+    return -1;
+}
+
 int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const char* r_ipstr, uint16_t r_port) {
     ncb_t *ncb;
     struct sockaddr_in addr;
     objhld_t hld = (objhld_t) lnk;
     unsigned char *buffer;
 
-    if (!maker || !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > MTU)) {
+    if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > MTU)) {
         return -1;
     }
 
@@ -156,9 +164,16 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const c
         }
 
         /* 自己构造包数据 */
-        if ((*maker)(buffer, cb, par) < 0) {
-            break;
+        if (maker) {
+            if ((*maker)(buffer, cb, par) < 0) {
+                break;
+            }
+        }else{
+            if (udp_maker(buffer, cb, par) < 0){
+                break;
+            }
         }
+        
 
         /* 向发送队列增加一个节点, 并投递激活消息 */
         addr.sin_family = AF_INET;

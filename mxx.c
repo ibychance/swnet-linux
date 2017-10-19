@@ -14,6 +14,7 @@
 #include "nis.h"
 #include "ncb.h"
 #include "object.h"
+#include <arpa/inet.h> 
 
 int nis_setctx(HLNK lnk, const void * user_context, int user_context_size) {
     ncb_t *ncb;
@@ -182,3 +183,21 @@ int nis_gethost(const char *name, uint32_t *ipv4) {
     *ipv4 = ntohl(addr.s_addr);
     return 0;
 }
+
+/* 通过 getaddrinfo 获得本地域名解析 /etc/hosts
+ *  retval = getaddrinfo("domian.subversion.cc", NULL,  NULL, &res);
+ * if (0 == retval){
+        struct addrinfo *cursor;
+        cursor = res;
+        while (cursor) {
+            //char dst[128];
+            printf("%s\n", inet_ntoa(((struct sockaddr_in *)cursor->ai_addr)->sin_addr));
+            //const char *p = inet_ntop(AF_INET, cursor->ai_addr, dst, 128);
+            //printf("%s\n", p);
+            cursor = cursor->ai_next;
+        }
+ * }
+ * if (res){
+        freeaddrinfo(res); 
+ * }
+ */

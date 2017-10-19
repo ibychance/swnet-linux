@@ -16,7 +16,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include "posix_types.h"
+#include "compiler.h"
 #include "posix_thread.h"
 #include "posix_atomic.h"
 

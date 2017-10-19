@@ -5,6 +5,8 @@
 #include <assert.h>
 #include <sys/sysinfo.h>
 
+#include "compiler.h"
+
 #include "object.h"
 #include "clist.h"
 #include "ncb.h"
@@ -14,7 +16,6 @@
 #include "posix_thread.h"
 #include "posix_wait.h"
 #include "posix_atomic.h"
-#include "posix_types.h"
 #include "posix_ifos.h"
 
 /*
