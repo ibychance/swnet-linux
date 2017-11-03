@@ -261,7 +261,11 @@ int ioatth(void *ncbptr, enum io_poll_mask_t mask) {
         return -1;
     }
     
-    return epoll_ctl(ncb->epfd, EPOLL_CTL_ADD, ncb->sockfd, &e_evt);
+    if ( epoll_ctl(ncb->epfd, EPOLL_CTL_ADD, ncb->sockfd, &e_evt) < 0 &&
+			errno != EEXIST ) {
+				return -1;
+	}
+	return 0;
 }
 
 int iomod(void *ncbptr, enum io_poll_mask_t mask ) {
@@ -284,6 +288,7 @@ int iomod(void *ncbptr, enum io_poll_mask_t mask ) {
     if (mask & kPollMask_Write){
         e_evt.events |= EPOLLOUT;
     }
+	
     return epoll_ctl(ncb->epfd, EPOLL_CTL_MOD, ncb->sockfd, &e_evt);
 }
 
