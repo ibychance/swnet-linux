@@ -27,22 +27,20 @@
 /* 1024 is just a hint for the kernel */
 #define EPOLL_SIZE    (1024)
 
-struct epoll_object_t{
+struct epoll_object {
     int epfd;
     posix__boolean_t actived;
     posix__pthread_t thread; /* EPOLL 线程 */
     int load; /* 此线程的当前负载压力情况 */
 } ;
 
-struct epoll_object_manager_t {
-    struct epoll_object_t *epos;
-    int nprocs;
-    int min_load;
-    int min_index;
+struct epoll_object_manager {
+    struct epoll_object *epos;
+    int divisions;		/* 分时多路复用中的链路个数 */
     posix__pthread_mutex_t lock_selection; /* 锁住最大/最小负载筛选及其下标更替 */ 
 };
 
-static struct epoll_object_manager_t epmgr;
+static struct epoll_object_manager epmgr;
 static int refcnt = 0;
 
 static void io_run(struct epoll_event *evts, int sigcnt){
@@ -119,9 +117,9 @@ static void *epoll_proc(void *argv) {
     struct epoll_event evts[EPOLL_SIZE];
     int sigcnt;
     int errcode;
-    struct epoll_object_t *epo;
+    struct epoll_object *epo;
 
-    epo = (struct epoll_object_t *)argv;
+    epo = (struct epoll_object *)argv;
     while (epo->actived) {
         sigcnt = epoll_wait(epo->epfd, evts, EPOLL_SIZE, -1);
         if (sigcnt < 0) {
@@ -151,16 +149,14 @@ int ioinit() {
     /* 对一个已经关闭的链接执行 write, 返回 EPIPE 的同时会 raise 一个SIGPIPE 信号，需要忽略处理 */
     signal(SIGPIPE, SIG_IGN);
     
-    epmgr.nprocs = get_nprocs();
-    if ( NULL == (epmgr.epos = (struct epoll_object_t *)malloc(sizeof(struct epoll_object_t) * epmgr.nprocs))) {
+    epmgr.divisions = get_nprocs() * 2;
+    if ( NULL == (epmgr.epos = (struct epoll_object *)malloc(sizeof(struct epoll_object) * epmgr.divisions))) {
         posix__atomic_dec(&refcnt);
         return -1;
     }
     posix__pthread_mutex_init(&epmgr.lock_selection);
-    epmgr.min_load = 0;
-    epmgr.min_index = 0;
     
-    for (i = 0; i < epmgr.nprocs; i++) {
+    for (i = 0; i < epmgr.divisions; i++) {
         epmgr.epos[i].load = 0;
         epmgr.epos[i].epfd = epoll_create(EPOLL_SIZE);
         if (epmgr.epos[i].epfd < 0) {
@@ -197,7 +193,7 @@ void iouninit() {
         return;
     }
     
-    for (i = 0; i < epmgr.nprocs; i++){
+    for (i = 0; i < epmgr.divisions; i++){
         if (epmgr.epos[i].epfd > 0){
             close(epmgr.epos[i].epfd);
             epmgr.epos[i].epfd = -1;
@@ -228,7 +224,7 @@ int ioatth(void *ncbptr, int mask) {
     e_evt.events = (EPOLLET | EPOLLRDHUP); 
 	e_evt.events |= mask;
 	
-	ncb->epfd = epmgr.epos[ncb->hld % epmgr.nprocs].epfd;
+	ncb->epfd = epmgr.epos[ncb->hld % epmgr.divisions].epfd;
     if ( epoll_ctl(ncb->epfd, EPOLL_CTL_ADD, ncb->sockfd, &e_evt) < 0 &&
 			errno != EEXIST ) {
 				ncb->epfd = -1;
