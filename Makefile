@@ -1,4 +1,4 @@
-TARGET=nshost.so.9.1
+TARGET=nshost.so.9.4
 
 SRCS=$(wildcard *.c) $(wildcard ../libnsp/com/*.c)
 OBJS=$(patsubst %.c,%.o,$(SRCS))

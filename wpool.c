@@ -33,12 +33,17 @@
  * 需要进行的测试项:
  * 1. 发生EAGAIN 后再关注 EPOLL_OUT 事件， 是否能确保事件被抓获
  */
+struct task_node {
+    objhld_t hld;
+    enum task_type type;
+    struct list_head link;
+};
 
 struct write_thread_node {
     posix__pthread_t    thread;
     posix__pthread_mutex_t task_lock;
     posix__waitable_handle_t task_signal;
-    struct list_head task_list; /* task_node_t::link */
+    struct list_head task_list; /* struct task_node::link */
     int task_list_size;
 };
 
@@ -51,7 +56,7 @@ struct write_pool_manager {
 static int refcnt = 0;
 static struct write_pool_manager write_pool;
 
-static void add_task(struct write_thread_node *thread, struct task_node_t *task) {
+static void add_task(struct write_thread_node *thread, struct task_node *task) {
     if (task && thread) {
         INIT_LIST_HEAD(&task->link);
         posix__pthread_mutex_lock(&thread->task_lock);
@@ -61,11 +66,11 @@ static void add_task(struct write_thread_node *thread, struct task_node_t *task)
     }
 }
 
-static struct task_node_t *get_task(struct write_thread_node *thread){
-    struct task_node_t *task;
+static struct task_node *get_task(struct write_thread_node *thread){
+    struct task_node *task;
     
     posix__pthread_mutex_lock(&thread->task_lock);
-    if (NULL != (task = list_first_entry_or_null(&thread->task_list, struct task_node_t, link))) {
+    if (NULL != (task = list_first_entry_or_null(&thread->task_list, struct task_node, link))) {
          --thread->task_list_size;
         list_del(&task->link);
         INIT_LIST_HEAD(&task->link);
@@ -75,7 +80,7 @@ static struct task_node_t *get_task(struct write_thread_node *thread){
     return task;
 }
 
-static int run_task(struct task_node_t *task) {
+static int run_task(struct task_node *task) {
     objhld_t hld;
     int retval;
     ncb_t *ncb;
@@ -116,7 +121,7 @@ static int run_task(struct task_node_t *task) {
          */
         if (task->type == kTaskType_TxOrder && ncb_if_wblocked(ncb) ) {
             ncb_cancel_wblock(ncb);
-            iomod(ncb, kPollMask_Read);
+            iomod(ncb, EPOLLIN);
         }
     }
     
@@ -126,7 +131,7 @@ static int run_task(struct task_node_t *task) {
      */
     else if (EAGAIN == retval ){
         ncb_mark_wblocked(ncb);
-        iomod(ncb, kPollMask_Read | kPollMask_Write);
+        iomod(ncb, EPOLLIN | EPOLLOUT);
     }
     
     /* 没有任何数据需要写入， 本轮轮空 */
@@ -139,7 +144,7 @@ static int run_task(struct task_node_t *task) {
 }
 
 static void *run(void *p) {
-    struct task_node_t *task;
+    struct task_node *task;
     struct write_thread_node *thread;
     
     thread = (struct write_thread_node *)p;
@@ -188,7 +193,7 @@ int write_pool_init(){
 void write_pool_uninit(){
     int i;
     void *retval;
-    struct task_node_t *task;
+    struct task_node *task;
     
     if (0 == refcnt) {
         return;
@@ -219,11 +224,11 @@ void write_pool_uninit(){
     write_pool.write_threads = NULL;
 }
 
-int post_write_task(objhld_t hld, enum task_type_t type){
-    struct task_node_t *task;
+int post_write_task(objhld_t hld, enum task_type type){
+    struct task_node *task;
     struct write_thread_node *thread;
     
-    if (NULL == (task = (struct task_node_t *)malloc(sizeof(struct task_node_t)))){
+    if (NULL == (task = (struct task_node *)malloc(sizeof(struct task_node)))){
         return -ENOMEM;
     }
     task->hld = hld;

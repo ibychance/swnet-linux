@@ -87,7 +87,7 @@ int tcpi_syn(ncb_t *ncb_server) {
         ncb_client->ncb_read = &tcp_rx;
         ncb_client->ncb_write = &tcp_tx;
         
-        if (ioatth(ncb_client, kPollMask_Read) < 0) {
+        if (ioatth(ncb_client, EPOLLIN) < 0) {
             break;
         }
 
@@ -175,7 +175,7 @@ int tcp_rx(ncb_t *ncb) {
 }
 
 static
-int tcp_tx_single_packet(int sockfd, struct packet_node_t *packet) {
+int tcp_tx_single_packet(int sockfd, struct tx_node *packet) {
     int wcb;
     int errcode;
 
@@ -217,7 +217,7 @@ int tcp_tx_single_packet(int sockfd, struct packet_node_t *packet) {
  * ·¢ËÍ´¦ÀíÆ÷
  */
 int tcp_tx(ncb_t *ncb) {
-    struct packet_node_t *packet;
+    struct tx_node *packet;
     int retval;
 
     if (!ncb) {
@@ -262,7 +262,7 @@ int tcp_tx_syn(ncb_t *ncb) {
         ncb->ncb_read = &tcp_rx;
         ncb->ncb_write = &tcp_tx;
 
-        retval = iomod(ncb, kPollMask_Read);
+        retval = iomod(ncb, EPOLLIN);
         if (retval < 0) {
             objclos(ncb->hld);
             return -1;

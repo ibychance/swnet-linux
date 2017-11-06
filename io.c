@@ -69,7 +69,7 @@ static void io_run(struct epoll_event *evts, int sigcnt){
          * 1. 有数据到达
          * 2. 有 syn 请求到达
          * 3. 读取缓冲区因任意可能转变为非空
-         * TCP 读缓冲区  cat /proc/sys/net/ipv4/tcp_rmem 
+         * 		TCP 读缓冲区  cat /proc/sys/net/ipv4/tcp_rmem 
          * 
          * 备注:
          * 1.9系列版本的最大特色就是epoll线程直接处理描述符的数据
@@ -94,15 +94,16 @@ static void io_run(struct epoll_event *evts, int sigcnt){
 
         /*
          * ET模式下，EPOLLOUT触发条件有：
-            1.缓冲区满-->缓冲区非满；
-            2.同时监听EPOLLOUT和EPOLLIN事件 时，当有IN 事件发生，都会顺带一个OUT事件；
-            3.一个客户端connect过来，accept成功后会触发一次OUT事件。
-
+         *   1.缓冲区满-->缓冲区非满；
+		 *		TCP 写缓冲区 cat /proc/sys/net/ipv4/tcp_wmem 
+         *   2.同时监听EPOLLOUT和EPOLLIN事件 时，当有IN 事件发生，都会顺带一个OUT事件；
+         *   3.一个客户端connect过来，accept成功后会触发一次OUT事件。
+		 *
          * 注意事项:
          * 1. (EPOLLIN | EPOLLOUT) 一旦被关注， 则每个写入缓冲区不满 EPOLLIN 都会携带触发一次, 损耗性能， 且不容易操作 oneshot
          * 2. 平常无需关注 EPOLLOUT
          * 3. 一旦写入操作发生 EAGAIN, 则下一个写入操作能且只能由 EPOLLOUT 发起(关注状态切换)
-         * TCP 写缓冲区 cat /proc/sys/net/ipv4/tcp_wmem 
+         * 
          * 
          * 已验证：当发生发送EAGAIN后再关注EPOLLOUT，可以在缓冲区成功空出后得到通知
          */
@@ -170,7 +171,7 @@ int ioinit() {
         
         /* active 字段既作为运行有效性的判断符，也作为运行的控制符号 */
         epmgr.epos[i].actived = posix__true;
-         if (posix__pthread_create(&epmgr.epos[i].thread, &epoll_proc, &epmgr.epos[i]) < 0) {
+        if (posix__pthread_create(&epmgr.epos[i].thread, &epoll_proc, &epmgr.epos[i]) < 0) {
             epmgr.epos[i].actived = posix__false;
             close(epmgr.epos[i].epfd);
             epmgr.epos[i].epfd = -1;
@@ -214,28 +215,7 @@ void iouninit() {
     posix__pthread_mutex_uninit(&epmgr.lock_selection);
 }
 
-/* 选择当前压力最小的EPO作为负载对象, 返回该对象的EPFD， 发生任何错误返回-1 */
-static int io_select_object(){
-    int epfd;
-    int i;
-    
-    epfd = -1;
-    posix__pthread_mutex_lock(&epmgr.lock_selection);
-    epmgr.epos[epmgr.min_index].load++;
-    epmgr.min_load++;
-    epfd = epmgr.epos[epmgr.min_index].epfd;
-    for (i = 0; i < epmgr.nprocs; i++){
-        if ((i != epmgr.min_index) && (epmgr.epos[i].load < epmgr.min_load )){
-            epmgr.min_index = i;
-            epmgr.min_load = epmgr.epos[i].load;
-            break;
-        }
-    }
-    posix__pthread_mutex_unlock(&epmgr.lock_selection);
-    return epfd;
-}
-
-int ioatth(void *ncbptr, enum io_poll_mask_t mask) {
+int ioatth(void *ncbptr, int mask) {
     struct epoll_event e_evt;
     ncb_t *ncb;
     
@@ -246,29 +226,18 @@ int ioatth(void *ncbptr, enum io_poll_mask_t mask) {
     
     e_evt.data.fd = ncb->hld;
     e_evt.events = (EPOLLET | EPOLLRDHUP); 
-    if (mask & kPollMask_Oneshot) {
-        e_evt.events |= EPOLLONESHOT;
-    }
-    if (mask & kPollMask_Read) {
-        e_evt.events |= EPOLLIN;
-    }
-    if (mask & kPollMask_Write){
-        e_evt.events |= EPOLLOUT;
-    }
-    
-    ncb->epfd = io_select_object();
-    if (ncb->epfd < 0 ){
-        return -1;
-    }
-    
+	e_evt.events |= mask;
+	
+	ncb->epfd = epmgr.epos[ncb->hld % epmgr.nprocs].epfd;
     if ( epoll_ctl(ncb->epfd, EPOLL_CTL_ADD, ncb->sockfd, &e_evt) < 0 &&
 			errno != EEXIST ) {
+				ncb->epfd = -1;
 				return -1;
 	}
 	return 0;
 }
 
-int iomod(void *ncbptr, enum io_poll_mask_t mask ) {
+int iomod(void *ncbptr, int mask ) {
     struct epoll_event e_evt;
     ncb_t *ncb;
     
@@ -278,16 +247,8 @@ int iomod(void *ncbptr, enum io_poll_mask_t mask ) {
     }
 
     e_evt.data.fd = ncb->hld;
-    e_evt.events = (EPOLLET | EPOLLRDHUP | EPOLLIN); 
-    if (mask & kPollMask_Oneshot) {
-        e_evt.events |= EPOLLONESHOT;
-    }
-    if (mask & kPollMask_Read) {
-        e_evt.events |= EPOLLIN;
-    }
-    if (mask & kPollMask_Write){
-        e_evt.events |= EPOLLOUT;
-    }
+    e_evt.events = (EPOLLET | EPOLLRDHUP ); 
+	e_evt.events |= mask;
 	
     return epoll_ctl(ncb->epfd, EPOLL_CTL_MOD, ncb->sockfd, &e_evt);
 }

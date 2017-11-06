@@ -12,7 +12,7 @@
  * neo.anderson 2017-01-18
  */
 
-enum task_type_t {
+enum task_type {
     kTaskType_Unknown = 0,
     kTaskType_RxOrder,
     kTaskType_RxTest,
@@ -21,17 +21,11 @@ enum task_type_t {
     kTaskType_Destroy,
 };
 
-struct task_node_t {
-    objhld_t hld;
-    enum task_type_t type;
-    struct list_head link;
-};
-
 extern
 int write_pool_init();
 extern
 void write_pool_uninit();
 extern
-int post_write_task(objhld_t hld, enum task_type_t type);
+int post_write_task(objhld_t hld, enum task_type type);
 
 #endif

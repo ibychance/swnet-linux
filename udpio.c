@@ -59,7 +59,7 @@ int udp_rx(ncb_t *ncb) {
 }
 
 static
-int udp_tx_single_packet(int sockfd, struct packet_node_t *packet){
+int udp_tx_single_packet(int sockfd, struct tx_node *packet){
     int wcb;
     int errcode;
     socklen_t len = sizeof(struct sockaddr);
@@ -100,7 +100,7 @@ int udp_tx_single_packet(int sockfd, struct packet_node_t *packet){
 }
 
 int udp_tx(ncb_t *ncb) {
-    struct packet_node_t *packet;
+    struct tx_node *packet;
     int retval;
     
     if (!ncb) {

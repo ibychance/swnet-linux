@@ -265,7 +265,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
         ncb->ncb_read = &tcp_rx;
         ncb->ncb_write = &tcp_tx;
 
-        retval = ioatth(ncb, kPollMask_Read);
+        retval = ioatth(ncb, EPOLLIN);
         if (retval >= 0) {
             c_event.Event = EVT_TCP_CONNECTED;
             c_event.Ln.Tcp.Link = lnk;
@@ -305,7 +305,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
     do {
         /* 异步连接， 在 connect 前， 先把套接字对象加入到 EPOLL 序列， 一旦连上后会得到一个 EPOLLOUT */
         ncb->ncb_write = &tcp_tx_syn;
-        if (ioatth(ncb, kPollMask_Write) < 0) {
+        if (ioatth(ncb, EPOLLOUT) < 0) {
             break;
         }
 
@@ -348,7 +348,7 @@ int tcp_listen(HTCPLINK lnk, int block) {
         ncb->ncb_read = &tcp_syn;
         ncb->ncb_write = NULL;
         
-        if (ioatth(ncb, kPollMask_Read) < 0) {
+        if (ioatth(ncb, EPOLLIN) < 0) {
             break;
         }
         retval = 0;

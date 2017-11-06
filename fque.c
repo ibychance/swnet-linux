@@ -4,7 +4,7 @@
 #include <string.h>
 #include <errno.h>
 
-void fque_init(struct packet_fifo_t *fque) {
+void fque_init(struct tx_fifo *fque) {
     if (fque) {
         INIT_LIST_HEAD(&fque->head);
         fque->size = 0;
@@ -12,12 +12,12 @@ void fque_init(struct packet_fifo_t *fque) {
     }
 }
 
-void fque_uninit(struct packet_fifo_t *fque) {
-    struct packet_node_t *node;
+void fque_uninit(struct tx_fifo *fque) {
+    struct tx_node *node;
 
     if (fque) {
         posix__pthread_mutex_lock(&fque->lock);
-        while ((node = list_first_entry_or_null(&fque->head, struct packet_node_t, link)) != NULL) {
+        while ((node = list_first_entry_or_null(&fque->head, struct tx_node, link)) != NULL) {
             free(node->data);
             list_del(&node->link);
             free(node);
@@ -27,15 +27,15 @@ void fque_uninit(struct packet_fifo_t *fque) {
     }
 }
 
-int fque_priority_push(struct packet_fifo_t *fque, unsigned char *data, int cb, int offset, const struct sockaddr_in *target) {
-    struct packet_node_t *node;
+int fque_priority_push(struct tx_fifo *fque, unsigned char *data, int cb, int offset, const struct sockaddr_in *target) {
+    struct tx_node *node;
     int retval;
 
     if (!fque || !data || cb <= 0) {
         return -1;
     }
 
-    node = (struct packet_node_t *) malloc(sizeof (struct packet_node_t));
+    node = (struct tx_node *) malloc(sizeof (struct tx_node));
     if (!node) {
         return -1;
     }
@@ -55,15 +55,15 @@ int fque_priority_push(struct packet_fifo_t *fque, unsigned char *data, int cb, 
 }
 
 /* 注意， 内部不对数据作深拷贝*/
-int fque_push(struct packet_fifo_t *fque, unsigned char *data, int cb, const struct sockaddr_in *target) {
-    struct packet_node_t *node;
+int fque_push(struct tx_fifo *fque, unsigned char *data, int cb, const struct sockaddr_in *target) {
+    struct tx_node *node;
     int retval;
 
     if (!fque || !data || cb <= 0) {
         return -1;
     }
 
-    node = (struct packet_node_t *) malloc(sizeof (struct packet_node_t));
+    node = (struct tx_node *) malloc(sizeof (struct tx_node));
     if (!node) {
         return -1;
     }
@@ -82,7 +82,7 @@ int fque_push(struct packet_fifo_t *fque, unsigned char *data, int cb, const str
     return retval;
 }
 
-int fque_revert(struct packet_fifo_t *fque, struct packet_node_t *node) {
+int fque_revert(struct tx_fifo *fque, struct tx_node *node) {
     int retval;
 
     if (!fque || !node) {
@@ -97,15 +97,15 @@ int fque_revert(struct packet_fifo_t *fque, struct packet_node_t *node) {
     return retval;
 }
 
-struct packet_node_t *fque_get(struct packet_fifo_t *fque) {
-    struct packet_node_t *node;
+struct tx_node *fque_get(struct tx_fifo *fque) {
+    struct tx_node *node;
 
     if (!fque) {
         return NULL;
     }
 
     posix__pthread_mutex_lock(&fque->lock);
-    if (NULL != (node = list_first_entry_or_null(&fque->head, struct packet_node_t, link))) {
+    if (NULL != (node = list_first_entry_or_null(&fque->head, struct tx_node, link))) {
         list_del(&node->link);
         INIT_LIST_HEAD(&node->link);
         --fque->size;
@@ -116,7 +116,7 @@ struct packet_node_t *fque_get(struct packet_fifo_t *fque) {
 }
 
 extern
-int fque_size(struct packet_fifo_t *fque) {
+int fque_size(struct tx_fifo *fque) {
     int retval;
 
     retval = -1;

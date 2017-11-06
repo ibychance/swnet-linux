@@ -2,6 +2,10 @@
 
 #include "udp.h"
 
+#if !defined MAX_UDP_SIZE
+#define MAX_UDP_SIZE		(MTU - (ETHERNET_P_SIZE + IP_P_SIZE + UDP_P_SIZE))
+#endif
+
 extern
 void (*__notify_nshost_dbglog)(const char *logstr);
 
@@ -111,7 +115,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         ncb->ncb_write = &udp_tx;
         
         /* ¸½¼Óµ½ EPOLL */
-        retval = ioatth(ncb, kPollMask_Read);
+        retval = ioatth(ncb, EPOLLIN);
         if (retval < 0) {
             break;
         }

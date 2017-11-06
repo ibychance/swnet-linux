@@ -27,7 +27,7 @@
 #include "fque.h"
 #include "clist.h"
 
-enum ncb__protocol_type_t {
+enum ncb__protocol_type {
     kProtocolType_Unknown = 0,
     kProtocolType_TCP,
     kProtocolType_UDP,
@@ -37,13 +37,13 @@ typedef struct _ncb {
     int hld;
     int sockfd;
     int epfd;  /* 绑定的EPOLL描述符 */
-    enum ncb__protocol_type_t proto_type;
+    enum ncb__protocol_type proto_type;
 
     /* 应用层数据包的收包实际缓冲区 */
     char *packet;
     
     /* 发送操作的顺序队列 */
-    struct packet_fifo_t tx_fifo;
+    struct tx_fifo tx_fifo;
 
     /* 地址结构信息 */
     struct sockaddr_in remot_addr;
