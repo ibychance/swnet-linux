@@ -1,4 +1,5 @@
 TARGET=nshost.so.9.4
+build=automatic
 
 SRCS=$(wildcard *.c) $(wildcard ../libnsp/com/*.c)
 OBJS=$(patsubst %.c,%.o,$(SRCS))
@@ -6,10 +7,10 @@ OBJS=$(patsubst %.c,%.o,$(SRCS))
 CFLAGS+=-I ../libnsp/icom -fPIC -Wall
 LDFLAGS=-shared
 
-ifeq ($(DEBUG_SYMBOLS),TRUE)
+ifeq ($(build),debug)
 	CFLAGS+=-g
 else
-	CFLAGS+=-O3
+	CFLAGS+=-O2
 endif
 
 all:$(TARGET)
@@ -21,5 +22,7 @@ $(TARGET):$(OBJS)
 	$(CC) $(CFLAGS) -c $< -o $@
 clean:
 	$(RM) $(OBJS) $(TARGET)
+debug:
+	$(CFLAGS)+=-g
 
 .PHONY:clean all
