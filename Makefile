@@ -1,5 +1,6 @@
 TARGET=nshost.so.9.4
 build=automatic
+arch=x86_64
 
 SRCS=$(wildcard *.c) $(wildcard ../libnsp/com/*.c)
 OBJS=$(patsubst %.c,%.o,$(SRCS))
@@ -11,6 +12,12 @@ ifeq ($(build),debug)
 	CFLAGS+=-g
 else
 	CFLAGS+=-O2
+endif
+
+ifeq ($(arch),arm)
+	CC=arm-linux-gnueabihf-gcc
+else
+	CC=gcc
 endif
 
 all:$(TARGET)
