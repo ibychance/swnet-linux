@@ -1,4 +1,4 @@
-TARGET=nshost.so.9.4
+TARGET=nshost.so.9.5
 build=automatic
 arch=x86_64
 
@@ -23,13 +23,11 @@ endif
 all:$(TARGET)
 
 $(TARGET):$(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 %.o:%.c
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) -c $< $(CFLAGS)  -o $@
 clean:
 	$(RM) $(OBJS) $(TARGET)
-debug:
-	$(CFLAGS)+=-g
 
 .PHONY:clean all

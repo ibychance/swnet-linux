@@ -84,9 +84,16 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
         return -1;
     }
 
-    if ((*ncb->template.parser_)(ncb->packet, ncb->rx_parse_offset, &user_data_size) < 0) return -1;
-    if (user_data_size > TCP_MAXIMUM_PACKET_SIZE) return -1;
-
+	/* 通过解释例程得到用户段数据长度 */
+    if ((*ncb->template.parser_)(ncb->packet, ncb->rx_parse_offset, &user_data_size) < 0) {
+		return -1;
+	}
+	
+	/* 如果用户数据长度超出最大容忍长度，则直接报告为错误, 有可能是恶意攻击 */
+    if (user_data_size > TCP_MAXIMUM_PACKET_SIZE) {
+		return -1;
+	}
+	
     /* 含包头的包总长度 */
     total_packet_length = user_data_size + ncb->template.cb_;
 
