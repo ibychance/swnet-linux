@@ -34,7 +34,7 @@ int tcpi_syn(ncb_t *ncb_server) {
     }
 
     /* 已经得到了对端链接， 无需在处理客户链接的初始化等操作时，返回失败 */
-    hld_client = objallo(sizeof ( ncb_t), &objentry, &ncb_uninit, NULL, 0);
+    hld_client = objallo(sizeof ( ncb_t), NULL, &ncb_uninit, NULL, 0);
     if (hld_client < 0) {
         close(fd_client);
         return 0;

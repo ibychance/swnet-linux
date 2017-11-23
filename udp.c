@@ -62,7 +62,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         return -1;
     }
 
-    hld = objallo(sizeof ( ncb_t), &objentry, &ncb_uninit, NULL, 0);
+    hld = objallo(sizeof ( ncb_t), NULL, &ncb_uninit, NULL, 0);
     if (hld < 0) {
         close(fd);
         return -1;
