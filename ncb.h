@@ -26,6 +26,7 @@
 #include "worker.h"
 #include "fque.h"
 #include "clist.h"
+#include "object.h"
 
 enum ncb__protocol_type {
     kProtocolType_Unknown = 0,
@@ -131,7 +132,7 @@ typedef struct _ncb {
 extern
 int ncb_init(ncb_t *ncb);
 extern
-void ncb_uninit(int ignore, void */*ncb_t * */ncb);
+void ncb_uninit(objhld_t ignore, void */*ncb_t * */ncb);
 extern
 void ncb_report_debug_information(ncb_t *ncb, const char *fmt, ...);
 
