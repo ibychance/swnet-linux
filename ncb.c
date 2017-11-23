@@ -24,7 +24,7 @@ int ncb_init(ncb_t *ncb) {
     return -EINVAL;
 }
 
-void ncb_uninit(int ignore, void *p) {
+void ncb_uninit(HLINK ignore, void *p) {
     nis_event_t c_event;
     tcp_data_t c_data;
     ncb_t *ncb;
