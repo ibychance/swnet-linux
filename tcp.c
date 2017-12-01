@@ -384,6 +384,15 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
     }
 
     do {
+        /* 上层应用有可能发生如下情形:
+         * 创建完成后，立即调用发包函数，此时尚未建立连接，或尚未形成监听
+         * 这个情况下， wpool::run_task 可能得到一个任务， 但是 ncb->ncb_write 为空， 引发进程崩溃
+         * 因此在发送操作中对操作函数进行前置判断是一个保险的行为
+         */
+        if (!ncb->ncb_write || !ncb->ncb_read) {
+            break;
+        }
+
         /* 发送队列过长， 无法进行发送操作 */
         if (fque_size(&ncb->tx_fifo) >= TCP_MAXIMUM_SENDER_CACHED_CNT) {
             break;

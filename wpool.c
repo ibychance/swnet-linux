@@ -107,6 +107,10 @@ static int run_task(struct task_node *task) {
      * 1. 没有发生IO隔离
      * 2. 发生了IO隔离，但是收到了来自 EPOLL 的 TxOrder, 可以正常响应
      */
+    assert (ncb->ncb_write);
+    if (!ncb->ncb_write) {
+        return -1;
+    }
     retval = ncb->ncb_write(ncb);
     
     /* 发生无可挽救的系统错误, 该链接将被关闭 */

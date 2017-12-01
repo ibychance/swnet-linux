@@ -16,7 +16,7 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
 
     cpbuff = data;
 
-    /* Ã»ÓÐÖ¸¶¨°üÍ·Ä£°å£¬ Ö±½Ó»Øµ÷Õû¸öTCP°ü */
+    /* æ²¡æœ‰æŒ‡å®šåŒ…å¤´æ¨¡æ¿ï¼Œ ç›´æŽ¥å›žè°ƒæ•´ä¸ªTCPåŒ… */
     if (0 == ncb->template.cb_) {
         c_event.Ln.Tcp.Link = (HTCPLINK) ncb->hld;
         c_event.Event = EVT_RECEIVEDATA;
@@ -29,20 +29,20 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
         return 0;
     }
 
-    /*ÒÑ¾­±»±ê¼ÇÎª´ó°ü½ÓÊÕ×´Ì¬ £¬Ôò´¦Àí´ó°üÊý¾Ý*/
+    /*å·²ç»è¢«æ ‡è®°ä¸ºå¤§åŒ…æŽ¥æ”¶çŠ¶æ€ ï¼Œåˆ™å¤„ç†å¤§åŒ…æ•°æ®*/
     if (ncb_lb_marked(ncb)) {
-        /*±¾´Îµ½´ïÊý¾ÝÉÐ²»×ãÒÔÌîÂú´ó°ü*/
+        /*æœ¬æ¬¡åˆ°è¾¾æ•°æ®å°šä¸è¶³ä»¥å¡«æ»¡å¤§åŒ…*/
         if (cpcb + ncb->lboffset < ncb->lbsize) {
             memcpy(ncb->lbdata + ncb->lboffset, cpbuff, cpcb);
             ncb->lboffset += cpcb;
             return 0;
         }
 
-        /*±¾´Îµ½´ïÊý¾Ý×ãÒÔÍê³É´ó°ü*/
+        /*æœ¬æ¬¡åˆ°è¾¾æ•°æ®è¶³ä»¥å®Œæˆå¤§åŒ…*/
         overplus = ncb->lbsize - ncb->lboffset;
         memcpy(ncb->lbdata + ncb->lboffset, cpbuff, overplus);
 
-        /*Íê³É×é°ü, »Øµ÷¸øÉÏ²ãÄ£¿é*/
+        /*å®Œæˆç»„åŒ…, å›žè°ƒç»™ä¸Šå±‚æ¨¡å—*/
         if (ncb->nis_callback) {
             c_event.Ln.Tcp.Link = ncb->hld;
             c_event.Event = EVT_RECEIVEDATA;
@@ -51,7 +51,7 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
             ncb->nis_callback(&c_event, &c_data);
         }
 
-        /*ÊÍ·Å´ó°ü»º³åÇø*/
+        /*é‡Šæ”¾å¤§åŒ…ç¼“å†²åŒº*/
         free(ncb->lbdata);
         ncb->lbdata = NULL;
         ncb->lboffset = 0;
@@ -59,7 +59,7 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
         return (cpcb - overplus);
     }
 
-    /*Êý¾Ý³¤¶ÈÉÐ²»×ã¹¹³ÉÐ­ÒéÍ·, È«²¿Êý¾ÝÓÃÓÚ¹¹½¨Ð­ÒéÍ·£¬ ·µ»ØÊ£Óà³¤¶È0*/
+    /*æ•°æ®é•¿åº¦å°šä¸è¶³æž„æˆåè®®å¤´, å…¨éƒ¨æ•°æ®ç”¨äºŽæž„å»ºåè®®å¤´ï¼Œ è¿”å›žå‰©ä½™é•¿åº¦0*/
     if (ncb->rx_parse_offset + cpcb < ncb->template.cb_) {
         memcpy(ncb->packet + ncb->rx_parse_offset, cpbuff, cpcb);
         ncb->rx_parse_offset += cpcb;
@@ -69,7 +69,7 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
     overplus = cpcb;
     used = 0;
 
-    /*µ±Ç°°üÖÐµÄÊý¾Ý²»×ãÒÔ¹¹½¨Ð­ÒéÍ·£¬µ«ÊÇ¼ÓÉÏ±¾´ÎÊý¾Ý£¬×ãÒÔ¹¹ÔìÐ­ÒéÍ·*/
+    /*å½“å‰åŒ…ä¸­çš„æ•°æ®ä¸è¶³ä»¥æž„å»ºåè®®å¤´ï¼Œä½†æ˜¯åŠ ä¸Šæœ¬æ¬¡æ•°æ®ï¼Œè¶³ä»¥æž„é€ åè®®å¤´*/
     if (ncb->rx_parse_offset < ncb->template.cb_) {
         used += (ncb->template.cb_ - ncb->rx_parse_offset);
         overplus = cpcb - used;
@@ -78,54 +78,54 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
         ncb->rx_parse_offset = ncb->template.cb_;
     }
 
-    /* µ×²ãÐ­Òé½»»¥¸øÐ­ÒéÄ£°å´¦Àí£¬ ´¦ÀíÊ§°ÜÔò½â°ü²Ù×÷ÎÞ·¨¼ÌÐø */
+    /* åº•å±‚åè®®äº¤äº’ç»™åè®®æ¨¡æ¿å¤„ç†ï¼Œ å¤„ç†å¤±è´¥åˆ™è§£åŒ…æ“ä½œæ— æ³•ç»§ç»­ */
     if (!(*ncb->template.parser_)) {
         ncb_report_debug_information(ncb, "[TCP]invalidated link object TST parser function address.\n");
         return -1;
     }
 
-	/* Í¨¹ý½âÊÍÀý³ÌµÃµ½ÓÃ»§¶ÎÊý¾Ý³¤¶È */
+	/* é€šè¿‡è§£é‡Šä¾‹ç¨‹å¾—åˆ°ç”¨æˆ·æ®µæ•°æ®é•¿åº¦ */
     if ((*ncb->template.parser_)(ncb->packet, ncb->rx_parse_offset, &user_data_size) < 0) {
 		return -1;
 	}
 	
-	/* Èç¹ûÓÃ»§Êý¾Ý³¤¶È³¬³ö×î´óÈÝÈÌ³¤¶È£¬ÔòÖ±½Ó±¨¸æÎª´íÎó, ÓÐ¿ÉÄÜÊÇ¶ñÒâ¹¥»÷ */
+	/* å¦‚æžœç”¨æˆ·æ•°æ®é•¿åº¦è¶…å‡ºæœ€å¤§å®¹å¿é•¿åº¦ï¼Œåˆ™ç›´æŽ¥æŠ¥å‘Šä¸ºé”™è¯¯, æœ‰å¯èƒ½æ˜¯æ¶æ„æ”»å‡» */
     if (user_data_size > TCP_MAXIMUM_PACKET_SIZE) {
 		return -1;
 	}
 	
-    /* º¬°üÍ·µÄ°ü×Ü³¤¶È */
+    /* å«åŒ…å¤´çš„åŒ…æ€»é•¿åº¦ */
     total_packet_length = user_data_size + ncb->template.cb_;
 
-    /* Èç¹ûÊÇ´ó°ü£¬ÔòÓ¦¸Ã½¨Á¢´ó°üÁ÷³Ì */
+    /* å¦‚æžœæ˜¯å¤§åŒ…ï¼Œåˆ™åº”è¯¥å»ºç«‹å¤§åŒ…æµç¨‹ */
     if (total_packet_length > TCP_BUFFER_SIZE) {
         ncb->lbdata = (char *) malloc(total_packet_length);
         if (!ncb->lbdata) {
             return -1;
         }
 
-        /* º¬µ×²ãÐ­Òé°üÍ·µÄ´ó°üÊý¾Ý×Ü³¤¶È */
+        /* å«åº•å±‚åè®®åŒ…å¤´çš„å¤§åŒ…æ•°æ®æ€»é•¿åº¦ */
         ncb->lbsize = total_packet_length;
 
-        /* ±¾´ÎÈ«²¿Êý¾Ý¿½±´µ½´ó°ü»º³åÇø */
+        /* æœ¬æ¬¡å…¨éƒ¨æ•°æ®æ‹·è´åˆ°å¤§åŒ…ç¼“å†²åŒº */
         memcpy(ncb->lbdata, data, cpcb);
         ncb->lboffset = cpcb;
 
-        /* ÇåÀíÆÕÍ¨°ü»º³åÇøµÄÃèÊöÐÅÏ¢ */
+        /* æ¸…ç†æ™®é€šåŒ…ç¼“å†²åŒºçš„æè¿°ä¿¡æ¯ */
         ncb->rx_parse_offset = 0;
 
-        /* ´ó°ü¹¹½¨½×¶Î£¬µ¥´Î½ÓÊÕ»º³åÇøµÄÊý¾Ý¿Ï¶¨»áÒ»´ÎÓÃ¾¡ */
+        /* å¤§åŒ…æž„å»ºé˜¶æ®µï¼Œå•æ¬¡æŽ¥æ”¶ç¼“å†²åŒºçš„æ•°æ®è‚¯å®šä¼šä¸€æ¬¡ç”¨å°½ */
         return 0;
     }
 
-    /*Ê£ÓàµÄ×Ö½ÚÊý£¬×ãÒÔ¹¹ÔìÕû¸ö°ü*/
+    /*å‰©ä½™çš„å­—èŠ‚æ•°ï¼Œè¶³ä»¥æž„é€ æ•´ä¸ªåŒ…*/
     if ((ncb->rx_parse_offset + overplus) >= total_packet_length) {
         memcpy(ncb->packet + ncb->rx_parse_offset, cpbuff, total_packet_length - ncb->rx_parse_offset);
 
-        /*·µ»Ø¸øÉÏ¼¶µ÷ÓÃµÄ×Ö½ÚÊý=±¾´ÎµÄÊ£Óà×Ö½ÚÊý-¹¹½¨±¾°ü×Ü¹²ÏûºÄµÄ×Ö½ÚÊý*/
+        /*è¿”å›žç»™ä¸Šçº§è°ƒç”¨çš„å­—èŠ‚æ•°=æœ¬æ¬¡çš„å‰©ä½™å­—èŠ‚æ•°-æž„å»ºæœ¬åŒ…æ€»å…±æ¶ˆè€—çš„å­—èŠ‚æ•°*/
         retcb = (overplus - (total_packet_length - ncb->rx_parse_offset));
 
-        /*Íê³É×é°ü, »Øµ÷¸øÉÏ²ãÄ£¿é*/
+        /*å®Œæˆç»„åŒ…, å›žè°ƒç»™ä¸Šå±‚æ¨¡å—*/
         c_event.Ln.Tcp.Link = ncb->hld;
         c_event.Event = EVT_RECEIVEDATA;
         c_data.e.Packet.Data = (ncb->packet + ncb->template.cb_);
@@ -138,7 +138,7 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
         return retcb;
     }
 
-    /*Ê£Óà×Ö½ÚÊý²»×ãÒÔ¹¹ÔìÒ»¸öÍêÕû°ü£¬ Ôò°ÑÊ£Óà×Ö½ÚÊý¶¼·ÅÈë»º³åÇø£¬²¢µ÷Õû°ü½âÎöÆ«ÒÆ*/
+    /*å‰©ä½™å­—èŠ‚æ•°ä¸è¶³ä»¥æž„é€ ä¸€ä¸ªå®Œæ•´åŒ…ï¼Œ åˆ™æŠŠå‰©ä½™å­—èŠ‚æ•°éƒ½æ”¾å…¥ç¼“å†²åŒºï¼Œå¹¶è°ƒæ•´åŒ…è§£æžåç§»*/
     memmove(ncb->packet + ncb->rx_parse_offset, cpbuff, overplus);
     ncb->rx_parse_offset += overplus;
     return 0;
