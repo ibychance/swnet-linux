@@ -141,20 +141,22 @@ static int udp_maker(void *data, int cb, void *context) {
 }
 
 int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const char* r_ipstr, uint16_t r_port) {
+    int retval;
     ncb_t *ncb;
     struct sockaddr_in addr;
     objhld_t hld = (objhld_t) lnk;
     unsigned char *buffer;
 
-    if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > MTU)) {
-        return -1;
+    if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > UDP_MAXIMUM_USER_DATA_SIZE)) {
+        return -EINVAL;
     }
 
     ncb = (ncb_t *) objrefr(hld);
     if (!ncb) {
-        return -1;
+        return -ENOENT;
     }
 
+    retval = -1;
     buffer = NULL;
     do {
         /* 发送队列过长， 无法进行发送操作 */
@@ -164,6 +166,7 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const c
 
         buffer = (unsigned char *) malloc(cb);
         if (!buffer) {
+            retval = -ENOMEM;
             break;
         }
 
@@ -198,7 +201,7 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const c
         free(buffer);
     }
     objdefr(hld);
-    return -1;
+    return retval;
 }
 
 int udp_getaddr(HUDPLINK lnk, uint32_t *ipv4, uint16_t *port) {

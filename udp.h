@@ -13,6 +13,10 @@
 #define UDP_BUFFER_SIZE          (0xFFFF) 
 #endif
 
+#if !defined UDP_MAXIMUM_USER_DATA_SIZE
+#define UDP_MAXIMUM_USER_DATA_SIZE	(1472)		/* MTU - UDP_P_SIZE - IP_P_SIZE */
+#endif
+
 /* udp io */
 extern
 int udp_rx(ncb_t *ncb);

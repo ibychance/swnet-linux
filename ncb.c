@@ -34,6 +34,14 @@ void ncb_uninit(objhld_t ignore, void *p) {
     }
 
     ncb = (ncb_t *) p;
+
+    /* 尽可能保证和WIN32版本的行为一致性， 投递关闭前通知 */
+    if (ncb->nis_callback && ncb->hld >= 0) {
+        c_event.Ln.Tcp.Link = ncb->hld;
+        c_event.Event = EVT_PRE_CLOSE;
+        c_data.e.LinkOption.OptionLink = ncb->hld;
+        ncb->nis_callback(&c_event, &c_data);
+    }
     
     /* 停止网络服务
      * 如果有epoll关联， 则取消关联
