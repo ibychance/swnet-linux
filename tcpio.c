@@ -75,6 +75,11 @@ int tcpi_syn(ncb_t *ncb_server) {
             break;
         }
 
+        /* 接收上来的链接， 关注数据包 
+           为了保证 accept 消息上层处理函数可以正确发包，需要在这里对IO处理例程进行指定*/
+        ncb_client->ncb_read = &tcp_rx;
+        ncb_client->ncb_write = &tcp_tx;
+
         /*回调通知上层, 有链接到来*/
         c_event.Event = EVT_TCP_ACCEPTED;
         c_event.Ln.Tcp.Link = ncb_server->hld;
@@ -82,10 +87,6 @@ int tcpi_syn(ncb_t *ncb_server) {
         if (ncb_server->nis_callback) {
             ncb_server->nis_callback(&c_event, &c_data);
         }
-
-        /* 接收上来的链接， 关注数据包 */
-        ncb_client->ncb_read = &tcp_rx;
-        ncb_client->ncb_write = &tcp_tx;
         
         if (ioatth(ncb_client, EPOLLIN) < 0) {
             break;

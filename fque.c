@@ -18,8 +18,10 @@ void fque_uninit(struct tx_fifo *fque) {
     if (fque) {
         posix__pthread_mutex_lock(&fque->lock);
         while ((node = list_first_entry_or_null(&fque->head, struct tx_node, link)) != NULL) {
-            free(node->data);
             list_del(&node->link);
+            if (node->data) {
+                free(node->data);
+            }
             free(node);
         }
         posix__pthread_mutex_unlock(&fque->lock);
@@ -32,12 +34,12 @@ int fque_priority_push(struct tx_fifo *fque, unsigned char *data, int cb, int of
     int retval;
 
     if (!fque || !data || cb <= 0) {
-        return -1;
+        return -EINVAL;
     }
 
     node = (struct tx_node *) malloc(sizeof (struct tx_node));
     if (!node) {
-        return -1;
+        return -ENOMEM;
     }
     node->data = data;
     node->wcb = cb;
