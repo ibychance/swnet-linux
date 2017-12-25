@@ -7,8 +7,8 @@
 #include "clist.h"
 
 /*
- * 1. nshost µÄºËĞÄ²¿·Ö£¨Ïß³Ì½á¹¹£©ÃèÊö
- * 2. CPUµ÷¶È£¬ÄÚºË¼¤»îµÈ
+ * 1. nshost çš„æ ¸å¿ƒéƒ¨åˆ†ï¼ˆçº¿ç¨‹ç»“æ„ï¼‰æè¿°
+ * 2. CPUè°ƒåº¦ï¼Œå†…æ ¸æ¿€æ´»ç­‰
  * neo.anderson 2017-01-18
  */
 
@@ -17,7 +17,7 @@ enum task_type {
     kTaskType_RxOrder,
     kTaskType_RxTest,
     kTaskType_TxOrder,
-    kTaskType_TxTest,           /* ³¢ÊÔĞÔĞ´Èë£¬ µ±io blocked Ê±£¬¸ÃÈÎÎñÎŞ·¨Íê³É, Ö»Òª´ıĞ´¶ÓÁĞ·Ç¿Õ£¬ ¾ù»áÍ¶µİÒ»¸ö TxTest ¸øµ÷¶ÈÏß³ÌÓÃÓÚÏÂÒ»´Î¼ì²é */ 
+    kTaskType_TxTest,           /* å°è¯•æ€§å†™å…¥ï¼Œ å½“io blocked æ—¶ï¼Œè¯¥ä»»åŠ¡æ— æ³•å®Œæˆ, åªè¦å¾…å†™é˜Ÿåˆ—éç©ºï¼Œ å‡ä¼šæŠ•é€’ä¸€ä¸ª TxTest ç»™è°ƒåº¦çº¿ç¨‹ç”¨äºä¸‹ä¸€æ¬¡æ£€æŸ¥ */ 
     kTaskType_Destroy,
 };
 

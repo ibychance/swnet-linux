@@ -25,7 +25,7 @@ int nis_setctx(HLNK lnk, const void * user_context, int user_context_size) {
 
     ncb->context_size = 0;
 
-    /*Ö¸¶¨¿ÕÖ¸ÕëºÍ0³¤¶È£¬¿ÉÒÔÇå¿Õµ±Ç°µÄÓÃ»§ÉÏÏÂÎÄ*/
+    /*æŒ‡å®šç©ºæŒ‡é’ˆå’Œ0é•¿åº¦ï¼Œå¯ä»¥æ¸…ç©ºå½“å‰çš„ç”¨æˆ·ä¸Šä¸‹æ–‡*/
     if (!user_context || 0 == user_context_size) {
         if (ncb->context && ncb->context_size > 0) {
             free(ncb->context);
@@ -35,7 +35,7 @@ int nis_setctx(HLNK lnk, const void * user_context, int user_context_size) {
         return 0;
     }
 
-    /*È·ÈÏÊÇ·ñ±ä¸üÁËÓÃ»§ÉÏÏÂÎÄµÄ³¤¶È*/
+    /*ç¡®è®¤æ˜¯å¦å˜æ›´äº†ç”¨æˆ·ä¸Šä¸‹æ–‡çš„é•¿åº¦*/
     if (user_context_size != ncb->context_size && ncb->context) {
         free(ncb->context);
         ncb->context = NULL;
@@ -166,7 +166,7 @@ int nis_gethost(const char *name, uint32_t *ipv4) {
         return -1;
     }
     
-    /* Ä¿Ç°½öÖ§³Ö IPv4 */
+    /* ç›®å‰ä»…æ”¯æŒ IPv4 */
     if (AF_INET != remote->h_addrtype) {
         return -1;
     }
@@ -184,7 +184,7 @@ int nis_gethost(const char *name, uint32_t *ipv4) {
     return 0;
 }
 
-/* Í¨¹ı getaddrinfo »ñµÃ±¾µØÓòÃû½âÎö /etc/hosts
+/* é€šè¿‡ getaddrinfo è·å¾—æœ¬åœ°åŸŸåè§£æ /etc/hosts
  *  retval = getaddrinfo("domian.subversion.cc", NULL,  NULL, &res);
  * if (0 == retval){
         struct addrinfo *cursor;

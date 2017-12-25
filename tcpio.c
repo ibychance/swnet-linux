@@ -20,12 +20,12 @@ int tcpi_syn(ncb_t *ncb_server) {
     errcode = errno;
     if (fd_client < 0) {
 
-        /* ÏµÍ³µ÷ÓÃÖĞ¶Ï£¬ ¿ÉÒÔÁ¢¼´Ö´ĞĞÔÙÒ»´Î¶ÁÈ¡²Ù×÷ */
+        /* ç³»ç»Ÿè°ƒç”¨ä¸­æ–­ï¼Œ å¯ä»¥ç«‹å³æ‰§è¡Œå†ä¸€æ¬¡è¯»å–æ“ä½œ */
         if (errcode == EINTR) {
             return 0;
         }
 
-        /*ÒÑ¾­Ã»ÓĞÊı¾İ¿É¹©¶Á³ö£¬²»ĞèÒª¼ÌĞøÎª¹¤×÷Ïß³ÌÍ¶µİ¶ÁÈ¡ÈÎÎñ£¬µÈ´ıÏÂÒ»´ÎµÄEPOLL±ß½ç´¥·¢Í¨Öª*/
+        /*å·²ç»æ²¡æœ‰æ•°æ®å¯ä¾›è¯»å‡ºï¼Œä¸éœ€è¦ç»§ç»­ä¸ºå·¥ä½œçº¿ç¨‹æŠ•é€’è¯»å–ä»»åŠ¡ï¼Œç­‰å¾…ä¸‹ä¸€æ¬¡çš„EPOLLè¾¹ç•Œè§¦å‘é€šçŸ¥*/
         if ((errcode == EAGAIN) || (errcode == EWOULDBLOCK)) {
             return EAGAIN;
         }
@@ -33,7 +33,7 @@ int tcpi_syn(ncb_t *ncb_server) {
         return -1;
     }
 
-    /* ÒÑ¾­µÃµ½ÁË¶Ô¶ËÁ´½Ó£¬ ÎŞĞèÔÚ´¦Àí¿Í»§Á´½ÓµÄ³õÊ¼»¯µÈ²Ù×÷Ê±£¬·µ»ØÊ§°Ü */
+    /* å·²ç»å¾—åˆ°äº†å¯¹ç«¯é“¾æ¥ï¼Œ æ— éœ€åœ¨å¤„ç†å®¢æˆ·é“¾æ¥çš„åˆå§‹åŒ–ç­‰æ“ä½œæ—¶ï¼Œè¿”å›å¤±è´¥ */
     hld_client = objallo(sizeof ( ncb_t), NULL, &ncb_uninit, NULL, 0);
     if (hld_client < 0) {
         close(fd_client);
@@ -48,11 +48,11 @@ int tcpi_syn(ncb_t *ncb_server) {
         ncb_client->proto_type = kProtocolType_TCP;
         ncb_client->nis_callback = ncb_server->nis_callback;
 
-        /* ±¾µØºÍ¶Ô¶ËµÄµØÖ·½á¹¹Ìå */
-        getpeername(fd_client, (struct sockaddr *) &ncb_client->remot_addr, &addrlen); /* ¶Ô¶ËµÄµØÖ·ĞÅÏ¢ */
-        getsockname(fd_client, (struct sockaddr *) &ncb_client->local_addr, &addrlen); /* ±¾µØµÄµØÖ·ĞÅÏ¢ */
+        /* æœ¬åœ°å’Œå¯¹ç«¯çš„åœ°å€ç»“æ„ä½“ */
+        getpeername(fd_client, (struct sockaddr *) &ncb_client->remot_addr, &addrlen); /* å¯¹ç«¯çš„åœ°å€ä¿¡æ¯ */
+        getsockname(fd_client, (struct sockaddr *) &ncb_client->local_addr, &addrlen); /* æœ¬åœ°çš„åœ°å€ä¿¡æ¯ */
 
-        /*ETÄ£ĞÍ±ØĞë±£³ÖËùÓĞÎÄ¼şÃèÊö·ûÒì²½½øĞĞ*/
+        /*ETæ¨¡å‹å¿…é¡»ä¿æŒæ‰€æœ‰æ–‡ä»¶æè¿°ç¬¦å¼‚æ­¥è¿›è¡Œ*/
         if (setasio(ncb_client->sockfd) < 0) {
             break;
         }
@@ -62,25 +62,25 @@ int tcpi_syn(ncb_t *ncb_server) {
             break;
         }
 
-        /*·ÖÅäTCPÆÕÍ¨°ü*/
+        /*åˆ†é…TCPæ™®é€šåŒ…*/
         ncb_client->packet = (char *) malloc(TCP_BUFFER_SIZE);
         if (!ncb_client->packet) {
             break;
         }
 
-        /*Çå¿ÕĞ­ÒéÍ·*/
+        /*æ¸…ç©ºåè®®å¤´*/
         ncb_client->rx_parse_offset = 0;
         ncb_client->rx_buffer = (char *) malloc(TCP_BUFFER_SIZE);
         if (!ncb_client->rx_buffer) {
             break;
         }
 
-        /* ½ÓÊÕÉÏÀ´µÄÁ´½Ó£¬ ¹Ø×¢Êı¾İ°ü 
-           ÎªÁË±£Ö¤ accept ÏûÏ¢ÉÏ²ã´¦Àíº¯Êı¿ÉÒÔÕıÈ··¢°ü£¬ĞèÒªÔÚÕâÀï¶ÔIO´¦ÀíÀı³Ì½øĞĞÖ¸¶¨*/
+        /* æ¥æ”¶ä¸Šæ¥çš„é“¾æ¥ï¼Œ å…³æ³¨æ•°æ®åŒ… 
+           ä¸ºäº†ä¿è¯ accept æ¶ˆæ¯ä¸Šå±‚å¤„ç†å‡½æ•°å¯ä»¥æ­£ç¡®å‘åŒ…ï¼Œéœ€è¦åœ¨è¿™é‡Œå¯¹IOå¤„ç†ä¾‹ç¨‹è¿›è¡ŒæŒ‡å®š*/
         ncb_client->ncb_read = &tcp_rx;
         ncb_client->ncb_write = &tcp_tx;
 
-        /*»Øµ÷Í¨ÖªÉÏ²ã, ÓĞÁ´½Óµ½À´*/
+        /*å›è°ƒé€šçŸ¥ä¸Šå±‚, æœ‰é“¾æ¥åˆ°æ¥*/
         c_event.Event = EVT_TCP_ACCEPTED;
         c_event.Ln.Tcp.Link = ncb_server->hld;
         c_data.e.Accept.AcceptLink = hld_client;
@@ -131,7 +131,7 @@ int tcpi_rx(ncb_t *ncb) {
         do {
             overplus = tcp_parse_pkt(ncb, ncb->rx_buffer + offset, cpcb);
             if (overplus < 0) {
-                /* µ×²ãĞ­Òé½âÎö³ö´í£¬Ö±½Ó¹Ø±Õ¸ÃÁ´½Ó */
+                /* åº•å±‚åè®®è§£æå‡ºé”™ï¼Œç›´æ¥å…³é—­è¯¥é“¾æ¥ */
                 return -1;
             }
             offset += (cpcb - overplus);
@@ -139,7 +139,7 @@ int tcpi_rx(ncb_t *ncb) {
         } while (overplus > 0);
     }
 
-    /*¶Ô¶Ë¶Ï¿ª*/
+    /*å¯¹ç«¯æ–­å¼€*/
     if (0 == recvcb) {
         return -1;
     }
@@ -147,13 +147,13 @@ int tcpi_rx(ncb_t *ncb) {
     /* ECONNRESET 104 Connection reset by peer */
     if (recvcb < 0) {
 
-        /* ÈÎºÎÏµÍ³ÖĞ¶Ïµ¼ÖÂµÄ¶ÁÊı¾İ·µ»Ø£¬ÇÒ»¹Ã»ÓĞÈÎºÎÊı¾İÀ´µÃ¼°Ğ´ÈëÓ¦ÓÃ²ã»º³åÇø
-         * ´ËÊ±Ó¦¸ÃÁ¢¼´ÔÙÖ´ĞĞÒ»´Î¶Á²Ù×÷ */
+        /* ä»»ä½•ç³»ç»Ÿä¸­æ–­å¯¼è‡´çš„è¯»æ•°æ®è¿”å›ï¼Œä¸”è¿˜æ²¡æœ‰ä»»ä½•æ•°æ®æ¥å¾—åŠå†™å…¥åº”ç”¨å±‚ç¼“å†²åŒº
+         * æ­¤æ—¶åº”è¯¥ç«‹å³å†æ‰§è¡Œä¸€æ¬¡è¯»æ“ä½œ */
         if (errcode == EINTR) {
             return 0;
         }
 
-        /*ÒÑ¾­Ã»ÓĞÊı¾İ¿É¹©¶Á³ö£¬²»ĞèÒª¼ÌĞøÎª¹¤×÷Ïß³ÌÍ¶µİ¶ÁÈ¡ÈÎÎñ£¬µÈ´ıÏÂÒ»´ÎµÄEPOLL±ß½ç´¥·¢Í¨Öª*/
+        /*å·²ç»æ²¡æœ‰æ•°æ®å¯ä¾›è¯»å‡ºï¼Œä¸éœ€è¦ç»§ç»­ä¸ºå·¥ä½œçº¿ç¨‹æŠ•é€’è¯»å–ä»»åŠ¡ï¼Œç­‰å¾…ä¸‹ä¸€æ¬¡çš„EPOLLè¾¹ç•Œè§¦å‘é€šçŸ¥*/
         if ((errcode == EAGAIN) || (errcode == EWOULDBLOCK)) {
             return EAGAIN;
         }
@@ -168,7 +168,7 @@ int tcp_rx(ncb_t *ncb) {
 
     tcp_save_info(ncb);
 
-    /* ½«½ÓÊÕ»º³åÇø¶Á¿ÕÎªÖ¹ */
+    /* å°†æ¥æ”¶ç¼“å†²åŒºè¯»ç©ºä¸ºæ­¢ */
     do {
         retval = tcpi_rx(ncb);
     } while (0 == retval);
@@ -180,11 +180,11 @@ int tcp_tx_single_packet(int sockfd, struct tx_node *packet) {
     int wcb;
     int errcode;
 
-    /* ½ö¶ÔÍ·½ÚµãÖ´ĞĞ²Ù×÷ */
+    /* ä»…å¯¹å¤´èŠ‚ç‚¹æ‰§è¡Œæ“ä½œ */
     while (packet->offset < packet->wcb) {
         wcb = send(sockfd, packet->data + packet->offset, packet->wcb - packet->offset, 0);
 
-        /* ¶Ô¶Ë¶Ï¿ª£¬ »ò£¬ ÆäËû²»¿ÉÈİÈÌµÄ´íÎó */
+        /* å¯¹ç«¯æ–­å¼€ï¼Œ æˆ–ï¼Œ å…¶ä»–ä¸å¯å®¹å¿çš„é”™è¯¯ */
         if (0 == wcb) {
             return -1;
         }
@@ -192,19 +192,19 @@ int tcp_tx_single_packet(int sockfd, struct tx_node *packet) {
         if (wcb < 0) {
             errcode = errno;
 
-            /* Ğ´Èë»º³åÇøÒÑÂú£¬ ¼¤»î²¢µÈ´ı EPOLLOUT ²ÅÄÜ¼ÌĞøÖ´ĞĞÏÂÒ»Æ¬Ğ´Èë
-             * ´ËÊ±ĞèÒª´¦Àí¶ÓÁĞÍ·½Úµã£¬ ½«Î´´¦ÀíÍêµÄ½Úµã»¹Ô­»Ø¶ÓÁĞÍ·
-             * oneshot ·½Ê½Ç¿ÖÆ¹Ø×¢Ğ´Èë²Ù×÷Íê³Éµã */
+            /* å†™å…¥ç¼“å†²åŒºå·²æ»¡ï¼Œ æ¿€æ´»å¹¶ç­‰å¾… EPOLLOUT æ‰èƒ½ç»§ç»­æ‰§è¡Œä¸‹ä¸€ç‰‡å†™å…¥
+             * æ­¤æ—¶éœ€è¦å¤„ç†é˜Ÿåˆ—å¤´èŠ‚ç‚¹ï¼Œ å°†æœªå¤„ç†å®Œçš„èŠ‚ç‚¹è¿˜åŸå›é˜Ÿåˆ—å¤´
+             * oneshot æ–¹å¼å¼ºåˆ¶å…³æ³¨å†™å…¥æ“ä½œå®Œæˆç‚¹ */
             if (EAGAIN == errcode) {
                 return EAGAIN;
             }
 
-            /* ÖĞ¶ÏĞÅºÅµ¼ÖÂµÄĞ´²Ù×÷ÖĞÖ¹£¬¶øÇÒÃ»ÓĞÈÎºÎÒ»¸ö×Ö½ÚÍê³ÉĞ´Èë£¬¿ÉÒÔ¾ÍµØ»Ö¸´ */
+            /* ä¸­æ–­ä¿¡å·å¯¼è‡´çš„å†™æ“ä½œä¸­æ­¢ï¼Œè€Œä¸”æ²¡æœ‰ä»»ä½•ä¸€ä¸ªå­—èŠ‚å®Œæˆå†™å…¥ï¼Œå¯ä»¥å°±åœ°æ¢å¤ */
             if (EINTR == errcode) {
                 continue;
             }
 
-            /* ·¢ÉúÆäËûÎŞ·¨ÈİÈÌÇÒÎŞ·¨´¦ÀíµÄ´íÎó, Õâ¸ö´íÎó·µ»Ø»áµ¼ÖÂ¶Ï¿ªÁ´½Ó */
+            /* å‘ç”Ÿå…¶ä»–æ— æ³•å®¹å¿ä¸”æ— æ³•å¤„ç†çš„é”™è¯¯, è¿™ä¸ªé”™è¯¯è¿”å›ä¼šå¯¼è‡´æ–­å¼€é“¾æ¥ */
             return make_error_result(errcode);
         }
 
@@ -215,7 +215,7 @@ int tcp_tx_single_packet(int sockfd, struct tx_node *packet) {
 }
 
 /*
- * ·¢ËÍ´¦ÀíÆ÷
+ * å‘é€å¤„ç†å™¨
  */
 int tcp_tx(ncb_t *ncb) {
     struct tx_node *packet;
@@ -225,7 +225,7 @@ int tcp_tx(ncb_t *ncb) {
         return -1;
     }
 
-    /* ÈôÎŞÌØÊâÇé¿ö£¬ ĞèÒª°ÑËùÓĞ·¢ËÍ»º³å°üÈ«²¿Ğ´ÈëÄÚºË */
+    /* è‹¥æ— ç‰¹æ®Šæƒ…å†µï¼Œ éœ€è¦æŠŠæ‰€æœ‰å‘é€ç¼“å†²åŒ…å…¨éƒ¨å†™å…¥å†…æ ¸ */
     while (NULL != (packet = fque_get(&ncb->tx_fifo))) {
         retval = tcp_tx_single_packet(ncb->sockfd, packet);
         if (retval < 0) {
@@ -244,7 +244,7 @@ int tcp_tx(ncb_t *ncb) {
 }
 
 /*
- * Á¬½Ó´¦ÀíÆ÷
+ * è¿æ¥å¤„ç†å™¨
  */
 int tcp_tx_syn(ncb_t *ncb) {
     int retval;
@@ -256,10 +256,10 @@ int tcp_tx_syn(ncb_t *ncb) {
     retval = connect(ncb->sockfd, (const struct sockaddr *) &ncb->remot_addr, sizeof (struct sockaddr));
     if (retval >= 0) {
         addrlen = sizeof (struct sockaddr);
-        getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* ¶Ô¶ËµÄµØÖ·ĞÅÏ¢ */
-        getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* ±¾µØµÄµØÖ·ĞÅÏ¢ */
+        getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* å¯¹ç«¯çš„åœ°å€ä¿¡æ¯ */
+        getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* æœ¬åœ°çš„åœ°å€ä¿¡æ¯ */
 
-        /* ¹Ø×¢ÊÕ·¢°ü */
+        /* å…³æ³¨æ”¶å‘åŒ… */
         ncb->ncb_read = &tcp_rx;
         ncb->ncb_write = &tcp_tx;
 
@@ -278,8 +278,8 @@ int tcp_tx_syn(ncb_t *ncb) {
 
     e = errno;
     switch (e) {
-        case EISCONN: /* ÒÑ¾­Á´½ÓÉÏ */
-        case EALREADY: /* »¹ÔÚ½øĞĞÖĞ */
+        case EISCONN: /* å·²ç»é“¾æ¥ä¸Š */
+        case EALREADY: /* è¿˜åœ¨è¿›è¡Œä¸­ */
             return 0;
         default:
             break;

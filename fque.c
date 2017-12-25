@@ -56,7 +56,7 @@ int fque_priority_push(struct tx_fifo *fque, unsigned char *data, int cb, int of
     return retval;
 }
 
-/* ×¢Òâ£¬ ÄÚ²¿²»¶ÔÊı¾İ×÷Éî¿½±´*/
+/* æ³¨æ„ï¼Œ å†…éƒ¨ä¸å¯¹æ•°æ®ä½œæ·±æ‹·è´*/
 int fque_push(struct tx_fifo *fque, unsigned char *data, int cb, const struct sockaddr_in *target) {
     struct tx_node *node;
     int retval;

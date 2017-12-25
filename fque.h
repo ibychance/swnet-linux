@@ -11,11 +11,11 @@
 #include "posix_thread.h"
 
 struct tx_node {
-    unsigned char *data; /* ÇëÇóĞ´ÈëµÄÊı¾İ»º³åÇøÔ­Ê¼Ö¸Õë */
-    int wcb; /* ×Ü¹²µÄĞ´Èë´óĞ¡ */
-    int offset; /* µ±Ç°µÄÍê³ÉĞ´ÈëÆ«ÒÆ */
-    struct sockaddr_in udp_target; /* UDP ¿ÉÓÃ£¬ Ö¸¶¨·¢ËÍÄ¿±ê */
-    struct list_head link; /* ¹´Á´ */
+    unsigned char *data; /* è¯·æ±‚å†™å…¥çš„æ•°æ®ç¼“å†²åŒºåŸå§‹æŒ‡é’ˆ */
+    int wcb; /* æ€»å…±çš„å†™å…¥å¤§å° */
+    int offset; /* å½“å‰çš„å®Œæˆå†™å…¥åç§» */
+    struct sockaddr_in udp_target; /* UDP å¯ç”¨ï¼Œ æŒ‡å®šå‘é€ç›®æ ‡ */
+    struct list_head link; /* å‹¾é“¾ */
 }  ;
 
 #define PACKET_NODE_FREE(node)  \
@@ -35,18 +35,18 @@ void fque_uninit(struct tx_fifo *fque);
 extern
 int fque_priority_push(struct tx_fifo *fque, unsigned char *data, int cb, int offset, const struct sockaddr_in *target);
 extern
-int fque_push(struct tx_fifo *fque, unsigned char *data, int cb, const struct sockaddr_in *target); /* ×¢Òâ£¬ ÄÚ²¿²»¶ÔÊı¾İ×÷Éî¿½±´, ¸ÃÖ¸Õë±ØĞë±£Ö¤ÊÇ¶ÑÄÚ´æ*/
+int fque_push(struct tx_fifo *fque, unsigned char *data, int cb, const struct sockaddr_in *target); /* æ³¨æ„ï¼Œ å†…éƒ¨ä¸å¯¹æ•°æ®ä½œæ·±æ‹·è´, è¯¥æŒ‡é’ˆå¿…é¡»ä¿è¯æ˜¯å †å†…å­˜*/
 
 /* 
- * (Î´Íê³É²Ù×÷µÄ½Úµã)¹é»¹¸ø FIFO, ²¢ÇÒ·ÅÖÃÓÚ¶ÓÁĞÍ·
- * ÕâÖÖ´¦Àí·½Ê½£¬ ÍùÍùÀ´Ô´ÓÚÍ·¶ÔÏóÎ´ÄÜÔÚÒÆ³ıÖÜÆÚÍê³É²Ù×÷
+ * (æœªå®Œæˆæ“ä½œçš„èŠ‚ç‚¹)å½’è¿˜ç»™ FIFO, å¹¶ä¸”æ”¾ç½®äºé˜Ÿåˆ—å¤´
+ * è¿™ç§å¤„ç†æ–¹å¼ï¼Œ å¾€å¾€æ¥æºäºå¤´å¯¹è±¡æœªèƒ½åœ¨ç§»é™¤å‘¨æœŸå®Œæˆæ“ä½œ
  *  */
 extern
 int fque_revert(struct tx_fifo *fque, struct tx_node *node);
 
 /* 
- * È¡³ö¶ÓÁĞÍ·¶ÔÏó£¬ Èç¹û¶ÓÁĞÎª¿Õ£¬ ·µ»ØNULL
- * ²Ù×÷ºó£¬ Í·½Úµã×Ô¶¯µ¯³ö¶ÓÁĞ£¬Èç¹û¸Ã¶ÔÏóÎ´ÄÜÍê³É´¦Àí£¬ ¿ÉÒÔµ÷ÓÃ fque_revert ½«½Úµã¹é»¹¸ø¶ÓÁĞ²¢ÖÃÓÚ¶ÓÍ·
+ * å–å‡ºé˜Ÿåˆ—å¤´å¯¹è±¡ï¼Œ å¦‚æœé˜Ÿåˆ—ä¸ºç©ºï¼Œ è¿”å›NULL
+ * æ“ä½œåï¼Œ å¤´èŠ‚ç‚¹è‡ªåŠ¨å¼¹å‡ºé˜Ÿåˆ—ï¼Œå¦‚æœè¯¥å¯¹è±¡æœªèƒ½å®Œæˆå¤„ç†ï¼Œ å¯ä»¥è°ƒç”¨ fque_revert å°†èŠ‚ç‚¹å½’è¿˜ç»™é˜Ÿåˆ—å¹¶ç½®äºé˜Ÿå¤´
  *   */
 extern
 struct tx_node *fque_get(struct tx_fifo *fque);

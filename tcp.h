@@ -11,7 +11,7 @@
 #define TCP_MAXIMUM_PACKET_SIZE  ( 50 << 20 )
 #endif
 
-#define TCP_MAXIMUM_SENDER_CACHED_CNT ( 5120 ) /* ÒÔÃ¿¸ö°ü64KB¼Æ, ×î¶à¿ÉÒÔ½ÓÊÜ 327MB µÄ·¢ËÍ¶Ñ»ý */
+#define TCP_MAXIMUM_SENDER_CACHED_CNT ( 5120 ) /* ä»¥æ¯ä¸ªåŒ…64KBè®¡, æœ€å¤šå¯ä»¥æŽ¥å— 327MB çš„å‘é€å †ç§¯ */
 
 #define NS_TCP_NODELAY_UNSET  (0)
 #define NS_TCP_NODELAY_SET  (1)
@@ -41,45 +41,45 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb);
 //#define TCPI_OPT_ECN 8
 //
 //struct tcp_info {
-//    __u8 tcpi_state; TCP×´Ì¬
-//    __u8 tcpi_ca_state; TCPÓµÈû×´Ì¬
-//    __u8 tcpi_retransmits;  ³¬Ê±ÖØ´«µÄ´ÎÊý 
-//    __u8 tcpi_probes;  ³ÖÐø¶¨Ê±Æ÷»ò±£»î¶¨Ê±Æ÷·¢ËÍÇÒÎ´È·ÈÏµÄ¶ÎÊý
-//    __u8 tcpi_backoff;  ÍË±ÜÖ¸Êý 
-//    __u8 tcpi_options; Ê±¼ä´ÁÑ¡Ïî¡¢SACKÑ¡Ïî¡¢´°¿ÚÀ©´óÑ¡Ïî¡¢ECNÑ¡ÏîÊÇ·ñÆôÓÃ
-//    __u8 tcpi_snd_wscale : 4, tcpi_rcv_wscale : 4;  ·¢ËÍ¡¢½ÓÊÕµÄ´°¿ÚÀ©´óÒò×Ó
+//    __u8 tcpi_state; TCPçŠ¶æ€
+//    __u8 tcpi_ca_state; TCPæ‹¥å¡žçŠ¶æ€
+//    __u8 tcpi_retransmits;  è¶…æ—¶é‡ä¼ çš„æ¬¡æ•° 
+//    __u8 tcpi_probes;  æŒç»­å®šæ—¶å™¨æˆ–ä¿æ´»å®šæ—¶å™¨å‘é€ä¸”æœªç¡®è®¤çš„æ®µæ•°
+//    __u8 tcpi_backoff;  é€€é¿æŒ‡æ•° 
+//    __u8 tcpi_options; æ—¶é—´æˆ³é€‰é¡¹ã€SACKé€‰é¡¹ã€çª—å£æ‰©å¤§é€‰é¡¹ã€ECNé€‰é¡¹æ˜¯å¦å¯ç”¨
+//    __u8 tcpi_snd_wscale : 4, tcpi_rcv_wscale : 4;  å‘é€ã€æŽ¥æ”¶çš„çª—å£æ‰©å¤§å› å­
 //
-//    __u32 tcpi_rto; ³¬Ê±Ê±¼ä£¬µ¥Î»ÎªÎ¢Ãë
-//    __u32 tcpi_ato;  ÑÓÊ±È·ÈÏµÄ¹ÀÖµ£¬µ¥Î»ÎªÎ¢Ãë
-//    __u32 tcpi_snd_mss;  ±¾¶ËµÄMSS 
-//    __u32 tcpi_rcv_mss; ¶Ô¶ËµÄMSS 
+//    __u32 tcpi_rto; è¶…æ—¶æ—¶é—´ï¼Œå•ä½ä¸ºå¾®ç§’
+//    __u32 tcpi_ato;  å»¶æ—¶ç¡®è®¤çš„ä¼°å€¼ï¼Œå•ä½ä¸ºå¾®ç§’
+//    __u32 tcpi_snd_mss;  æœ¬ç«¯çš„MSS 
+//    __u32 tcpi_rcv_mss; å¯¹ç«¯çš„MSS 
 //
-//    __u32 tcpi_unacked;  Î´È·ÈÏµÄÊý¾Ý¶ÎÊý£¬»òÕßcurrent listen backlog 
-//    __u32 tcpi_sacked; SACKedµÄÊý¾Ý¶ÎÊý£¬»òÕßlisten backlog set in listen()
-//    __u32 tcpi_lost; ¶ªÊ§ÇÒÎ´»Ö¸´µÄÊý¾Ý¶ÎÊý 
-//    __u32 tcpi_retrans; ÖØ´«ÇÒÎ´È·ÈÏµÄÊý¾Ý¶ÎÊý
-//    __u32 tcpi_fackets; FACKedµÄÊý¾Ý¶ÎÊý
+//    __u32 tcpi_unacked;  æœªç¡®è®¤çš„æ•°æ®æ®µæ•°ï¼Œæˆ–è€…current listen backlog 
+//    __u32 tcpi_sacked; SACKedçš„æ•°æ®æ®µæ•°ï¼Œæˆ–è€…listen backlog set in listen()
+//    __u32 tcpi_lost; ä¸¢å¤±ä¸”æœªæ¢å¤çš„æ•°æ®æ®µæ•° 
+//    __u32 tcpi_retrans; é‡ä¼ ä¸”æœªç¡®è®¤çš„æ•°æ®æ®µæ•°
+//    __u32 tcpi_fackets; FACKedçš„æ•°æ®æ®µæ•°
 //
-//    Times. µ¥Î»ÎªºÁÃë
-//    __u32 tcpi_last_data_sent;  ×î½üÒ»´Î·¢ËÍÊý¾Ý°üÔÚ¶à¾ÃÖ®Ç° 
-//    __u32 tcpi_last_ack_sent;   ²»ÄÜÓÃ¡£Not remembered, sorry. 
-//    __u32 tcpi_last_data_recv;  ×î½üÒ»´Î½ÓÊÕÊý¾Ý°üÔÚ¶à¾ÃÖ®Ç° 
-//    __u32 tcpi_last_ack_recv; ×î½üÒ»´Î½ÓÊÕACK°üÔÚ¶à¾ÃÖ®Ç° 
+//    Times. å•ä½ä¸ºæ¯«ç§’
+//    __u32 tcpi_last_data_sent;  æœ€è¿‘ä¸€æ¬¡å‘é€æ•°æ®åŒ…åœ¨å¤šä¹…ä¹‹å‰ 
+//    __u32 tcpi_last_ack_sent;   ä¸èƒ½ç”¨ã€‚Not remembered, sorry. 
+//    __u32 tcpi_last_data_recv;  æœ€è¿‘ä¸€æ¬¡æŽ¥æ”¶æ•°æ®åŒ…åœ¨å¤šä¹…ä¹‹å‰ 
+//    __u32 tcpi_last_ack_recv; æœ€è¿‘ä¸€æ¬¡æŽ¥æ”¶ACKåŒ…åœ¨å¤šä¹…ä¹‹å‰ 
 //
 //    Metrics.
-//    __u32 tcpi_pmtu; ×îºóÒ»´Î¸üÐÂµÄÂ·¾¶MTU 
-//    __u32 tcpi_rcv_ssthresh;  current window clamp£¬rcv_wndµÄãÐÖµ 
-//    __u32 tcpi_rtt;  Æ½»¬µÄRTT£¬µ¥Î»ÎªÎ¢Ãë 
-//    __u32 tcpi_rttvar; /ËÄ·ÖÖ®Ò»mdev£¬µ¥Î»ÎªÎ¢Ãëv 
-//    __u32 tcpi_snd_ssthresh; ÂýÆô¶¯ãÐÖµ 
-//    __u32 tcpi_snd_cwnd; ÓµÈû´°¿Ú 
-//    __u32 tcpi_advmss; ±¾¶ËÄÜ½ÓÊÜµÄMSSÉÏÏÞ£¬ÔÚ½¨Á¢Á¬½ÓÊ±ÓÃÀ´Í¨¸æ¶Ô¶Ë 
-//    __u32 tcpi_reordering; Ã»ÓÐ¶ª°üÊ±£¬¿ÉÒÔÖØÐÂÅÅÐòµÄÊý¾Ý¶ÎÊý
+//    __u32 tcpi_pmtu; æœ€åŽä¸€æ¬¡æ›´æ–°çš„è·¯å¾„MTU 
+//    __u32 tcpi_rcv_ssthresh;  current window clampï¼Œrcv_wndçš„é˜ˆå€¼ 
+//    __u32 tcpi_rtt;  å¹³æ»‘çš„RTTï¼Œå•ä½ä¸ºå¾®ç§’ 
+//    __u32 tcpi_rttvar; /å››åˆ†ä¹‹ä¸€mdevï¼Œå•ä½ä¸ºå¾®ç§’v 
+//    __u32 tcpi_snd_ssthresh; æ…¢å¯åŠ¨é˜ˆå€¼ 
+//    __u32 tcpi_snd_cwnd; æ‹¥å¡žçª—å£ 
+//    __u32 tcpi_advmss; æœ¬ç«¯èƒ½æŽ¥å—çš„MSSä¸Šé™ï¼Œåœ¨å»ºç«‹è¿žæŽ¥æ—¶ç”¨æ¥é€šå‘Šå¯¹ç«¯ 
+//    __u32 tcpi_reordering; æ²¡æœ‰ä¸¢åŒ…æ—¶ï¼Œå¯ä»¥é‡æ–°æŽ’åºçš„æ•°æ®æ®µæ•°
 //
-//    __u32 tcpi_rcv_rtt ×÷Îª½ÓÊÕ¶Ë£¬²â³öµÄRTTÖµ£¬µ¥Î»ÎªÎ¢Ãë
-//    __u32 tcpi_rcv_space;  µ±Ç°½ÓÊÕ»º´æµÄ´óÐ¡
+//    __u32 tcpi_rcv_rtt ä½œä¸ºæŽ¥æ”¶ç«¯ï¼Œæµ‹å‡ºçš„RTTå€¼ï¼Œå•ä½ä¸ºå¾®ç§’
+//    __u32 tcpi_rcv_space;  å½“å‰æŽ¥æ”¶ç¼“å­˜çš„å¤§å°
 //
-//    __u32 tcpi_total_retrans; ±¾Á¬½ÓµÄ×ÜÖØ´«¸öÊý
+//    __u32 tcpi_total_retrans; æœ¬è¿žæŽ¥çš„æ€»é‡ä¼ ä¸ªæ•°
 //};
  
 extern

@@ -15,7 +15,7 @@ int tcp_update_opts(ncb_t *ncb) {
     ncb_set_linger(ncb, 0, 1);
     ncb_set_keepalive(ncb, 1);
 
-    tcp_set_nodelay(ncb, 1); /* Îª±£Ö¤Ð¡°üÐ§ÂÊ£¬ ½ûÓÃ Nginx Ëã·¨ */
+    tcp_set_nodelay(ncb, 1); /* ä¸ºä¿è¯å°åŒ…æ•ˆçŽ‡ï¼Œ ç¦ç”¨ Nginx ç®—æ³• */
     tcp_save_info(ncb);
 
     return 0;
@@ -49,11 +49,11 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
         return -1;
     }
 
-    /* ÔÊÐí¶Ë¿Ú¸´ÓÃ */
+    /* å…è®¸ç«¯å£å¤ç”¨ */
     optval = 1;
     retval = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof ( optval));
 
-    /* °ó¶¨µØÖ·£¬½¨Á¢¶ÔÏó */
+    /* ç»‘å®šåœ°å€ï¼Œå»ºç«‹å¯¹è±¡ */
     addrlocal.sin_addr.s_addr = l_ipstr ? inet_addr(l_ipstr) : INADDR_ANY;
     addrlocal.sin_family = AF_INET;
     addrlocal.sin_port = htons(l_port);
@@ -83,7 +83,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
         ncb->nis_callback = user_callback;
         memcpy(&ncb->local_addr, &addrlocal, sizeof (addrlocal));
 
-        /*ETÄ£ÐÍ±ØÐë±£³ÖËùÓÐÎÄ¼þÃèÊö·ûÒì²½½øÐÐ*/
+        /*ETæ¨¡åž‹å¿…é¡»ä¿æŒæ‰€æœ‰æ–‡ä»¶æè¿°ç¬¦å¼‚æ­¥è¿›è¡Œ*/
         if (setasio(ncb->sockfd) < 0) {
             break;
         }
@@ -93,13 +93,13 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
             break;
         }
 
-        /*·ÖÅäTCPÆÕÍ¨°ü*/
+        /*åˆ†é…TCPæ™®é€šåŒ…*/
         ncb->packet = (char *) malloc(TCP_BUFFER_SIZE);
         if (!ncb->packet) {
             break;
         }
 
-        /*Çå¿ÕÐ­ÒéÍ·*/
+        /*æ¸…ç©ºåè®®å¤´*/
         ncb->rx_parse_offset = 0;
         ncb->rx_buffer = (char *) malloc(TCP_BUFFER_SIZE);
         if (!ncb->rx_buffer) {
@@ -145,9 +145,9 @@ int tcp_gettst(HTCPLINK lnk, tst_t *tst) {
 }
 
 /*
- * ¹Ø±ÕÏìÓ¦±ä¸ü:
- * ¶ÔÏóÏú»Ù²Ù×÷ÓÐ¿ÉÄÜÊÇÏ£ÍûÖÐ¶ÏÄ³Ð©×èÈû²Ù×÷£¬ Èç connect
- * ¹Ê½«Ïú»ÙÐÐÎªµ÷ÕûÎªÖ±½Ó¹Ø±ÕÃèÊö·ûºó£¬ Í¨¹ýÖÇÄÜÖ¸ÕëÏú»Ù¶ÔÏó
+ * å…³é—­å“åº”å˜æ›´:
+ * å¯¹è±¡é”€æ¯æ“ä½œæœ‰å¯èƒ½æ˜¯å¸Œæœ›ä¸­æ–­æŸäº›é˜»å¡žæ“ä½œï¼Œ å¦‚ connect
+ * æ•…å°†é”€æ¯è¡Œä¸ºè°ƒæ•´ä¸ºç›´æŽ¥å…³é—­æè¿°ç¬¦åŽï¼Œ é€šè¿‡æ™ºèƒ½æŒ‡é’ˆé”€æ¯å¯¹è±¡
  */
 void tcp_destroy(HTCPLINK lnk) {
     ncb_t *ncb;
@@ -191,7 +191,7 @@ static int tcp_check_connection(int sockfd) {
     fd_set set;
     int error;
 
-    /* 3m ×÷Îª×î´ó³¬Ê± */
+    /* 3m ä½œä¸ºæœ€å¤§è¶…æ—¶ */
     timeo.tv_sec = 3;
     timeo.tv_usec = 0;
 
@@ -240,7 +240,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
     }
 
     optval = 3;
-    /* Ã÷È·¶¨Òå×î¶à³¢ÊÔ3´Î syn ²Ù×÷ */
+    /* æ˜Žç¡®å®šä¹‰æœ€å¤šå°è¯•3æ¬¡ syn æ“ä½œ */
     setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
 
     addr_to.sin_family = PF_INET;
@@ -250,18 +250,18 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
     e = errno;
     if (retval < 0) {
         if (e == EINPROGRESS) {
-            /* Òì²½SOCKET¿ÉÄÜÔÚSYN½×¶Î·¢Éú EINPROGRESS ´íÎó£¬´ËÊ±Á¬½ÓÓ¦¸ÃÒÑ¾­½¨Á¢£¬ µ«ÊÇÐèÒª¼ì²é */
+            /* å¼‚æ­¥SOCKETå¯èƒ½åœ¨SYNé˜¶æ®µå‘ç”Ÿ EINPROGRESS é”™è¯¯ï¼Œæ­¤æ—¶è¿žæŽ¥åº”è¯¥å·²ç»å»ºç«‹ï¼Œ ä½†æ˜¯éœ€è¦æ£€æŸ¥ */
             retval = tcp_check_connection(ncb->sockfd);
         }
     }
 
     if (0 == retval) {
-        /* ³É¹¦Á¬½ÓºóÐèÒªÈ·¶¨±¾µØºÍ¶Ô¶ËµÄµØÖ·ÐÅÏ¢ */
+        /* æˆåŠŸè¿žæŽ¥åŽéœ€è¦ç¡®å®šæœ¬åœ°å’Œå¯¹ç«¯çš„åœ°å€ä¿¡æ¯ */
         addrlen = sizeof (addr_to);
-        getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* ¶Ô¶ËµÄµØÖ·ÐÅÏ¢ */
-        getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* ±¾µØµÄµØÖ·ÐÅÏ¢ */
+        getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* å¯¹ç«¯çš„åœ°å€ä¿¡æ¯ */
+        getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* æœ¬åœ°çš„åœ°å€ä¿¡æ¯ */
 
-        /* ¹Ø×¢ÊÕ·¢°ü */
+        /* å…³æ³¨æ”¶å‘åŒ… */
         ncb->ncb_read = &tcp_rx;
         ncb->ncb_write = &tcp_tx;
 
@@ -298,12 +298,12 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
 
     optval = 3;
 
-    /* Ã÷È·¶¨Òå×î¶à³¢ÊÔ3´Î syn ²Ù×÷ */
+    /* æ˜Žç¡®å®šä¹‰æœ€å¤šå°è¯•3æ¬¡ syn æ“ä½œ */
     setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
 
     retval = -1;
     do {
-        /* Òì²½Á¬½Ó£¬ ÔÚ connect Ç°£¬ ÏÈ°ÑÌ×½Ó×Ö¶ÔÏó¼ÓÈëµ½ EPOLL ÐòÁÐ£¬ Ò»µ©Á¬ÉÏºó»áµÃµ½Ò»¸ö EPOLLOUT */
+        /* å¼‚æ­¥è¿žæŽ¥ï¼Œ åœ¨ connect å‰ï¼Œ å…ˆæŠŠå¥—æŽ¥å­—å¯¹è±¡åŠ å…¥åˆ° EPOLL åºåˆ—ï¼Œ ä¸€æ—¦è¿žä¸ŠåŽä¼šå¾—åˆ°ä¸€ä¸ª EPOLLOUT */
         ncb->ncb_write = &tcp_tx_syn;
         if (ioatth(ncb, EPOLLOUT) < 0) {
             break;
@@ -344,7 +344,7 @@ int tcp_listen(HTCPLINK lnk, int block) {
             break;
         }
 
-        /* ¸Ã NCB ¶ÔÏóÖ»¿ÉÄÜ¶ÁÍøÂçÊý¾Ý£¬ ¶øÇÒÒ»¶¨ÊÇ½ÓÊÕÁ´½Ó */
+        /* è¯¥ NCB å¯¹è±¡åªå¯èƒ½è¯»ç½‘ç»œæ•°æ®ï¼Œ è€Œä¸”ä¸€å®šæ˜¯æŽ¥æ”¶é“¾æŽ¥ */
         ncb->ncb_read = &tcp_syn;
         ncb->ncb_write = NULL;
         
@@ -384,38 +384,38 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
     }
 
     do {
-        /* ÉÏ²ãÓ¦ÓÃÓÐ¿ÉÄÜ·¢ÉúÈçÏÂÇéÐÎ:
-         * ´´½¨Íê³Éºó£¬Á¢¼´µ÷ÓÃ·¢°üº¯Êý£¬´ËÊ±ÉÐÎ´½¨Á¢Á¬½Ó£¬»òÉÐÎ´ÐÎ³É¼àÌý
-         * Õâ¸öÇé¿öÏÂ£¬ wpool::run_task ¿ÉÄÜµÃµ½Ò»¸öÈÎÎñ£¬ µ«ÊÇ ncb->ncb_write Îª¿Õ£¬ Òý·¢½ø³Ì±ÀÀ£
-         * Òò´ËÔÚ·¢ËÍ²Ù×÷ÖÐ¶Ô²Ù×÷º¯Êý½øÐÐÇ°ÖÃÅÐ¶ÏÊÇÒ»¸ö±£ÏÕµÄÐÐÎª
+        /* ä¸Šå±‚åº”ç”¨æœ‰å¯èƒ½å‘ç”Ÿå¦‚ä¸‹æƒ…å½¢:
+         * åˆ›å»ºå®ŒæˆåŽï¼Œç«‹å³è°ƒç”¨å‘åŒ…å‡½æ•°ï¼Œæ­¤æ—¶å°šæœªå»ºç«‹è¿žæŽ¥ï¼Œæˆ–å°šæœªå½¢æˆç›‘å¬
+         * è¿™ä¸ªæƒ…å†µä¸‹ï¼Œ wpool::run_task å¯èƒ½å¾—åˆ°ä¸€ä¸ªä»»åŠ¡ï¼Œ ä½†æ˜¯ ncb->ncb_write ä¸ºç©ºï¼Œ å¼•å‘è¿›ç¨‹å´©æºƒ
+         * å› æ­¤åœ¨å‘é€æ“ä½œä¸­å¯¹æ“ä½œå‡½æ•°è¿›è¡Œå‰ç½®åˆ¤æ–­æ˜¯ä¸€ä¸ªä¿é™©çš„è¡Œä¸º
          */
         if (!ncb->ncb_write || !ncb->ncb_read) {
             break;
         }
 
-        /* ·¢ËÍ¶ÓÁÐ¹ý³¤£¬ ÎÞ·¨½øÐÐ·¢ËÍ²Ù×÷ */
+        /* å‘é€é˜Ÿåˆ—è¿‡é•¿ï¼Œ æ— æ³•è¿›è¡Œå‘é€æ“ä½œ */
         if (fque_size(&ncb->tx_fifo) >= TCP_MAXIMUM_SENDER_CACHED_CNT) {
             break;
         }
 
-        /*±ØÐëÓÐºÏ·¨TSTÖ¸¶¨*/
+        /*å¿…é¡»æœ‰åˆæ³•TSTæŒ‡å®š*/
         if (!(*ncb->template.builder_)) {
             ncb_report_debug_information(ncb, "[TCP]invalidated link object TST builder function address.\n");
             break;
         }
 
-        /* ·ÖÅäÊý¾Ý»º³åÇø */
+        /* åˆ†é…æ•°æ®ç¼“å†²åŒº */
         buffer = (unsigned char *) malloc(cb + ncb->template.cb_);
         if (!buffer) {
             break;
         }
 
-        /*¹¹½¨Ð­ÒéÍ·*/
+        /*æž„å»ºåè®®å¤´*/
         if ((*ncb->template.builder_)(buffer, cb) < 0) {
             break;
         }
 
-        /*ÓÃ»§Êý¾ÝÌîÈë*/
+        /*ç”¨æˆ·æ•°æ®å¡«å…¥*/
         if (maker) {
             if ((*maker)(buffer + ncb->template.cb_, cb, par) < 0) {
                 break;
@@ -426,7 +426,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
             }
         }
 
-        /* Ïò·¢ËÍ¶ÓÁÐÔö¼ÓÒ»¸ö½Úµã, ²¢Í¶µÝ¼¤»îÏûÏ¢ */
+        /* å‘å‘é€é˜Ÿåˆ—å¢žåŠ ä¸€ä¸ªèŠ‚ç‚¹, å¹¶æŠ•é€’æ¿€æ´»æ¶ˆæ¯ */
         if (fque_push(&ncb->tx_fifo, buffer, cb + ncb->template.cb_, NULL) < 0) {
             break;
         }

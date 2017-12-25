@@ -37,66 +37,66 @@ enum ncb__protocol_type {
 typedef struct _ncb {
     int hld;
     int sockfd;
-    int epfd;  /* °ó¶¨µÄEPOLLÃèÊö·û */
+    int epfd;  /* ç»‘å®šçš„EPOLLæè¿°ç¬¦ */
     enum ncb__protocol_type proto_type;
 
-    /* Ó¦ÓÃ²ãÊý¾Ý°üµÄÊÕ°üÊµ¼Ê»º³åÇø */
+    /* åº”ç”¨å±‚æ•°æ®åŒ…çš„æ”¶åŒ…å®žé™…ç¼“å†²åŒº */
     char *packet;
     
-    /* ·¢ËÍ²Ù×÷µÄË³Ðò¶ÓÁÐ */
+    /* å‘é€æ“ä½œçš„é¡ºåºé˜Ÿåˆ— */
     struct tx_fifo tx_fifo;
 
-    /* µØÖ·½á¹¹ÐÅÏ¢ */
+    /* åœ°å€ç»“æž„ä¿¡æ¯ */
     struct sockaddr_in remot_addr;
     struct sockaddr_in local_addr;
 
-    /* »Øµ÷Àý³Ì */
+    /* å›žè°ƒä¾‹ç¨‹ */
     nis_callback_t nis_callback;
     
-    /* ÓÃ»§ÉÏÏÂÎÄ */
+    /* ç”¨æˆ·ä¸Šä¸‹æ–‡ */
     char *context;
     int context_size;
 
-    /* IO ÏìÓ¦Àý³Ì */
+    /* IO å“åº”ä¾‹ç¨‹ */
     int (*ncb_read)(struct _ncb *);
     int (*ncb_write)(struct _ncb *);
     
-    /* ÖØÒª:
-     * ÓÃÓÚ write ²Ù×÷·¢Éú EAGAIN ºó
-     * Ò»µ©·¢Éú EAGAIN, ºóÐø²Ù×÷Ö»ÄÜÍ¨¹ý EPOLLOUT ´¥·¢£¬¾ßÌå´¦Àí´ëÊ©Îª
-     * 1. ·¢Éú EAGAIN, Ôò¼¤»î¸Ã FD µÄ EPOLLOUTÊÂ¼þ£¬Í¬Ê±½« shield_ ÖÃ 1
-     * 2. ÔÚ shield_ > 0 µÄÇé¿öÏÂ£¬ÈÎºÎÐ´ÈÎÎñ£¬ ¾ù²»»áÕæÕýµ÷ÓÃ write
-     * 3. EPOLLOUT ÊÂ¼þµ½´ïÊ±£¬½« shield_ ÖÃ0£¬ Í¬Ê±È¡Ïû EPOLLOUT µÄ¹Ø×¢
-     * ×¢Òâ:
-     * 1. Ò»µ©·¢ÉúÂß¼­×èµ²£¬ ÔòÈÎÎñÎÞ·¨¼ÌÐø, ¸Ã´ÎÈÎÎñÇëÇó½«±»¶ªÆú
-     * 2. ´ËÏîIO×èÈûºÍ¶ÁÏß³ÌÎÞ¹Ø, ±ØÐë±£Ö¤¶ÁÐ´»¥²»Ó°Ïì£¬ ·ñÔò¿ÉÄÜµ¼ÖÂÒòÎª io blocked ¶øÎÞ·¨¼ÌÐøÊÕ°ü
+    /* é‡è¦:
+     * ç”¨äºŽ write æ“ä½œå‘ç”Ÿ EAGAIN åŽ
+     * ä¸€æ—¦å‘ç”Ÿ EAGAIN, åŽç»­æ“ä½œåªèƒ½é€šè¿‡ EPOLLOUT è§¦å‘ï¼Œå…·ä½“å¤„ç†æŽªæ–½ä¸º
+     * 1. å‘ç”Ÿ EAGAIN, åˆ™æ¿€æ´»è¯¥ FD çš„ EPOLLOUTäº‹ä»¶ï¼ŒåŒæ—¶å°† shield_ ç½® 1
+     * 2. åœ¨ shield_ > 0 çš„æƒ…å†µä¸‹ï¼Œä»»ä½•å†™ä»»åŠ¡ï¼Œ å‡ä¸ä¼šçœŸæ­£è°ƒç”¨ write
+     * 3. EPOLLOUT äº‹ä»¶åˆ°è¾¾æ—¶ï¼Œå°† shield_ ç½®0ï¼Œ åŒæ—¶å–æ¶ˆ EPOLLOUT çš„å…³æ³¨
+     * æ³¨æ„:
+     * 1. ä¸€æ—¦å‘ç”Ÿé€»è¾‘é˜»æŒ¡ï¼Œ åˆ™ä»»åŠ¡æ— æ³•ç»§ç»­, è¯¥æ¬¡ä»»åŠ¡è¯·æ±‚å°†è¢«ä¸¢å¼ƒ
+     * 2. æ­¤é¡¹IOé˜»å¡žå’Œè¯»çº¿ç¨‹æ— å…³, å¿…é¡»ä¿è¯è¯»å†™äº’ä¸å½±å“ï¼Œ å¦åˆ™å¯èƒ½å¯¼è‡´å› ä¸º io blocked è€Œæ— æ³•ç»§ç»­æ”¶åŒ…
      */
     posix__boolean_t write_io_blocked;
     
-    /* ½ÓÊÕ³¬Ê±ºÍ·¢ËÍ³¬Ê± */
+    /* æŽ¥æ”¶è¶…æ—¶å’Œå‘é€è¶…æ—¶ */
     struct timeval rcvtimeo;
     struct timeval sndtimeo;
     
-    /* IPÍ·µÄ tos Ïî
-     * Differentiated Services Field: Dirrerentiated Services Codepoint/Explicit Congestion Not fication Ö¸¶¨TOS¶Î
+    /* IPå¤´çš„ tos é¡¹
+     * Differentiated Services Field: Dirrerentiated Services Codepoint/Explicit Congestion Not fication æŒ‡å®šTOSæ®µ
      *  */
     int iptos;
     
     union {
-        /* TCP ¶ÀÕ¼ÊôÐÔ */
+        /* TCP ç‹¬å å±žæ€§ */
         struct {
-            /* TCP Êý¾Ý°üÓ¦ÓÃ²ã½âÎöÆ«ÒÆ */
+            /* TCP æ•°æ®åŒ…åº”ç”¨å±‚è§£æžåç§» */
             int rx_parse_offset;
             
-            /* ÒòÎª TCP Ó¦ÓÃ²ã½â°ü½«Õ¼¾Ý packet ×Ö¶Î£¬ Òò´ËÐèÒªÒ»¸ö×Ö¶ÎÓÃÓÚ recv */
+            /* å› ä¸º TCP åº”ç”¨å±‚è§£åŒ…å°†å æ® packet å­—æ®µï¼Œ å› æ­¤éœ€è¦ä¸€ä¸ªå­—æ®µç”¨äºŽ recv */
             char *rx_buffer;
     
-            /* ´ó°ü½â¶Á(´óÓÚ 0x11000 µ«ÊÇ²»×ã 50MB µÄTCPÊý¾Ý°ü) */
+            /* å¤§åŒ…è§£è¯»(å¤§äºŽ 0x11000 ä½†æ˜¯ä¸è¶³ 50MB çš„TCPæ•°æ®åŒ…) */
             char* lbdata; /* large block data */
-            int lboffset; /* µ±Ç°ÒÑ¾­¸³ÖµµÄ´ó°üÊý¾Ý¶ÎÆ«ÒÆ */
-            int lbsize; /* º¬°üÍ·µÄ´ó°ü×Ü³¤¶È */
+            int lboffset; /* å½“å‰å·²ç»èµ‹å€¼çš„å¤§åŒ…æ•°æ®æ®µåç§» */
+            int lbsize; /* å«åŒ…å¤´çš„å¤§åŒ…æ€»é•¿åº¦ */
     
-             /* ÏÂ²ã½â°üÄ£°å */
+             /* ä¸‹å±‚è§£åŒ…æ¨¡æ¿ */
             tst_t template;
     
             /* getsockopt(TCP_INFO) for Linux, {Free,Net}BSD */
@@ -106,25 +106,25 @@ typedef struct _ncb {
             int mss;
         };
         
-        /* UDP ¶ÀÕ¼ÊôÐÔ */
+        /* UDP ç‹¬å å±žæ€§ */
         struct {
-            /* £¨Ä¿Ç°Ö»ÓÃÓÚ UDP µÄ£©¶ÔÏó±ê¼Ç£º¹ã²¥ÊôÐÔ */
+            /* ï¼ˆç›®å‰åªç”¨äºŽ UDP çš„ï¼‰å¯¹è±¡æ ‡è®°ï¼šå¹¿æ’­å±žæ€§ */
             int flag;
             
-            /* ÊÊÓÃÓÚ IP ×é²¥µÄ mreq ¶ÔÏó */
+            /* é€‚ç”¨äºŽ IP ç»„æ’­çš„ mreq å¯¹è±¡ */
             struct ip_mreq *mreq;
         };
     };
 } ncb_t;
 
-/* ²¼¶û×´Ì¬±í´ï£¬ ·Ç0ÔòIO×èÖ¹£¬ ·ñÔò IO ¿ÉÐÐ */
+/* å¸ƒå°”çŠ¶æ€è¡¨è¾¾ï¼Œ éž0åˆ™IOé˜»æ­¢ï¼Œ å¦åˆ™ IO å¯è¡Œ */
 #define ncb_if_wblocked(ncb)    (ncb->write_io_blocked)
 
-/* ¶ÔÕâ¸ö NCB Ö´ÐÐ IO ×èÈû */
+/* å¯¹è¿™ä¸ª NCB æ‰§è¡Œ IO é˜»å¡ž */
 #define ncb_mark_wblocked(ncb)   \
         do { if (!ncb->write_io_blocked) posix__atomic_xchange(&ncb->write_io_blocked, posix__true); } while (0);
 
-/* ¶ÔÕâ¸ö NCB È¡Ïû IO ×èÈû */
+/* å¯¹è¿™ä¸ª NCB å–æ¶ˆ IO é˜»å¡ž */
 #define ncb_cancel_wblock(ncb) posix__atomic_xchange(&ncb->write_io_blocked, posix__false);
 
 #define ncb_lb_marked(ncb) ((ncb) ? ((NULL != ncb->lbdata) && (ncb->lbsize > 0)) : (posix__false))

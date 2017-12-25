@@ -16,7 +16,7 @@ int ncb_init(ncb_t *ncb) {
         
         fque_init(&ncb->tx_fifo);
 
-        /* IO ×èÖ¹±êÖ¾£¬ ³õÊ¼»¯Îª "·Ç×èÖ¹" */
+        /* IO é˜»æ­¢æ ‡å¿—ï¼Œ åˆå§‹åŒ–ä¸º "éžé˜»æ­¢" */
         ncb->write_io_blocked = posix__false;
         return 0;
     }
@@ -35,7 +35,7 @@ void ncb_uninit(objhld_t ignore, void *p) {
 
     ncb = (ncb_t *) p;
 
-    /* ¾¡¿ÉÄÜ±£Ö¤ºÍWIN32°æ±¾µÄÐÐÎªÒ»ÖÂÐÔ£¬ Í¶µÝ¹Ø±ÕÇ°Í¨Öª */
+    /* å°½å¯èƒ½ä¿è¯å’ŒWIN32ç‰ˆæœ¬çš„è¡Œä¸ºä¸€è‡´æ€§ï¼Œ æŠ•é€’å…³é—­å‰é€šçŸ¥ */
     if (ncb->nis_callback && ncb->hld >= 0) {
         c_event.Ln.Tcp.Link = ncb->hld;
         c_event.Event = EVT_PRE_CLOSE;
@@ -43,12 +43,12 @@ void ncb_uninit(objhld_t ignore, void *p) {
         ncb->nis_callback(&c_event, &c_data);
     }
     
-    /* Í£Ö¹ÍøÂç·þÎñ
-     * Èç¹ûÓÐepoll¹ØÁª£¬ ÔòÈ¡Ïû¹ØÁª
-     * ¹Ø±ÕÃèÊö·û */
+    /* åœæ­¢ç½‘ç»œæœåŠ¡
+     * å¦‚æžœæœ‰epollå…³è”ï¼Œ åˆ™å–æ¶ˆå…³è”
+     * å…³é—­æè¿°ç¬¦ */
     ioclose(ncb);
     
-    /* ÊÍ·Å»º³å°üÄÚ´æ */
+    /* é‡Šæ”¾ç¼“å†²åŒ…å†…å­˜ */
     if (ncb->packet) {
         free(ncb->packet);
         ncb->packet = NULL;
@@ -58,22 +58,22 @@ void ncb_uninit(objhld_t ignore, void *p) {
         ncb->rx_buffer = NULL;
     }
 
-    /*ÊÍ·ÅÓÃ»§ÉÏÏÂÎÄÄÚ´æ*/
+    /*é‡Šæ”¾ç”¨æˆ·ä¸Šä¸‹æ–‡å†…å­˜*/
     if (ncb->context && ncb->context_size > 0) {
         free(ncb->context);
         ncb->context = NULL;
         ncb->context_size = 0;
     }
 
-    /*Çå¿ÕËùÓÐÈÔÔÚ»º³åÇøµÄÎ´·¢ËÍ°ü, ÕâÀïÃ»ÓÐÏß³Ì°²È«ÎÊÌâ */
+    /*æ¸…ç©ºæ‰€æœ‰ä»åœ¨ç¼“å†²åŒºçš„æœªå‘é€åŒ…, è¿™é‡Œæ²¡æœ‰çº¿ç¨‹å®‰å…¨é—®é¢˜ */
     fque_uninit(&ncb->tx_fifo);
     
-    /* Èç¹û´æÔÚTCPµÄÏÂ²ãÐÅÏ¢£¬ ÐèÒªÇå³ý */
+    /* å¦‚æžœå­˜åœ¨TCPçš„ä¸‹å±‚ä¿¡æ¯ï¼Œ éœ€è¦æ¸…é™¤ */
     if (ncb->ktcp){
         free(ncb->ktcp);
     }
     
-    /* Í¨ÖªÉÏ²ãÒÑ¾­Íê³É¶Ô¸ÃÍøÂç¶ÔÏóµÄ¹Ø±Õ */
+    /* é€šçŸ¥ä¸Šå±‚å·²ç»å®Œæˆå¯¹è¯¥ç½‘ç»œå¯¹è±¡çš„å…³é—­ */
     if (ncb->nis_callback && ncb->hld >= 0) {
         c_event.Ln.Tcp.Link = ncb->hld;
         c_event.Event = EVT_CLOSED;

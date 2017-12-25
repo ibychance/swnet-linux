@@ -38,7 +38,7 @@ int udpi_rx(ncb_t *ncb) {
             return EAGAIN;
         }
         
-        /* ÏµÍ³ÖĞ¶Ï */
+        /* ç³»ç»Ÿä¸­æ–­ */
         if (EINTR == errcode) {
             return 0;
         }
@@ -64,12 +64,12 @@ int udp_tx_single_packet(int sockfd, struct tx_node *packet){
     int errcode;
     socklen_t len = sizeof(struct sockaddr);
     
-    /* ½ö¶ÔÍ·½ÚµãÖ´ĞĞ²Ù×÷ */
+    /* ä»…å¯¹å¤´èŠ‚ç‚¹æ‰§è¡Œæ“ä½œ */
     while (packet->offset < packet->wcb) {
         wcb = sendto(sockfd, packet->data + packet->offset, packet->wcb - packet->offset, 0,
                 (__CONST_SOCKADDR_ARG)&packet->udp_target, len );
 
-        /* ¶Ô¶Ë¶Ï¿ª£¬ »ò£¬ ÆäËû²»¿ÉÈİÈÌµÄ´íÎó */
+        /* å¯¹ç«¯æ–­å¼€ï¼Œ æˆ–ï¼Œ å…¶ä»–ä¸å¯å®¹å¿çš„é”™è¯¯ */
         if (0 == wcb) {
             return -1;
         }
@@ -77,19 +77,19 @@ int udp_tx_single_packet(int sockfd, struct tx_node *packet){
         if (wcb < 0) {
              errcode = errno;
              
-            /* Ğ´Èë»º³åÇøÒÑÂú£¬ ¼¤»î²¢µÈ´ı EPOLLOUT ²ÅÄÜ¼ÌĞøÖ´ĞĞÏÂÒ»Æ¬Ğ´Èë
-             * ´ËÊ±ĞèÒª´¦Àí¶ÓÁĞÍ·½Úµã£¬ ½«Î´´¦ÀíÍêµÄ½Úµã»¹Ô­»Ø¶ÓÁĞÍ·
-             * oneshot ·½Ê½Ç¿ÖÆ¹Ø×¢Ğ´Èë²Ù×÷Íê³Éµã */
+            /* å†™å…¥ç¼“å†²åŒºå·²æ»¡ï¼Œ æ¿€æ´»å¹¶ç­‰å¾… EPOLLOUT æ‰èƒ½ç»§ç»­æ‰§è¡Œä¸‹ä¸€ç‰‡å†™å…¥
+             * æ­¤æ—¶éœ€è¦å¤„ç†é˜Ÿåˆ—å¤´èŠ‚ç‚¹ï¼Œ å°†æœªå¤„ç†å®Œçš„èŠ‚ç‚¹è¿˜åŸå›é˜Ÿåˆ—å¤´
+             * oneshot æ–¹å¼å¼ºåˆ¶å…³æ³¨å†™å…¥æ“ä½œå®Œæˆç‚¹ */
             if (EAGAIN == errcode) {
                 return EAGAIN;
             }
 
-            /* ÖĞ¶ÏĞÅºÅµ¼ÖÂµÄĞ´²Ù×÷ÖĞÖ¹£¬¶øÇÒÃ»ÓĞÈÎºÎÒ»¸ö×Ö½ÚÍê³ÉĞ´Èë£¬¿ÉÒÔ¾ÍµØ»Ö¸´ */
+            /* ä¸­æ–­ä¿¡å·å¯¼è‡´çš„å†™æ“ä½œä¸­æ­¢ï¼Œè€Œä¸”æ²¡æœ‰ä»»ä½•ä¸€ä¸ªå­—èŠ‚å®Œæˆå†™å…¥ï¼Œå¯ä»¥å°±åœ°æ¢å¤ */
             if (EINTR == errcode) {
                 continue;
             }
             
-             /* ·¢ÉúÆäËûÎŞ·¨ÈİÈÌÇÒÎŞ·¨´¦ÀíµÄ´íÎó, Õâ¸ö´íÎó·µ»Ø»áµ¼ÖÂ¶Ï¿ªÁ´½Ó */
+             /* å‘ç”Ÿå…¶ä»–æ— æ³•å®¹å¿ä¸”æ— æ³•å¤„ç†çš„é”™è¯¯, è¿™ä¸ªé”™è¯¯è¿”å›ä¼šå¯¼è‡´æ–­å¼€é“¾æ¥ */
             return make_error_result(errcode);
         }
 
@@ -107,7 +107,7 @@ int udp_tx(ncb_t *ncb) {
         return -1;
     }
     
-    /* ÈôÎŞÌØÊâÇé¿ö£¬ ĞèÒª°ÑËùÓĞ·¢ËÍ»º³å°üÈ«²¿Ğ´ÈëÄÚºË */
+    /* è‹¥æ— ç‰¹æ®Šæƒ…å†µï¼Œ éœ€è¦æŠŠæ‰€æœ‰å‘é€ç¼“å†²åŒ…å…¨éƒ¨å†™å…¥å†…æ ¸ */
     while (NULL != (packet = fque_get(&ncb->tx_fifo))) {
         retval = udp_tx_single_packet(ncb->sockfd, packet);
         if (retval < 0) {
