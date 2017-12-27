@@ -80,7 +80,7 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
 
     /* 底层协议交互给协议模板处理， 处理失败则解包操作无法继续 */
     if (!(*ncb->template.parser_)) {
-        ncb_report_debug_information(ncb, "[TCP]invalidated link object TST parser function address.\n");
+        ncb_report_debug_information(ncb, "[TCP]invalidated link object TST parser function address.");
         return -1;
     }
 

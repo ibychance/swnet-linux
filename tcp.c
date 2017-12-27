@@ -83,11 +83,6 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
         ncb->nis_callback = user_callback;
         memcpy(&ncb->local_addr, &addrlocal, sizeof (addrlocal));
 
-        /*ET模型必须保持所有文件描述符异步进行*/
-        if (setasio(ncb->sockfd) < 0) {
-            break;
-        }
-
         /* setsockopt */
         if (tcp_update_opts(ncb) < 0) {
             break;
@@ -163,62 +158,72 @@ void tcp_destroy(HTCPLINK lnk) {
 }
 
 /* <tcp_check_connection_bypoll>
- * static int tcp_check_connection_bypoll(int sockfd) {
- *  struct pollfd fd;
- *   fd.fd = sockfd;
- *   fd.events = POLLOUT;
- *   int ret,len;
+static int tcp_check_connection_bypoll(int sockfd) {
+    struct pollfd pofd;
+    socklen_t len;
+    int error;
+    int retval;
 
- *  while (poll(&fd, 1, -1) < 0) {
- *       if (errno != EINTR) {
- *           return -1;
- *       }
- *   }
+    pofd.fd = sockfd;
+    pofd.events = POLLOUT;
 
- *   len = sizeof (ret);
- *   if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &ret, &len) < 0) {
- *       return -1;
- *   }
-    
- *   return ret;
- *}
- */
+    retval = poll(&pofd, 1, -1);
+    while ( < 0) {
+        if (errno != EINTR) {
+            return -1;
+        }
+    }
 
+    len = sizeof (error);
+    if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, &len) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+<tcp_check_connection_byselect>
 static int tcp_check_connection(int sockfd) {
     int retval;
     socklen_t len;
     struct timeval timeo;
-    fd_set set;
+    fd_set rset, wset;
     int error;
+    int nfd;
 
-    /* 3m 作为最大超时 */
+    // 3m 作为最大超时 
     timeo.tv_sec = 3;
     timeo.tv_usec = 0;
 
-    FD_ZERO(&set);
-    FD_SET(sockfd, &set);
+    FD_ZERO(&rset);
+    FD_SET(sockfd, &rset);
+    wset = rset;
 
     retval = -1;
     len = sizeof (error);
     do {
-        /*
-         * The nfds argument specifies the range of descriptors to be tested. 
-         * The first nfds descriptors shall be checked in each set; 
-         * that is, the descriptors from zero through nfds-1 in the descriptor sets shall be examined. 
-         * */
-        if (select(sockfd + 1, NULL, &set, NULL, &timeo) <= 0) {
+        
+         // * The nfds argument specifies the range of descriptors to be tested. 
+         // * The first nfds descriptors shall be checked in each set; 
+         // * that is, the descriptors from zero through nfds-1 in the descriptor sets shall be examined. 
+         // * 
+        nfd = select(sockfd + 1, &rset, &wset, NULL, &timeo);
+        if ( nfd <= 0) {
             break;
         }
 
-        if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, (socklen_t *) & len) < 0) {
-            break;
+        if (FD_ISSET(sockfd, &rset) || FD_ISSET(sockfd, &wset)) {
+            retval = getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, (socklen_t *) & len);
+            if ( retval < 0) {
+                break;
+            }
+            retval = error;
         }
-
-        retval = error;
     } while (0);
 
     return retval;
 }
+*/
 
 int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
     ncb_t *ncb;
@@ -240,22 +245,23 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
     }
 
     optval = 3;
+
     /* 明确定义最多尝试3次 syn 操作 */
     setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
 
     addr_to.sin_family = PF_INET;
     addr_to.sin_port = htons(port_remote);
     addr_to.sin_addr.s_addr = inet_addr(r_ipstr);
-    retval = connect(ncb->sockfd, (const struct sockaddr *) &addr_to, sizeof (struct sockaddr));
-    e = errno;
-    if (retval < 0) {
-        if (e == EINPROGRESS) {
-            /* 异步SOCKET可能在SYN阶段发生 EINPROGRESS 错误，此时连接应该已经建立， 但是需要检查 */
-            retval = tcp_check_connection(ncb->sockfd);
-        }
-    }
 
-    if (0 == retval) {
+    /* syscall connect can be interrupted by other signal. */
+    do {
+        retval = connect(ncb->sockfd, (const struct sockaddr *) &addr_to, sizeof (struct sockaddr));
+        e = errno;
+    } while((e == EINTR) && (retval < 0));
+
+    if (retval < 0) {
+        ncb_report_debug_information(ncb, "tcp 0x%08X failed connect remote endpoint %s:%d, err=%d", lnk, r_ipstr, port_remote, e);
+    } else {
         /* 成功连接后需要确定本地和对端的地址信息 */
         addrlen = sizeof (addr_to);
         getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* 对端的地址信息 */
@@ -265,16 +271,17 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
         ncb->ncb_read = &tcp_rx;
         ncb->ncb_write = &tcp_tx;
 
-        retval = ioatth(ncb, EPOLLIN);
+        /*ET模型必须保持所有文件描述符异步进行*/
+        retval = setasio(ncb->sockfd);
         if (retval >= 0) {
-            c_event.Event = EVT_TCP_CONNECTED;
-            c_event.Ln.Tcp.Link = lnk;
-            c_data.e.LinkOption.OptionLink = lnk;
-            ncb->nis_callback(&c_event, &c_data);
+            retval = ioatth(ncb, EPOLLIN);
+            if (retval >= 0) {
+                c_event.Event = EVT_TCP_CONNECTED;
+                c_event.Ln.Tcp.Link = lnk;
+                c_data.e.LinkOption.OptionLink = lnk;
+                ncb->nis_callback(&c_event, &c_data);
+            }
         }
-    } else {
-        ncb_report_debug_information(ncb, "[TCP]failed connect remote endpoint %s:%d, err=%d\n", r_ipstr, port_remote, e);
-        retval = -1;
     }
 
     objdefr((objhld_t) lnk);
@@ -303,8 +310,13 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
 
     retval = -1;
     do {
-        /* 异步连接， 在 connect 前， 先把套接字对象加入到 EPOLL 序列， 一旦连上后会得到一个 EPOLLOUT */
         ncb->ncb_write = &tcp_tx_syn;
+        
+        if (setasio(ncb->sockfd) < 0) {
+            break;
+        }
+
+        /* 异步连接， 在 connect 前， 先把套接字对象加入到 EPOLL 序列， 一旦连上后会得到一个 EPOLLOUT */
         if (ioatth(ncb, EPOLLOUT) < 0) {
             break;
         }
@@ -340,7 +352,7 @@ int tcp_listen(HTCPLINK lnk, int block) {
     do {
         retval = listen(ncb->sockfd, ((block > 0) ? (block) : (SOMAXCONN)));
         if (retval < 0) {
-            ncb_report_debug_information(ncb, "failed syscall listen.errno=%d.\n", errno);
+            ncb_report_debug_information(ncb, "failed syscall listen.errno=%d.", errno);
             break;
         }
 
@@ -400,7 +412,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
 
         /*必须有合法TST指定*/
         if (!(*ncb->template.builder_)) {
-            ncb_report_debug_information(ncb, "[TCP]invalidated link object TST builder function address.\n");
+            ncb_report_debug_information(ncb, "[TCP]invalidated link object TST builder function address.");
             break;
         }
 

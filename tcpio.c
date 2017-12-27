@@ -253,6 +253,7 @@ int tcp_tx_syn(ncb_t *ncb) {
     tcp_data_t c_data;
     socklen_t addrlen;
     
+R_TRY:
     retval = connect(ncb->sockfd, (const struct sockaddr *) &ncb->remot_addr, sizeof (struct sockaddr));
     if (retval >= 0) {
         addrlen = sizeof (struct sockaddr);
@@ -278,11 +279,21 @@ int tcp_tx_syn(ncb_t *ncb) {
 
     e = errno;
     switch (e) {
-        case EISCONN: /* 已经链接上 */
-        case EALREADY: /* 还在进行中 */
+        /* connection has been establish or already existed */
+        case EISCONN:
+        case EALREADY:
             return 0;
+
+        /* other interrupted or full cached,try again */
+        case EINTR:
+        case EAGAIN:
+            goto R_TRY;
+
+        /* Connection refused */
+        case ECONNREFUSED:
         default:
             break;
     }
+    
     return -1;
 }
