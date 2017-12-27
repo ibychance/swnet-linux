@@ -47,7 +47,7 @@ static void io_run(struct epoll_event *evts, int sigcnt){
     int i;
     ncb_t *ncb;
     objhld_t hld;
-    
+
     for (i = 0; i < sigcnt; i++) {
         hld = evts[i].data.fd;
         ncb = (ncb_t *)objrefr(hld);

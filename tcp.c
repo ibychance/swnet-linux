@@ -157,18 +157,18 @@ void tcp_destroy(HTCPLINK lnk) {
     objclos(hld);
 }
 
-/* <tcp_check_connection_bypoll>
+#if 0
+
+/* <tcp_check_connection_bypoll> */
 static int tcp_check_connection_bypoll(int sockfd) {
     struct pollfd pofd;
     socklen_t len;
     int error;
-    int retval;
 
     pofd.fd = sockfd;
     pofd.events = POLLOUT;
 
-    retval = poll(&pofd, 1, -1);
-    while ( < 0) {
+    while(poll(&pofd, 1, -1) < 0) {
         if (errno != EINTR) {
             return -1;
         }
@@ -182,7 +182,7 @@ static int tcp_check_connection_bypoll(int sockfd) {
     return 0;
 }
 
-<tcp_check_connection_byselect>
+/* <tcp_check_connection_byselect> */
 static int tcp_check_connection(int sockfd) {
     int retval;
     socklen_t len;
@@ -191,7 +191,7 @@ static int tcp_check_connection(int sockfd) {
     int error;
     int nfd;
 
-    // 3m 作为最大超时 
+    /* 3 seconds as maximum wait time long*/
     timeo.tv_sec = 3;
     timeo.tv_usec = 0;
 
@@ -203,10 +203,10 @@ static int tcp_check_connection(int sockfd) {
     len = sizeof (error);
     do {
         
-         // * The nfds argument specifies the range of descriptors to be tested. 
-         // * The first nfds descriptors shall be checked in each set; 
-         // * that is, the descriptors from zero through nfds-1 in the descriptor sets shall be examined. 
-         // * 
+        /* The nfds argument specifies the range of descriptors to be tested. 
+         * The first nfds descriptors shall be checked in each set; 
+         * that is, the descriptors from zero through nfds-1 in the descriptor sets shall be examined. 
+         */
         nfd = select(sockfd + 1, &rset, &wset, NULL, &timeo);
         if ( nfd <= 0) {
             break;
@@ -223,7 +223,8 @@ static int tcp_check_connection(int sockfd) {
 
     return retval;
 }
-*/
+
+#endif
 
 int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
     ncb_t *ncb;
@@ -244,16 +245,15 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
         return -1;
     }
 
+    /* try no more than 3 times of tcp::syn */
     optval = 3;
-
-    /* 明确定义最多尝试3次 syn 操作 */
     setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
 
     addr_to.sin_family = PF_INET;
     addr_to.sin_port = htons(port_remote);
     addr_to.sin_addr.s_addr = inet_addr(r_ipstr);
 
-    /* syscall connect can be interrupted by other signal. */
+    /* syscall @connect can be interrupted by other signal. */
     do {
         retval = connect(ncb->sockfd, (const struct sockaddr *) &addr_to, sizeof (struct sockaddr));
         e = errno;
@@ -262,16 +262,17 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
     if (retval < 0) {
         ncb_report_debug_information(ncb, "tcp 0x%08X failed connect remote endpoint %s:%d, err=%d", lnk, r_ipstr, port_remote, e);
     } else {
-        /* 成功连接后需要确定本地和对端的地址信息 */
+        /* save address information after connect successful */
         addrlen = sizeof (addr_to);
-        getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* 对端的地址信息 */
-        getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* 本地的地址信息 */
+        getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* remote address information */
+        getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* local address information */
 
         /* 关注收发包 */
         ncb->ncb_read = &tcp_rx;
         ncb->ncb_write = &tcp_tx;
 
-        /*ET模型必须保持所有文件描述符异步进行*/
+        /* ensuer all file descriptor in asynchronous mode, 
+           and than, queue object into epoll manager */
         retval = setasio(ncb->sockfd);
         if (retval >= 0) {
             retval = ioatth(ncb, EPOLLIN);
@@ -303,20 +304,20 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
         return -1;
     }
 
+    /* try no more than 3 times of tcp::syn */
     optval = 3;
-
-    /* 明确定义最多尝试3次 syn 操作 */
     setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
 
     retval = -1;
     do {
         ncb->ncb_write = &tcp_tx_syn;
         
+        /* queue object into epoll manage befor syscall @connect,
+           epoll_wait will get a EPOLLOUT signal when syn success.
+           so, file descriptor must be set to asynchronous now. */
         if (setasio(ncb->sockfd) < 0) {
             break;
         }
-
-        /* 异步连接， 在 connect 前， 先把套接字对象加入到 EPOLL 序列， 一旦连上后会得到一个 EPOLLOUT */
         if (ioatth(ncb, EPOLLOUT) < 0) {
             break;
         }
@@ -324,6 +325,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
         ncb->remot_addr.sin_family = PF_INET;
         ncb->remot_addr.sin_port = htons(port_remote);
         ncb->remot_addr.sin_addr.s_addr = inet_addr(r_ipstr);
+
         retval = connect(ncb->sockfd, (const struct sockaddr *) &ncb->remot_addr, sizeof (struct sockaddr));
         if (retval < 0) {
             e = errno;

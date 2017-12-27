@@ -84,7 +84,7 @@ static int run_task(struct task_node *task) {
     objhld_t hld;
     int retval;
     ncb_t *ncb;
-    
+
     assert(NULL != task);
     
     hld = task->hld;
@@ -120,7 +120,6 @@ static int run_task(struct task_node *task) {
     
     /* 本次节点顺利写入内核  */
     else if (0 == retval) {
-        
         /* 如果是在IO隔离期间发生的完成写入，则取消IO隔离，同时切换EPOLL关注读出缓冲区
          */
         if (task->type == kTaskType_TxOrder && ncb_if_wblocked(ncb) ) {
@@ -235,6 +234,7 @@ int post_write_task(objhld_t hld, enum task_type type){
     if (NULL == (task = (struct task_node *)malloc(sizeof(struct task_node)))){
         return -ENOMEM;
     }
+
     task->hld = hld;
     task->type = type;
     

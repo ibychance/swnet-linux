@@ -1,4 +1,4 @@
-TARGET=nshost.so.9.5
+TARGET=nshost.so.9.5.1
 build=automatic
 arch=x86_64
 
@@ -17,7 +17,13 @@ endif
 ifeq ($(arch),arm)
 	CC=arm-linux-gnueabihf-gcc
 else
-	CC=gcc
+	ifeq ($(arch), i686)
+		CC=gcc
+		CFLAGS+=-m32
+		LDFLAGS+=-m32
+	else
+		CC=gcc
+	endif
 endif
 
 all:$(TARGET)
@@ -28,6 +34,6 @@ $(TARGET):$(OBJS)
 %.o:%.c
 	$(CC) -c $< $(CFLAGS)  -o $@
 clean:
-	$(RM) $(OBJS) $(TARGET)
+	$(RM) $(OBJS) nshost.so*
 
 .PHONY:clean all
