@@ -5,7 +5,7 @@ arch=x86_64
 SRCS=$(wildcard *.c) $(wildcard ../libnsp/com/*.c)
 OBJS=$(patsubst %.c,%.o,$(SRCS))
 
-CFLAGS+=-I ../libnsp/icom -fPIC -Wall
+CFLAGS+=-I ../libnsp/icom -fPIC -Wall -std=gnu99
 LDFLAGS=-shared
 
 ifeq ($(build),debug)
@@ -16,6 +16,7 @@ endif
 
 ifeq ($(arch),arm)
 	CC=arm-linux-gnueabihf-gcc
+	CFLAGS+=-mfloat-abi=hard -mfpu=neon
 else
 	ifeq ($(arch), i686)
 		CC=gcc
