@@ -358,8 +358,8 @@ int tcp_listen(HTCPLINK lnk, int block) {
             break;
         }
 
-        /* /proc/sys/net/core/somaxconn in POSIX.1 this value default to 128
-           so,for ensure high concurrency performance in the establishment phase of the TCP connection
+        /* '/proc/sys/net/core/somaxconn' in POSIX.1 this value default to 128
+           so,for ensure high concurrency performance in the establishment phase of the TCP connection,
            we will ignore the @block argument and use macro SOMAXCONN which defined in /usr/include/bits/socket.h anyway
          */
         retval = listen(ncb->sockfd, SOMAXCONN);
