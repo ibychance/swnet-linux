@@ -1,4 +1,4 @@
-TARGET=nshost.so.9.5.2
+TARGET=nshost.so.9.5.3
 build=automatic
 arch=x86_64
 
