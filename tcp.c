@@ -563,3 +563,19 @@ int tcp_get_nodelay(ncb_t *ncb, int *set) {
     }
     return -EINVAL;
 }
+
+int tcp_set_cork(ncb_t *ncb, int set) {
+    if (ncb) {
+        return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_CORK, (const void *) &set, sizeof ( set));
+    }
+
+    return -EINVAL;
+}
+
+int tcp_get_cork(ncb_t *ncb, int *set) {
+    if (ncb && set) {
+        socklen_t optlen = sizeof (int);
+        return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_CORK, (void *__restrict)set, &optlen);
+    }
+    return -EINVAL;
+}

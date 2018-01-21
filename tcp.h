@@ -92,5 +92,9 @@ extern
 int tcp_set_nodelay(ncb_t *ncb, int set);
 extern
 int tcp_get_nodelay(ncb_t *ncb, int *set);
+extern
+int tcp_set_cork(ncb_t *ncb, int set);
+extern
+int tcp_get_cork(ncb_t *ncb, int *set);
 
 #endif
