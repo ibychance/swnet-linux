@@ -1,6 +1,7 @@
 TARGET=nshost.so.9.6.1
 build=automatic
 arch=x86_64
+INSTALL_DIR=
 
 SRCS=$(wildcard *.c) $(wildcard ../libnsp/com/*.c)
 OBJS=$(patsubst %.c,%.o,$(SRCS))
@@ -17,13 +18,16 @@ endif
 ifeq ($(arch),arm)
 	CC=arm-linux-gnueabihf-gcc
 	CFLAGS+=-mfloat-abi=hard -mfpu=neon
+	INSTALL_DIR+=/usr/local/lib/
 else
 	ifeq ($(arch), i686)
 		CC=gcc
 		CFLAGS+=-m32
 		LDFLAGS+=-m32
+		INSTALL_DIR+=/usr/local/lib/
 	else
 		CC=gcc
+		INSTALL_DIR+=/usr/local/lib64/
 	endif
 endif
 
@@ -34,7 +38,12 @@ $(TARGET):$(OBJS)
 
 %.o:%.c
 	$(CC) -c $< $(CFLAGS)  -o $@
+
 clean:
 	$(RM) $(OBJS) nshost.so*
 
-.PHONY:clean all
+install:
+	cp -f $(TARGET) /usr/local/lib64/
+	ln -sf $(INSTALL_DIR)$(TARGET) $(INSTALL_DIR)nshost.so
+
+.PHONY:clean all install
