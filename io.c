@@ -23,6 +23,7 @@
 #include "object.h"
 #include "worker.h"
 #include "clist.h"
+#include "mxx.h"
 
 /* 1024 is just a hint for the kernel */
 #define EPOLL_SIZE    (1024)
@@ -120,6 +121,8 @@ static void *epoll_proc(void *argv) {
     struct epoll_object *epo;
 
     epo = (struct epoll_object *)argv;
+    nis_call_ecr("IO Thread LWP:%u epfd:%u", posix__gettid(), epo->epfd);
+
     while (epo->actived) {
         sigcnt = epoll_wait(epo->epfd, evts, EPOLL_SIZE, -1);
         if (sigcnt < 0) {
@@ -151,7 +154,7 @@ int ioinit() {
     /* 对一个已经关闭的链接执行 write, 返回 EPIPE 的同时会 raise 一个SIGPIPE 信号，需要忽略处理 */
     signal(SIGPIPE, SIG_IGN);
     
-    epmgr.divisions = get_nprocs() * 2;
+    epmgr.divisions = get_nprocs();
     if ( NULL == (epmgr.epos = (struct epoll_object *)malloc(sizeof(struct epoll_object) * epmgr.divisions))) {
         posix__atomic_dec(&refcnt);
         return -1;

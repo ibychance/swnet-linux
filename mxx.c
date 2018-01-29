@@ -10,11 +10,16 @@
 #include <netdb.h>
 #include <stddef.h>
 #include <ctype.h>
+#include <stdarg.h>
 
-#include "nis.h"
+#include "mxx.h"
 #include "ncb.h"
 #include "object.h"
+
 #include <arpa/inet.h> 
+
+#include "posix_atomic.h"
+#include "posix_string.h"
 
 int nis_setctx(HLNK lnk, const void * user_context, int user_context_size) {
     ncb_t *ncb;
@@ -201,3 +206,35 @@ int nis_gethost(const char *name, uint32_t *ipv4) {
         freeaddrinfo(res); 
  * }
  */
+
+
+/* manage ECR and it's calling */
+static nis_event_callback_t current_ecr = NULL;
+
+nis_event_callback_t nis_checr(const nis_event_callback_t ecr) {
+    if (!ecr) {
+        __sync_lock_release(&current_ecr);
+        return NULL;
+    }
+    return __sync_lock_test_and_set(&current_ecr, ecr);
+}
+
+void nis_call_ecr(const char *fmt,...) {
+    nis_event_callback_t ecr = NULL, old;
+    va_list ap;
+    char logstr[128]; 
+    int retval;
+
+    va_start(ap, fmt);
+    retval = posix__vsprintf(logstr, cchof(logstr), fmt, ap);
+    va_end(ap);
+    if (retval <= 0) {
+        return;
+    }
+    logstr[retval] = 0;
+
+    old = __sync_lock_test_and_set(&ecr, current_ecr);
+    if (ecr && !old) {
+        ecr(logstr, NULL, 0);
+    }
+}
