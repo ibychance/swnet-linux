@@ -38,7 +38,7 @@ int udpi_rx(ncb_t *ncb) {
             return EAGAIN;
         }
         
-        /* 系统中断 */
+        /* system interrupted */
         if (EINTR == errcode) {
             return 0;
         }

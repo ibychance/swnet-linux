@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include "udp.h"
+#include "mxx.h"
 
 #if !defined MAX_UDP_SIZE
 #define MAX_UDP_SIZE		(MTU - (ETHERNET_P_SIZE + IP_P_SIZE + UDP_P_SIZE))
@@ -46,7 +47,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
 
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
-        printf("failed create services socket.errno=%d.\n", errno);
+        nis_call_ecr("Failed creat UDP socket,ip:%s,port:%u,errno:%u",l_ipstr, l_port, errno);
         return -1;
     }
 

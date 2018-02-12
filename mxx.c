@@ -225,6 +225,10 @@ void nis_call_ecr(const char *fmt,...) {
     char logstr[128]; 
     int retval;
 
+    if (!current_ecr) {
+        return;
+    }
+
     va_start(ap, fmt);
     retval = posix__vsprintf(logstr, cchof(logstr), fmt, ap);
     va_end(ap);
@@ -233,6 +237,7 @@ void nis_call_ecr(const char *fmt,...) {
     }
     logstr[retval] = 0;
 
+    // double check the callback address
     old = __sync_lock_test_and_set(&ecr, current_ecr);
     if (ecr && !old) {
         ecr(logstr, NULL, 0);

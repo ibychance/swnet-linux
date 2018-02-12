@@ -119,12 +119,13 @@ static void *epoll_proc(void *argv) {
     int sigcnt;
     int errcode;
     struct epoll_object *epo;
+    static const int EP_TIMEDOUT = 500;
 
     epo = (struct epoll_object *)argv;
-    nis_call_ecr("IO Thread LWP:%u epfd:%u", posix__gettid(), epo->epfd);
+    nis_call_ecr("IO Thread Startup.LWP:%u epfd:%u", posix__gettid(), epo->epfd);
 
     while (epo->actived) {
-        sigcnt = epoll_wait(epo->epfd, evts, EPOLL_SIZE, -1);
+        sigcnt = epoll_wait(epo->epfd, evts, EPOLL_SIZE, EP_TIMEDOUT);
         if (sigcnt < 0) {
             errcode = errno;
 
@@ -133,14 +134,18 @@ static void *epoll_proc(void *argv) {
                 continue;
             }
 
-            printf("[EPOLL] error on epoll_wait, errno=%d.\n", errcode);
+            nis_call_ecr("Error on IO Thread. LWP:%u epfd:%u errno:%u", posix__gettid(), epo->epfd, errcode);
             break;
         }
-        io_run(evts, sigcnt);
+
+        /* at least one signal is awakened,
+            otherwise, timeout trigger. */
+        if (sigcnt > 0) {
+            io_run(evts, sigcnt);
+        }
     }
 
-
-    printf("[EPOLL] services trunk loop terminated.\n");
+    nis_call_ecr("IO Thread Terminated.LWP:%u epfd:%u", posix__gettid(), epo->epfd);
     return NULL;
 }
 
@@ -165,7 +170,7 @@ int ioinit() {
         epmgr.epos[i].load = 0;
         epmgr.epos[i].epfd = epoll_create(EPOLL_SIZE);
         if (epmgr.epos[i].epfd < 0) {
-            printf("[EPOLL] failed to allocate file descriptor.\n");
+            nis_call_ecr("Failed allocate file descriptor/EPOLL.errno:%u\n", errno);
             epmgr.epos[i].actived = posix__false;
             continue;
         }
@@ -308,12 +313,12 @@ int setasio(int fd) {
 
     opt = fcntl(fd, F_GETFL);
     if (opt < 0) {
-        printf("[EPOLL] failed get file status flag,errno=%d.\n ", errno);
+        nis_call_ecr("[EPOLL] failed get file status flag,errno=%d.\n ", errno);
         return -1;
     }
 
     if (fcntl(fd, F_SETFL, opt | O_NONBLOCK) < 0) {
-        printf("[EPOLL] failed set file status flag with non_block,errno=%d.\n", errno);
+        nis_call_ecr("[EPOLL] failed set file status flag with non_block,errno=%d.\n", errno);
         return -1;
     }
     return 0;
@@ -328,13 +333,13 @@ int setsyio(int fd){
 
     opt = fcntl(fd, F_GETFL);
     if (opt < 0) {
-        printf("[EPOLL] failed get file status flag,errno=%d.\n ", errno);
+        nis_call_ecr("[EPOLL] failed get file status flag,errno=%d.\n ", errno);
         return -1;
     }
 
     opt &= ~O_NONBLOCK;
     if (fcntl(fd, F_SETFL, opt) < 0) {
-        printf("[EPOLL] failed set file status flag with syio,errno=%d.\n", errno);
+        nis_call_ecr("[EPOLL] failed set file status flag with syio,errno=%d.\n", errno);
         return -1;
     }
     return 0;

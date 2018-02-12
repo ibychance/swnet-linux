@@ -4,21 +4,18 @@
 #include <sys/time.h>
 
 #include "tcp.h"
+#include "mxx.h"
 
-int tcp_update_opts(ncb_t *ncb) {
-    if (!ncb) {
-        return -1;
+void tcp_update_opts(ncb_t *ncb) {
+    if (ncb) {
+        ncb_set_window_size(ncb, SO_RCVBUF, TCP_BUFFER_SIZE);
+        ncb_set_window_size(ncb, SO_SNDBUF, TCP_BUFFER_SIZE);
+        
+        tcp_set_keepalive(ncb, 1);
+        tcp_set_keepalive_value(ncb, 30, 5, 6);
+
+        tcp_set_nodelay(ncb, 1); /* 为保证小包效率， 禁用 Nginx 算法 */
     }
-
-    ncb_set_window_size(ncb, SO_RCVBUF, TCP_BUFFER_SIZE);
-    ncb_set_window_size(ncb, SO_SNDBUF, TCP_BUFFER_SIZE);
-    ncb_set_linger(ncb, 0, 1);
-    ncb_set_keepalive(ncb, 1);
-
-    tcp_set_nodelay(ncb, 1); /* 为保证小包效率， 禁用 Nginx 算法 */
-    tcp_save_info(ncb);
-
-    return 0;
 }
 
 /* tcp impls */
@@ -45,7 +42,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
 
     fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) {
-        printf("[TCP] failed create services socket.errno=%d.\n", errno);
+        nis_call_ecr("Failed creat TCP socket,ip:%s,port:%u,errno:%u",l_ipstr, l_port, errno);
         return -1;
     }
 
@@ -59,7 +56,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
     addrlocal.sin_port = htons(l_port);
     retval = bind(fd, (struct sockaddr *) &addrlocal, sizeof ( struct sockaddr));
     if (retval < 0) {
-        printf("[TCP] failed bind address.errno=%d.\n", errno);
+        nis_call_ecr("Failed bind local IF %s:%u, errno:%d.\n", l_ipstr, l_port, errno);
         close(fd);
         return -1;
     }
@@ -83,10 +80,9 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
         ncb->nis_callback = user_callback;
         memcpy(&ncb->local_addr, &addrlocal, sizeof (addrlocal));
 
-        /* setsockopt */
-        if (tcp_update_opts(ncb) < 0) {
-            break;
-        }
+        /* acquire save TCP Info and adjust linger in the creation phase. */
+        ncb_set_linger(ncb, 0, 1);
+        tcp_save_info(ncb);
 
         /*分配TCP普通包*/
         ncb->packet = (char *) malloc(TCP_BUFFER_SIZE);
@@ -262,6 +258,9 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
     if (retval < 0) {
         ncb_report_debug_information(ncb, "tcp 0x%08X failed connect remote endpoint %s:%d, err=%d", lnk, r_ipstr, port_remote, e);
     } else {
+        /* set other options */
+        tcp_update_opts(ncb);
+        
         /* save address information after connect successful */
         addrlen = sizeof (addr_to);
         getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* remote address information */
@@ -578,4 +577,90 @@ int tcp_get_cork(ncb_t *ncb, int *set) {
         return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_CORK, (void *__restrict)set, &optlen);
     }
     return -EINVAL;
+}
+
+int tcp_set_keepalive(ncb_t *ncb, int enable) {
+    if (ncb) {
+        return setsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (const char *) &enable, sizeof ( enable));
+    }
+    return -EINVAL;
+}
+
+int tcp_get_keepalive(ncb_t *ncb, int *enabled){
+    if (ncb && enabled) {
+        socklen_t optlen = sizeof(int);
+        return getsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (void *__restrict)enabled, &optlen);
+    }
+    return -EINVAL;
+}
+
+int tcp_set_keepalive_value(ncb_t *ncb, int idle, int interval, int probes) {
+    int enabled;
+    if (tcp_get_keepalive(ncb, &enabled) < 0) {
+        return -1;
+    }
+
+    if (!enabled) {
+        return -1;
+    }
+
+    do {
+        /* 如果在这个时间内没有数据往来， 则进行心跳检查 */
+        if (setsockopt(ncb->sockfd, SOL_TCP, TCP_KEEPIDLE, (void *)&idle, sizeof(idle)) < 0) {
+            break;
+        }
+
+        /* 心跳包的检查间隔 */
+        if (setsockopt(ncb->sockfd, SOL_TCP, TCP_KEEPINTVL, (void *)&interval, sizeof(interval)) < 0) {
+            break;
+        }
+
+        /* 允许心跳失败的次数 */
+        if (setsockopt(ncb->sockfd, SOL_TCP, TCP_KEEPCNT, (void *)&probes, sizeof(probes)) < 0) {
+            break;
+        }
+
+        return 0;
+    }while( 0 );
+    
+    return -1;
+}
+
+int tcp_get_keepalive_value(ncb_t *ncb,int *idle, int *interval, int *probes) {
+    int enabled;
+    socklen_t optlen;
+
+    if (tcp_get_keepalive(ncb, &enabled) < 0) {
+        return -1;
+    }
+
+    if (!enabled) {
+        return -1;
+    }
+
+    do {
+        optlen = sizeof(int);
+
+        if (idle) {
+            if (getsockopt(ncb->sockfd, SOL_TCP, TCP_KEEPIDLE, (void *__restrict)idle, &optlen) < 0) {
+                break;
+            }
+        }
+
+        if (interval) {
+            if (getsockopt(ncb->sockfd, SOL_TCP, TCP_KEEPINTVL, (void *__restrict)interval, &optlen) < 0) {
+                break;
+            }
+        }
+
+        if (probes) {
+            if (getsockopt(ncb->sockfd, SOL_TCP, TCP_KEEPCNT, (void *__restrict)probes, &optlen) < 0) {
+                break;
+            }
+        }
+
+        return 0;
+    }while( 0 );
+    
+    return -1;
 }

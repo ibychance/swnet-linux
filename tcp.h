@@ -17,7 +17,7 @@
 #define NS_TCP_NODELAY_SET  (1)
 
 extern
-int tcp_update_opts(ncb_t *ncb);
+void tcp_update_opts(ncb_t *ncb);
 
 /* tcp io */
 extern
@@ -96,5 +96,14 @@ extern
 int tcp_set_cork(ncb_t *ncb, int set);
 extern
 int tcp_get_cork(ncb_t *ncb, int *set);
+
+extern
+int tcp_set_keepalive(ncb_t *ncb, int enable);
+extern
+int tcp_get_keepalive(ncb_t *ncb, int *enabled);
+extern
+int tcp_set_keepalive_value(ncb_t *ncb, int idle, int interval, int probes);
+extern
+int tcp_get_keepalive_value(ncb_t *ncb, int *idle, int *interval, int *probes);
 
 #endif

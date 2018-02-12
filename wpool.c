@@ -209,6 +209,7 @@ void write_pool_uninit(){
     
     write_pool.stop = posix__true;
     for (i = 0; i < write_pool.write_thread_count; i++){
+        posix__sig_waitable_handle(&write_pool.write_threads[i].task_signal);
         posix__pthread_join(&write_pool.write_threads[i].thread, &retval);
         
         /* 清理来不及处理的任务 */

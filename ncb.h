@@ -160,9 +160,4 @@ int ncb_set_linger(ncb_t *ncb, int onoff, int lin);
 extern
 int ncb_get_linger(ncb_t *ncb, int *onoff, int *lin);
 
-extern
-int ncb_set_keepalive(ncb_t *ncb, int enable);
-extern
-int ncb_get_keepalive(ncb_t *ncb, int *enabled);
-
 #endif

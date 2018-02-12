@@ -57,10 +57,11 @@ int tcpi_syn(ncb_t *ncb_server) {
             break;
         }
 
-        /* setsockopt */
-        if (tcp_update_opts(ncb_client) < 0) {
-            break;
-        }
+        /* set other options */
+        tcp_update_opts(ncb_client);
+        // if (tcp_update_opts(ncb_client) < 0) {
+        //     break;
+        // }
 
         /*分配TCP普通包*/
         ncb_client->packet = (char *) malloc(TCP_BUFFER_SIZE);
@@ -300,9 +301,13 @@ R_TRY:
     // }
     e = tcp_check_connection_bypoll(ncb->sockfd);
     if (e >= 0) {
+        /* set other options */
+        tcp_update_opts(ncb);
+
         addrlen = sizeof (struct sockaddr);
         getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* 对端的地址信息 */
         getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* 本地的地址信息 */
+
         /* 关注收发包 */
         ncb->ncb_read = &tcp_rx;
         ncb->ncb_write = &tcp_tx;

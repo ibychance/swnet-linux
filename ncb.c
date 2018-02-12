@@ -210,18 +210,3 @@ int ncb_get_linger(ncb_t *ncb, int *onoff, int *lin) {
     
     return 0;
 }
-
-int ncb_set_keepalive(ncb_t *ncb, int enable) {
-    if (ncb) {
-        return setsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (const char *) &enable, sizeof ( enable));
-    }
-    return -EINVAL;
-}
-
-int ncb_get_keepalive(ncb_t *ncb, int *enabled){
-    if (ncb && enabled) {
-        socklen_t optlen = sizeof(int);
-        return getsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (void *__restrict)enabled, &optlen);
-    }
-    return -EINVAL;
-}
