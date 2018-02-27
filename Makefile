@@ -2,9 +2,10 @@ TARGET=nshost.so.9.6.1
 build=automatic
 arch=x86_64
 INSTALL_DIR=
+SRC_EXT=c
 
-SRCS=$(wildcard *.c) $(wildcard ../libnsp/com/*.c)
-OBJS=$(patsubst %.c,%.o,$(SRCS))
+SRCS=$(wildcard *.$(SRC_EXT)) $(wildcard ../libnsp/com/*.$(SRC_EXT))
+OBJS=$(patsubst %.$(SRC_EXT),%.o,$(SRCS))
 
 CFLAGS+=-I ../libnsp/icom -fPIC -Wall -std=gnu99
 LDFLAGS=-shared
@@ -36,7 +37,7 @@ all:$(TARGET)
 $(TARGET):$(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-%.o:%.c
+%.o:%.$(SRC_EXT)
 	$(CC) -c $< $(CFLAGS)  -o $@
 
 clean:
