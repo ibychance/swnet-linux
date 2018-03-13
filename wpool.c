@@ -157,8 +157,12 @@ static void *run(void *p) {
             break;
         }
 
-        /* 过程返回 0. 则要求保留 task 内存 */
-        while (NULL != (task = get_task(thread))) {
+        /* reset wait object to block status immediately */
+        posix__block_waitable_handle(&thread->task_signal);
+
+        /* complete all write task when once signal arrived,
+            no matter which thread wake up this wait object */
+        while ((NULL != (task = get_task(thread)) ) && !write_pool.stop) {
             run_task(task);
             free(task);
         }
@@ -184,7 +188,7 @@ int write_pool_init(){
     
     for (i = 0; i < write_pool.write_thread_count; i++){
         INIT_LIST_HEAD(&write_pool.write_threads[i].task_list);
-        posix__init_synchronous_waitable_handle(&write_pool.write_threads[i].task_signal);
+        posix__init_notification_waitable_handle(&write_pool.write_threads[i].task_signal);
         posix__pthread_mutex_init(&write_pool.write_threads[i].task_lock);
         write_pool.write_threads[i].task_list_size = 0;
         posix__pthread_create(&write_pool.write_threads[i].thread, &run, (void *)&write_pool.write_threads[i]);

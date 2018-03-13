@@ -1,8 +1,9 @@
-TARGET=nshost.so.9.6.1
+TARGET=nshost.so.9.6.2
 build=automatic
 arch=x86_64
 INSTALL_DIR=
 SRC_EXT=c
+SYS_WIDTH=$(shell getconf LONG_BIT)
 
 SRCS=$(wildcard *.$(SRC_EXT)) $(wildcard ../libnsp/com/*.$(SRC_EXT))
 OBJS=$(patsubst %.$(SRC_EXT),%.o,$(SRCS))
@@ -44,7 +45,7 @@ clean:
 	$(RM) $(OBJS) nshost.so*
 
 install:
-	cp -f $(TARGET) /usr/local/lib64/
+	cp -f $(TARGET) $(INSTALL_DIR)
 	ln -sf $(INSTALL_DIR)$(TARGET) $(INSTALL_DIR)nshost.so
 
 .PHONY:clean all install
