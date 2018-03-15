@@ -4,6 +4,8 @@
 
 #include "posix_ifos.h"
 
+#include "logger.h"
+
 static
 int tcpi_syn(ncb_t *ncb_server) {
     int fd_client;
@@ -59,9 +61,6 @@ int tcpi_syn(ncb_t *ncb_server) {
 
         /* set other options */
         tcp_update_opts(ncb_client);
-        // if (tcp_update_opts(ncb_client) < 0) {
-        //     break;
-        // }
 
         /*分配TCP普通包*/
         ncb_client->packet = (char *) malloc(TCP_BUFFER_SIZE);
@@ -197,6 +196,7 @@ int tcp_tx_single_packet(int sockfd, struct tx_node *packet) {
              * 此时需要处理队列头节点， 将未处理完的节点还原回队列头
              * oneshot 方式强制关注写入操作完成点 */
             if (EAGAIN == errcode) {
+                log__save("nshost", kLogLevel_Error, kLogTarget_Filesystem, "tcp write EAGAIN.");
                 return EAGAIN;
             }
 
@@ -228,6 +228,10 @@ int tcp_tx(ncb_t *ncb) {
 
     /* 若无特殊情况， 需要把所有发送缓冲包全部写入内核 */
     while (NULL != (packet = fque_get(&ncb->tx_fifo))) {
+
+        log__save("nshost", kLogLevel_Error, kLogTarget_Filesystem, "tcp packet 0x%08X get from fque.",
+                    *((uint32_t *)(packet->data + 8)) );
+
         retval = tcp_tx_single_packet(ncb->sockfd, packet);
         if (retval < 0) {
             return retval;

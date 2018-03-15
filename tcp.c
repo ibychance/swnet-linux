@@ -6,6 +6,8 @@
 #include "tcp.h"
 #include "mxx.h"
 
+#include "logger.h"
+
 void tcp_update_opts(ncb_t *ncb) {
     if (ncb) {
         ncb_set_window_size(ncb, SO_RCVBUF, TCP_BUFFER_SIZE);
@@ -453,6 +455,10 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
         if (fque_push(&ncb->tx_fifo, buffer, cb + ncb->template.cb_, NULL) < 0) {
             break;
         }
+
+        log__save("nshost", kLogLevel_Error, kLogTarget_Filesystem, "tcp packet 0x%08X push into fque.",
+                    *((uint32_t *)((char *)buffer + ncb->template.cb_) ));
+
         post_write_task(hld, kTaskType_TxTest);
 
         objdefr(hld);

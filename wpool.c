@@ -149,16 +149,19 @@ static int run_task(struct task_node *task) {
 static void *run(void *p) {
     struct task_node *task;
     struct write_thread_node *thread;
+    int retval;
     
     thread = (struct write_thread_node *)p;
     while (!write_pool.stop) {
-
-        if (posix__waitfor_waitable_handle(&thread->task_signal, -1) < 0) {
+        retval = posix__waitfor_waitable_handle(&thread->task_signal, 10);
+        if ( retval < 0) {
             break;
         }
 
-        /* reset wait object to block status immediately */
-        posix__block_waitable_handle(&thread->task_signal);
+        if ( 0 == retval ) {
+            /* reset wait object to block status immediately */
+            posix__block_waitable_handle(&thread->task_signal);
+        }
 
         /* complete all write task when once signal arrived,
             no matter which thread wake up this wait object */

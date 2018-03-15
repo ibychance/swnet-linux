@@ -3,6 +3,8 @@
 #include <errno.h>
 
 #include "udp.h"
+#include "logger.h"
+#include "mxx.h"
 
 static
 int udpi_rx(ncb_t *ncb) {
