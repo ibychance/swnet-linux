@@ -3,7 +3,6 @@
 #include <errno.h>
 
 #include "udp.h"
-#include "logger.h"
 #include "mxx.h"
 
 static

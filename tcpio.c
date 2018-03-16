@@ -1,10 +1,8 @@
 #include <stdio.h>
 
 #include "tcp.h"
-
+#include "mxx.h"
 #include "posix_ifos.h"
-
-#include "logger.h"
 
 static
 int tcpi_syn(ncb_t *ncb_server) {
@@ -176,13 +174,13 @@ int tcp_rx(ncb_t *ncb) {
 }
 
 static
-int tcp_tx_single_packet(int sockfd, struct tx_node *packet) {
+int tcp_tx_single_packet(int sockfd, struct tx_node *node) {
     int wcb;
     int errcode;
 
     /* 仅对头节点执行操作 */
-    while (packet->offset < packet->wcb) {
-        wcb = send(sockfd, packet->data + packet->offset, packet->wcb - packet->offset, 0);
+    while (node->offset < node->wcb) {
+        wcb = send(sockfd, node->data + node->offset, node->wcb - node->offset, 0);
 
         /* 对端断开， 或， 其他不可容忍的错误 */
         if (0 == wcb) {
@@ -196,7 +194,6 @@ int tcp_tx_single_packet(int sockfd, struct tx_node *packet) {
              * 此时需要处理队列头节点， 将未处理完的节点还原回队列头
              * oneshot 方式强制关注写入操作完成点 */
             if (EAGAIN == errcode) {
-                log__save("nshost", kLogLevel_Error, kLogTarget_Filesystem, "tcp write EAGAIN.");
                 return EAGAIN;
             }
 
@@ -209,7 +206,7 @@ int tcp_tx_single_packet(int sockfd, struct tx_node *packet) {
             return make_error_result(errcode);
         }
 
-        packet->offset += wcb;
+        node->offset += wcb;
     }
 
     return 0;
@@ -219,7 +216,7 @@ int tcp_tx_single_packet(int sockfd, struct tx_node *packet) {
  * 发送处理器
  */
 int tcp_tx(ncb_t *ncb) {
-    struct tx_node *packet;
+    struct tx_node *node;
     int retval;
 
     if (!ncb) {
@@ -227,22 +224,43 @@ int tcp_tx(ncb_t *ncb) {
     }
 
     /* 若无特殊情况， 需要把所有发送缓冲包全部写入内核 */
-    while (NULL != (packet = fque_get(&ncb->tx_fifo))) {
+    while (NULL != (node = fque_get(&ncb->tx_fifo))) {
 
-        log__save("nshost", kLogLevel_Error, kLogTarget_Filesystem, "tcp packet 0x%08X get from fque.",
-                    *((uint32_t *)(packet->data + 8)) );
-
-        retval = tcp_tx_single_packet(ncb->sockfd, packet);
+        retval = tcp_tx_single_packet(ncb->sockfd, node);
         if (retval < 0) {
             return retval;
         } else {
             if (EAGAIN == retval) {
-                fque_revert(&ncb->tx_fifo, packet);
+                fque_revert(&ncb->tx_fifo, node);
                 return EAGAIN;
+            } else {
+                nis_event_t c_event;
+                tcp_data_t c_data;
+                int nprint = 0;
+                char tx_mesg[128];
+                int i;
+
+                nprint += sprintf(tx_mesg, "push:%lld, pop:%lld, revert:%lld ", node->tick_push_fque, node->tick_pop_fque, node->tick_revert_fque);
+                if (node->offset >= 20) {
+                    for (i = 0; i < 20; i++) {
+                        nprint += sprintf(&tx_mesg[nprint],"%02X ", node->data[i]);
+                    }
+                }else{
+                    for (i = 0; i < node->offset; i++) {
+                        nprint += sprintf(&tx_mesg[nprint],"%02X ", node->data[i]);
+                    }
+                }
+                c_event.Ln.Tcp.Link = (HTCPLINK) ncb->hld;
+                c_event.Event = EVT_SENDDATA;
+                c_data.e.Packet.Size = node->offset;
+                c_data.e.Packet.Data = (const char *) ((char *) &tx_mesg);
+                if (ncb->nis_callback) {
+                    ncb->nis_callback(&c_event, &c_data);
+                }
             }
         }
 
-        PACKET_NODE_FREE(packet);
+        PACKET_NODE_FREE(node);
     }
 
     return 0;
