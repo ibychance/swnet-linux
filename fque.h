@@ -16,7 +16,10 @@ struct tx_node {
     int offset; /* 当前的完成写入偏移 */
     struct sockaddr_in udp_target; /* UDP 可用， 指定发送目标 */
     struct list_head link; /* 勾链 */
-}  ;
+    uint64_t tick_push_fque;
+    uint64_t tick_pop_fque;
+    uint64_t tick_revert_fque;
+};
 
 #define PACKET_NODE_FREE(node)  \
             do { if (!node) break;if ( node->data ) free(node->data);free(node); } while (0)
