@@ -254,7 +254,7 @@ int iomod(void *ncbptr, int mask ) {
     }
 
     e_evt.data.fd = ncb->hld;
-    e_evt.events = (EPOLLET | EPOLLRDHUP ); 
+    e_evt.events = (EPOLLET | EPOLLRDHUP | EPOLLHUP | EPOLLERR); 
 	e_evt.events |= mask;
 	
     return epoll_ctl(ncb->epfd, EPOLL_CTL_MOD, ncb->sockfd, &e_evt);
