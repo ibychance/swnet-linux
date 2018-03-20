@@ -234,7 +234,8 @@ int tcp_tx(ncb_t *ncb) {
                 fque_revert(&ncb->tx_fifo, node);
                 return EAGAIN;
             } else {
-                nis_event_t c_event;
+                /*
+		nis_event_t c_event;
                 tcp_data_t c_data;
                 int nprint = 0;
                 char tx_mesg[128];
@@ -257,6 +258,7 @@ int tcp_tx(ncb_t *ncb) {
                 if (ncb->nis_callback) {
                     ncb->nis_callback(&c_event, &c_data);
                 }
+		*/
             }
         }
 
