@@ -51,16 +51,16 @@ static void io_run(struct epoll_event *evts, int sigcnt){
 
     for (i = 0; i < sigcnt; i++) {
         hld = evts[i].data.fd;
-        ncb = (ncb_t *)objrefr(hld);
-        if (!ncb) {
+
+        /* disconnect/hup/error happend */
+        if ((evts[i].events & EPOLLRDHUP) || (evts[i].events & EPOLLHUP) || (evts[i].events & EPOLLERR)) {
+            objclos(hld);
             continue;
         }
 
-        /*
-         * 断开事件
-         */
-        if (evts[i].events & EPOLLRDHUP) {
-            objclos(ncb->hld);
+        ncb = (ncb_t *)objrefr(hld);
+        if (!ncb) {
+            continue;
         }
 
         /*
@@ -231,7 +231,7 @@ int ioatth(void *ncbptr, int mask) {
     }
     
     e_evt.data.fd = ncb->hld;
-    e_evt.events = (EPOLLET | EPOLLRDHUP); 
+    e_evt.events = (EPOLLET | EPOLLRDHUP | EPOLLHUP | EPOLLERR); 
 	e_evt.events |= mask;
 	
 	ncb->epfd = epmgr.epos[ncb->hld % epmgr.divisions].epfd;
