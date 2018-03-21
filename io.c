@@ -136,7 +136,9 @@ static void *epoll_proc(void *argv) {
         if (sigcnt < 0) {
             errcode = errno;
 
-            /* EINTR表示被更高级的系统调用打断，包括一次recv无法完成的缓冲区接收 */
+	    /* The call was interrupted by a signal handler before either :
+	     * (1) any of the requested events occurred or 
+	     * (2) the timeout expired; */
             if (EINTR == errcode) {
                 continue;
             }
