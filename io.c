@@ -52,11 +52,18 @@ static void io_run(struct epoll_event *evts, int sigcnt){
     for (i = 0; i < sigcnt; i++) {
         hld = evts[i].data.fd;
 
-        /* disconnect/hup/error happend */
-        if ((evts[i].events & EPOLLRDHUP) || (evts[i].events & EPOLLHUP) || (evts[i].events & EPOLLERR)) {
-            objclos(hld);
+        /* disconnect/error happend */
+        if ((evts[i].events & EPOLLRDHUP) || (evts[i].events & EPOLLERR) ) {// || (evts[i].events & EPOLLHUP)
+            nis_call_ecr("link [0x%08X] io close event : %u", hld, evts[i].events);
+	        objclos(hld);
             continue;
         }
+
+	/* concern but not deal with EPOLLHUP 
+	 * every connect request should trigger a EPOLLHUP event, no matter successful or failed*/
+	if ( evts[i].events & EPOLLHUP ) {
+	    ;
+	}
 
         ncb = (ncb_t *)objrefr(hld);
         if (!ncb) {

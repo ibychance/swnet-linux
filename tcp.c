@@ -266,7 +266,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
         getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* remote address information */
         getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* local address information */
 
-        /* 关注收发包 */
+        /* set handler function pointer to Rx/Tx */
         ncb->ncb_read = &tcp_rx;
         ncb->ncb_write = &tcp_tx;
 
