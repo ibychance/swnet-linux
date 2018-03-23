@@ -31,13 +31,13 @@
 struct epoll_object {
     int epfd;
     posix__boolean_t actived;
-    posix__pthread_t thread; /* EPOLL 线程 */
-    int load; /* 此线程的当前负载压力情况 */
+    posix__pthread_t thread;
+    int load; /* load of current thread */
 } ;
 
 struct epoll_object_manager {
     struct epoll_object *epos;
-    int divisions;		/* 分时多路复用中的链路个数 */
+    int divisions;		/* count of epoll thread */
     posix__pthread_mutex_t lock_selection; /* 锁住最大/最小负载筛选及其下标更替 */ 
 };
 
@@ -155,6 +155,7 @@ static void *epoll_proc(void *argv) {
     }
 
     nis_call_ecr("IO Thread Terminated.LWP:%u epfd:%u", posix__gettid(), epo->epfd);
+    posix__pthread_exit( (void *)0 );
     return NULL;
 }
 
