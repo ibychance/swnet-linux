@@ -121,6 +121,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
             break;
         }
         
+        objdefr(hld);
         return hld;
     } while (0);
 
