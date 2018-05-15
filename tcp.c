@@ -112,7 +112,14 @@ int tcp_settst(HTCPLINK lnk, const tst_t *tst) {
     if (lnk < 0 || !tst) return -1;
 
     ncb = (ncb_t *) objrefr((objhld_t) lnk);
-    if (!ncb) return -1;
+    if (!ncb) {
+        return -1;
+    }
+
+    /* size of tcp template must be less or equal to 32bytes */
+    if (tst->cb_ > TCP_MAXIMUM_TEMPLATE_SIZE) {
+        return -EINVAL;
+    }
 
     ncb->template.cb_ = tst->cb_;
     ncb->template.builder_ = tst->builder_;

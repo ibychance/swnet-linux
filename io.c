@@ -38,7 +38,6 @@ struct epoll_object {
 struct epoll_object_manager {
     struct epoll_object *epos;
     int divisions;		/* count of epoll thread */
-    posix__pthread_mutex_t lock_selection; /* 锁住最大/最小负载筛选及其下标更替 */ 
 };
 
 static struct epoll_object_manager epmgr;
@@ -53,17 +52,17 @@ static void io_run(struct epoll_event *evts, int sigcnt){
         hld = evts[i].data.fd;
 
         /* disconnect/error happend */
-        if ((evts[i].events & EPOLLRDHUP) || (evts[i].events & EPOLLERR) ) {// || (evts[i].events & EPOLLHUP)
+        if ((evts[i].events & EPOLLRDHUP) || (evts[i].events & EPOLLERR) ) {
             nis_call_ecr("link [0x%08X] io close event : %u", hld, evts[i].events);
 	        objclos(hld);
             continue;
         }
 
-	/* concern but not deal with EPOLLHUP 
-	 * every connect request should trigger a EPOLLHUP event, no matter successful or failed*/
-	if ( evts[i].events & EPOLLHUP ) {
-	    ;
-	}
+    	/* concern but not deal with EPOLLHUP 
+    	 * every connect request should trigger a EPOLLHUP event, no matter successful or failed*/
+    	if ( evts[i].events & EPOLLHUP ) {
+    	    ;
+    	}
 
         ncb = (ncb_t *)objrefr(hld);
         if (!ncb) {
@@ -174,7 +173,6 @@ int ioinit() {
         posix__atomic_dec(&refcnt);
         return -1;
     }
-    posix__pthread_mutex_init(&epmgr.lock_selection);
     
     for (i = 0; i < epmgr.divisions; i++) {
         epmgr.epos[i].load = 0;
@@ -227,8 +225,6 @@ void iouninit() {
     
     free(epmgr.epos);
     epmgr.epos = NULL;
-    
-    posix__pthread_mutex_uninit(&epmgr.lock_selection);
 }
 
 int ioatth(void *ncbptr, int mask) {

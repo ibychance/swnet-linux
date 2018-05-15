@@ -69,6 +69,10 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         return -1;
     }
     ncb = (ncb_t *) objrefr(hld);
+    if (!ncb) {
+        close(fd);
+        return -1;
+    }
 
     do {
         /* 基本初始化 */
