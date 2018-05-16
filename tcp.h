@@ -11,6 +11,10 @@
 #define TCP_MAXIMUM_PACKET_SIZE  ( 50 << 20 )
 #endif
 
+#if !defined TCP_MAXIMUM_TEMPLATE_SIZE
+#define TCP_MAXIMUM_TEMPLATE_SIZE   (32)
+#endif
+
 #define TCP_MAXIMUM_SENDER_CACHED_CNT ( 5120 ) /* 以每个包64KB计, 最多可以接受 327MB 的发送堆积 */
 
 #define NS_TCP_NODELAY_UNSET  (0)

@@ -10,15 +10,22 @@
 #include "clist.h"
 #include "posix_thread.h"
 
+
+#define DBG_SAVE_ELAPSE     (0)
+
 struct tx_node {
     unsigned char *data; /* 请求写入的数据缓冲区原始指针 */
     int wcb; /* 总共的写入大小 */
     int offset; /* 当前的完成写入偏移 */
     struct sockaddr_in udp_target; /* UDP 可用， 指定发送目标 */
     struct list_head link; /* 勾链 */
+    
+#if DBG_SAVE_ELAPSE
     uint64_t tick_push_fque;
     uint64_t tick_pop_fque;
     uint64_t tick_revert_fque;
+#endif
+
 };
 
 #define PACKET_NODE_FREE(node)  \
@@ -37,8 +44,12 @@ void fque_uninit(struct tx_fifo *fque);
 
 extern
 int fque_priority_push(struct tx_fifo *fque, unsigned char *data, int cb, int offset, const struct sockaddr_in *target);
+
+/*
+ * no deepcopy for @data, only heap memory can be used.
+ */
 extern
-int fque_push(struct tx_fifo *fque, unsigned char *data, int cb, const struct sockaddr_in *target); /* 注意， 内部不对数据作深拷贝, 该指针必须保证是堆内存*/
+int fque_push(struct tx_fifo *fque, unsigned char *data, int cb, const struct sockaddr_in *target);
 
 /* 
  * (未完成操作的节点)归还给 FIFO, 并且放置于队列头
