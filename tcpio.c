@@ -5,7 +5,7 @@
 #include "posix_ifos.h"
 
 static
-int tcpi_syn(ncb_t *ncb_server) {
+int __tcp_syn(ncb_t *ncb_server) {
     int fd_client;
     struct sockaddr_in addr_income;
     socklen_t addrlen;
@@ -105,13 +105,13 @@ int tcp_syn(ncb_t *ncb_server) {
     tcp_save_info(ncb_server);
 
     do {
-        retval = tcpi_syn(ncb_server);
+        retval = __tcp_syn(ncb_server);
     } while (0 == retval);
     return retval;
 }
 
 static
-int tcpi_rx(ncb_t *ncb) {
+int __tcp_rx(ncb_t *ncb) {
     int recvcb;
     int overplus;
     int offset;
@@ -168,13 +168,13 @@ int tcp_rx(ncb_t *ncb) {
 
     /* 将接收缓冲区读空为止 */
     do {
-        retval = tcpi_rx(ncb);
+        retval = __tcp_rx(ncb);
     } while (0 == retval);
     return retval;
 }
 
 static
-int tcp_tx_single_packet(int sockfd, struct tx_node *node) {
+int __tcp_tx_single_packet(int sockfd, struct tx_node *node) {
     int wcb;
     int errcode;
 
@@ -226,7 +226,7 @@ int tcp_tx(ncb_t *ncb) {
     /* 若无特殊情况， 需要把所有发送缓冲包全部写入内核 */
     while (NULL != (node = fque_get(&ncb->tx_fifo))) {
 
-        retval = tcp_tx_single_packet(ncb->sockfd, node);
+        retval = __tcp_tx_single_packet(ncb->sockfd, node);
         if (retval < 0) {
             return retval;
         } else {
@@ -268,7 +268,7 @@ int tcp_tx(ncb_t *ncb) {
     return 0;
 }
 
-static int tcp_check_connection_bypoll(int sockfd) {
+static int __tcp_check_connection_bypoll(int sockfd) {
     struct pollfd pofd;
     socklen_t len;
     int error;
@@ -323,7 +323,7 @@ R_TRY:
     //     ncb->nis_callback(&c_event, &c_data);
     //     return 0;
     // }
-    e = tcp_check_connection_bypoll(ncb->sockfd);
+    e = __tcp_check_connection_bypoll(ncb->sockfd);
     if (e >= 0) {
         /* set other options */
         tcp_update_opts(ncb);

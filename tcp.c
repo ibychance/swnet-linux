@@ -163,7 +163,7 @@ void tcp_destroy(HTCPLINK lnk) {
 #if 0
 
 /* <tcp_check_connection_bypoll> */
-static int tcp_check_connection_bypoll(int sockfd) {
+static int __tcp_check_connection_bypoll(int sockfd) {
     struct pollfd pofd;
     socklen_t len;
     int error;
@@ -186,7 +186,7 @@ static int tcp_check_connection_bypoll(int sockfd) {
 }
 
 /* <tcp_check_connection_byselect> */
-static int tcp_check_connection(int sockfd) {
+static int __tcp_check_connection(int sockfd) {
     int retval;
     socklen_t len;
     struct timeval timeo;

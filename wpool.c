@@ -52,11 +52,9 @@ struct write_pool_manager {
     int write_thread_count;
     posix__boolean_t    stop;
 };
-
-static int refcnt = 0;
 static struct write_pool_manager write_pool;
 
-static void add_task(struct write_thread_node *thread, struct task_node *task) {
+static void __add_task(struct write_thread_node *thread, struct task_node *task) {
     if (task && thread) {
         INIT_LIST_HEAD(&task->link);
         posix__pthread_mutex_lock(&thread->task_lock);
@@ -66,7 +64,7 @@ static void add_task(struct write_thread_node *thread, struct task_node *task) {
     }
 }
 
-static struct task_node *get_task(struct write_thread_node *thread){
+static struct task_node *__get_task(struct write_thread_node *thread){
     struct task_node *task;
     
     posix__pthread_mutex_lock(&thread->task_lock);
@@ -80,7 +78,7 @@ static struct task_node *get_task(struct write_thread_node *thread){
     return task;
 }
 
-static int run_task(struct task_node *task) {
+static int __run_task(struct task_node *task) {
     objhld_t hld;
     int retval;
     ncb_t *ncb;
@@ -146,7 +144,7 @@ static int run_task(struct task_node *task) {
     return retval;
 }
 
-static void *run(void *p) {
+static void *__run(void *p) {
     struct task_node *task;
     struct write_thread_node *thread;
     int retval;
@@ -165,8 +163,8 @@ static void *run(void *p) {
 
         /* complete all write task when once signal arrived,
             no matter which thread wake up this wait object */
-        while ((NULL != (task = get_task(thread)) ) && !write_pool.stop) {
-            run_task(task);
+        while ((NULL != (task = __get_task(thread)) ) && !write_pool.stop) {
+            __run_task(task);
             free(task);
         }
     }
@@ -175,12 +173,11 @@ static void *run(void *p) {
     return NULL;
 }
 
-int write_pool_init(){
+static int __inited = -1;
+static pthread_mutex_t __init_locker = PTHREAD_MUTEX_INITIALIZER;
+
+int __write_pool_init() {
     int i;
-    
-    if (posix__atomic_inc(&refcnt) > 1) {
-        return 0;
-    }
     
     write_pool.stop = posix__false;
     write_pool.write_thread_count = get_nprocs();
@@ -194,10 +191,33 @@ int write_pool_init(){
         posix__init_notification_waitable_handle(&write_pool.write_threads[i].task_signal);
         posix__pthread_mutex_init(&write_pool.write_threads[i].task_lock);
         write_pool.write_threads[i].task_list_size = 0;
-        posix__pthread_create(&write_pool.write_threads[i].thread, &run, (void *)&write_pool.write_threads[i]);
+        posix__pthread_create(&write_pool.write_threads[i].thread, &__run, (void *)&write_pool.write_threads[i]);
     }
     
     return 0;
+}
+
+int write_pool_init(){
+    int retval;
+
+    retval = 0;
+
+    if (__inited >= 0) {
+        return 0;
+    }
+
+    pthread_mutex_lock(&__init_locker);
+     /* double check if other thread complete the initialize request */
+    if (__inited < 0) {
+        retval = __write_pool_init();
+        if (retval < 0) {
+            ;
+        }else{
+            posix__atomic_xchange(&__inited, retval);
+        }
+    }
+    pthread_mutex_unlock(&__init_locker);
+    return retval;
 }
 
 void write_pool_uninit(){
@@ -205,12 +225,7 @@ void write_pool_uninit(){
     void *retval;
     struct task_node *task;
     
-    if (0 == refcnt) {
-        return;
-    }
-
-    /* 使用引用计数，保证所有调用过 INIT 的使用者均已认可反初始化 */
-    if (0 != posix__atomic_dec(&refcnt)) {
+    if ( posix__atomic_xchange(&__inited, -1) < 0 ) {
         return;
     }
     
@@ -221,7 +236,7 @@ void write_pool_uninit(){
         
         /* 清理来不及处理的任务 */
         posix__pthread_mutex_lock(&write_pool.write_threads[i].task_lock);
-        while (NULL != (task = get_task(&write_pool.write_threads[i]))) {
+        while (NULL != (task = __get_task(&write_pool.write_threads[i]))) {
             free(task);
         }
         posix__pthread_mutex_unlock(&write_pool.write_threads[i].task_lock);
@@ -248,7 +263,7 @@ int post_write_task(objhld_t hld, enum task_type type){
     
     thread = &write_pool.write_threads[hld % write_pool.write_thread_count];
     
-    add_task(thread, task);
+    __add_task(thread, task);
     posix__sig_waitable_handle(&thread->task_signal);
     return 0;
 }

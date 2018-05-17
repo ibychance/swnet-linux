@@ -41,9 +41,8 @@ struct epoll_object_manager {
 };
 
 static struct epoll_object_manager epmgr;
-static int refcnt = 0;
 
-static void io_run(struct epoll_event *evts, int sigcnt){
+static void __iorun(struct epoll_event *evts, int sigcnt){
     int i;
     ncb_t *ncb;
     objhld_t hld;
@@ -120,7 +119,7 @@ static void io_run(struct epoll_event *evts, int sigcnt){
     }
 }
 
-static void *epoll_proc(void *argv) {
+static void *__epoll_proc(void *argv) {
     struct epoll_event evts[EPOLL_SIZE];
     int sigcnt;
     int errcode;
@@ -149,7 +148,7 @@ static void *epoll_proc(void *argv) {
         /* at least one signal is awakened,
             otherwise, timeout trigger. */
         if (sigcnt > 0) {
-            io_run(evts, sigcnt);
+            __iorun(evts, sigcnt);
         }
     }
 
@@ -158,19 +157,17 @@ static void *epoll_proc(void *argv) {
     return NULL;
 }
 
-int ioinit() {
-    int i;
+static int __inited = -1;
+static pthread_mutex_t __init_locker = PTHREAD_MUTEX_INITIALIZER;
 
-    if (posix__atomic_inc(&refcnt) > 1) {
-        return 0;
-    }
+int __ioinit() {
+    int i;
 
     /* 对一个已经关闭的链接执行 write, 返回 EPIPE 的同时会 raise 一个SIGPIPE 信号，需要忽略处理 */
     signal(SIGPIPE, SIG_IGN);
     
     epmgr.divisions = get_nprocs();
     if ( NULL == (epmgr.epos = (struct epoll_object *)malloc(sizeof(struct epoll_object) * epmgr.divisions))) {
-        posix__atomic_dec(&refcnt);
         return -1;
     }
     
@@ -185,7 +182,7 @@ int ioinit() {
         
         /* active 字段既作为运行有效性的判断符，也作为运行的控制符号 */
         epmgr.epos[i].actived = posix__true;
-        if (posix__pthread_create(&epmgr.epos[i].thread, &epoll_proc, &epmgr.epos[i]) < 0) {
+        if (posix__pthread_create(&epmgr.epos[i].thread, &__epoll_proc, &epmgr.epos[i]) < 0) {
             epmgr.epos[i].actived = posix__false;
             close(epmgr.epos[i].epfd);
             epmgr.epos[i].epfd = -1;
@@ -195,15 +192,29 @@ int ioinit() {
     return 0;
 }
 
+int ioinit() {
+    int retval;
+
+    retval = 0;
+
+    if (__inited >= 0) {
+        return 0;
+    }
+
+    pthread_mutex_lock(&__init_locker);
+     /* double check if other thread complete the initialize request */
+    if (__inited < 0) {
+        retval = __ioinit();
+        posix__atomic_xchange(&__inited, retval);
+    }
+    pthread_mutex_unlock(&__init_locker);
+    return retval;
+}
+
 void iouninit() {
     int i;
     
-    if (0 == refcnt) {
-        return;
-    }
-
-    /* 需要所有初始化调用者都认可反初始化， 反初始化才能得以执行 */
-    if (posix__atomic_dec(&refcnt) > 0) {
+    if (posix__atomic_xchange(&__inited, -1) < 0) {
         return;
     }
     

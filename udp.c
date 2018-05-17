@@ -10,7 +10,7 @@
 extern
 void (*__notify_nshost_dbglog)(const char *logstr);
 
-static int udp_update_opts(ncb_t *ncb) {
+static int __udp_update_opts(ncb_t *ncb) {
     static const int RECV_BUFFER_SIZE = 0xFFFF;
     static const int SEND_BUFFER_SIZE = 0xFFFF;
 
@@ -90,7 +90,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         }
 
         /* setsockopt */
-        if (udp_update_opts(ncb) < 0) {
+        if (__udp_update_opts(ncb) < 0) {
             break;
         }
 

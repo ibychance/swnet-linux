@@ -6,7 +6,7 @@
 #include "mxx.h"
 
 static
-int udpi_rx(ncb_t *ncb) {
+int __udp_rx(ncb_t *ncb) {
     int recvcb;
     struct sockaddr_in remote;
     socklen_t addrlen;
@@ -53,14 +53,14 @@ int udp_rx(ncb_t *ncb) {
      int retval;
     
     do {
-        retval = udpi_rx(ncb);
+        retval = __udp_rx(ncb);
     } while (0 == retval);
     
     return retval;
 }
 
 static
-int udp_tx_single_packet(int sockfd, struct tx_node *packet){
+int __udp_tx_single_packet(int sockfd, struct tx_node *packet){
     int wcb;
     int errcode;
     socklen_t len = sizeof(struct sockaddr);
@@ -110,7 +110,7 @@ int udp_tx(ncb_t *ncb) {
     
     /* 若无特殊情况， 需要把所有发送缓冲包全部写入内核 */
     while (NULL != (packet = fque_get(&ncb->tx_fifo))) {
-        retval = udp_tx_single_packet(ncb->sockfd, packet);
+        retval = __udp_tx_single_packet(ncb->sockfd, packet);
         if (retval < 0) {
             return retval;
         }  else {
