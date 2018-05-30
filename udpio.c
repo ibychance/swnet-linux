@@ -91,7 +91,7 @@ int __udp_tx_single_packet(int sockfd, struct tx_node *packet){
             }
             
              /* 发生其他无法容忍且无法处理的错误, 这个错误返回会导致断开链接 */
-            return make_error_result(errcode);
+            return RE_ERROR(errcode);
         }
 
         packet->offset += wcb;

@@ -38,12 +38,12 @@ int fque_priority_push(struct tx_fifo *fque, unsigned char *data, int cb, int of
     int retval;
 
     if (!fque || !data || cb <= 0) {
-        return -EINVAL;
+        return RE_ERROR(EINVAL);
     }
 
     node = (struct tx_node *) malloc(sizeof (struct tx_node));
     if (!node) {
-        return -ENOMEM;
+        return RE_ERROR(ENOMEM);
     }
     node->data = data;
     node->wcb = cb;
@@ -99,7 +99,7 @@ int fque_revert(struct tx_fifo *fque, struct tx_node *node) {
     int retval;
 
     if (!fque || !node) {
-        return -EINVAL;
+        return RE_ERROR(EINVAL);
     }
 
     posix__pthread_mutex_lock(&fque->lock);

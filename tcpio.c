@@ -137,7 +137,7 @@ int __tcp_rx(ncb_t *ncb) {
         } while (overplus > 0);
     }
 
-    /*对端断开*/
+    /* a stream socket peer has performed an orderly shutdown */
     if (0 == recvcb) {
         return -1;
     }
@@ -203,7 +203,7 @@ int __tcp_tx_single_packet(int sockfd, struct tx_node *node) {
             }
 
             /* 发生其他无法容忍且无法处理的错误, 这个错误返回会导致断开链接 */
-            return make_error_result(errcode);
+            return RE_ERROR(errcode);
         }
 
         node->offset += wcb;
@@ -268,30 +268,41 @@ int tcp_tx(ncb_t *ncb) {
     return 0;
 }
 
-static int __tcp_check_connection_bypoll(int sockfd) {
+static int __tcp_check_connection_bypoll(int sockfd, int *err) {
     struct pollfd pofd;
-    socklen_t len;
+    socklen_t errlen;
     int error;
 
     pofd.fd = sockfd;
     pofd.events = POLLOUT;
+    errlen = sizeof(error);
 
-    while(poll(&pofd, 1, -1) < 0) {
-        if (errno != EINTR) {
-            return errno;
+    if (!err) {
+        return -1;
+    }
+
+    do {
+        if (poll(&pofd, 1, -1) < 0) {
+            break;
         }
-    }
 
-    len = sizeof (error);
-    if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, &len) < 0) {
-        return errno;
-    }
+        if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, &errlen) < 0) {
+            break;
+        }
 
-    return error;
+        *err = error;
+
+        /* success only when SOL_ERROR return 0 */
+        return ((0 == error) ? (0) : (-1));
+
+    } while (0);
+
+    *err = errno;
+    return -1;
 }
 
 /*
- * 连接处理器
+ * tcp connect request asynchronous completed handler
  */
 int tcp_tx_syn(ncb_t *ncb) {
     int retval;
@@ -300,71 +311,50 @@ int tcp_tx_syn(ncb_t *ncb) {
     tcp_data_t c_data;
     socklen_t addrlen;
 
-R_TRY:
-    // retval = connect(ncb->sockfd, (const struct sockaddr *) &ncb->remot_addr, sizeof (struct sockaddr));
-    // if (retval >= 0) {
-    //     addrlen = sizeof (struct sockaddr);
-    //     getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* 对端的地址信息 */
-    //     getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* 本地的地址信息 */
+    while (1) {
+        retval = __tcp_check_connection_bypoll(ncb->sockfd, &e);
+        if (retval >= 0) {
+            /* set other options */
+            tcp_update_opts(ncb);
 
-    //     /* 关注收发包 */
-    //     ncb->ncb_read = &tcp_rx;
-    //     ncb->ncb_write = &tcp_tx;
+            addrlen = sizeof (struct sockaddr);
+            getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* remote address information */
+            getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* local address information */
 
-    //     retval = iomod(ncb, EPOLLIN);
-    //     if (retval < 0) {
-    //         objclos(ncb->hld);
-    //         return -1;
-    //     }
-
-    //     c_event.Event = EVT_TCP_CONNECTED;
-    //     c_event.Ln.Tcp.Link = ncb->hld;
-    //     c_data.e.LinkOption.OptionLink = ncb->hld;
-    //     ncb->nis_callback(&c_event, &c_data);
-    //     return 0;
-    // }
-    e = __tcp_check_connection_bypoll(ncb->sockfd);
-    if (e >= 0) {
-        /* set other options */
-        tcp_update_opts(ncb);
-
-        addrlen = sizeof (struct sockaddr);
-        getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* 对端的地址信息 */
-        getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* 本地的地址信息 */
-
-        /* 关注收发包 */
-        ncb->ncb_read = &tcp_rx;
-        ncb->ncb_write = &tcp_tx;
-        retval = iomod(ncb, EPOLLIN);
-        if (retval < 0) {
-            objclos(ncb->hld);
-            return -1;
-        }
-        c_event.Event = EVT_TCP_CONNECTED;
-        c_event.Ln.Tcp.Link = ncb->hld;
-        c_data.e.LinkOption.OptionLink = ncb->hld;
-        ncb->nis_callback(&c_event, &c_data);
-        return 0;
-    }
-
-    //e = errno;
-    switch (e) {
-        /* connection has been establish or already existed */
-        case EISCONN:
-        case EALREADY:
+            /* follow tcp rx/tx event */
+            ncb->ncb_read = &tcp_rx;
+            ncb->ncb_write = &tcp_tx;
+            retval = iomod(ncb, EPOLLIN);
+            if (retval < 0) {
+                objclos(ncb->hld);
+                return -1;
+            }
+            c_event.Event = EVT_TCP_CONNECTED;
+            c_event.Ln.Tcp.Link = ncb->hld;
+            c_data.e.LinkOption.OptionLink = ncb->hld;
+            ncb->nis_callback(&c_event, &c_data);
             return 0;
+        }
 
-        /* other interrupted or full cached,try again */
-        case EINTR:
-        case EAGAIN:
-            ncb_report_debug_information(ncb, "tcp syn retry.e=%d.", e);
-            goto R_TRY;
+        switch (e) {
+            /* connection has been establish or already existed */
+            case EISCONN:
+            case EALREADY:
+                return 0;
 
-        /* Connection refused */
-        case ECONNREFUSED:
-        default:
-            ncb_report_debug_information(ncb, "tcp syn error.e=%d.", e);
-            break;
+            /* other interrupted or full cached,try again 
+             * Only a few linux version likely to happen. */
+            case EINTR:
+            case EAGAIN:
+                ncb_report_debug_information(ncb, "tcp syn retry.e=%d.", e);
+                break;
+
+            /* Connection refused */
+            case ECONNREFUSED:
+            default:
+                ncb_report_debug_information(ncb, "tcp syn error.e=%d.", e);
+                return -1;
+        }
     }
     
     return -1;

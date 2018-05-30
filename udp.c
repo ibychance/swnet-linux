@@ -146,7 +146,7 @@ static int udp_maker(void *data, int cb, void *context) {
     return -1;
 }
 
-int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const char* r_ipstr, uint16_t r_port) {
+int udp_sendto(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const char* r_ipstr, uint16_t r_port) {
     int retval;
     ncb_t *ncb;
     struct sockaddr_in addr;
@@ -154,7 +154,7 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const c
     unsigned char *buffer;
 
     if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > UDP_MAXIMUM_USER_DATA_SIZE)) {
-        return -EINVAL;
+        return RE_ERROR(EINVAL);
     }
 
     ncb = (ncb_t *) objrefr(hld);
@@ -199,6 +199,85 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const c
         }
         post_write_task(hld, kTaskType_TxTest);
         
+        objdefr(hld);
+        return 0;
+    } while (0);
+
+    if (buffer) {
+        free(buffer);
+    }
+    objdefr(hld);
+    return retval;
+}
+
+static
+int __udp_tx_single_packet(ncb_t *ncb, const unsigned char *data, int cb, const char* r_ipstr, uint16_t r_port)  {
+    int wcb;
+    int offset;
+    struct sockaddr_in addr;
+
+    offset = 0;
+
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = inet_addr(r_ipstr);
+    addr.sin_port = htons(r_port);
+    
+    while (offset < cb) {
+        wcb = sendto(ncb->sockfd, data + offset, cb - offset, 0, (__CONST_SOCKADDR_ARG)&addr, sizeof(struct sockaddr) );
+        if (wcb <= 0) {
+            /* interrupt by other operation, continue */
+            if (EINTR == errno) {
+                continue;
+            }
+            
+            return RE_ERROR(errno);
+        }
+
+        offset += wcb;
+    }
+    
+    return 0;
+}
+
+int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const char* r_ipstr, uint16_t r_port) {
+    int retval;
+    ncb_t *ncb;
+    objhld_t hld = (objhld_t) lnk;
+    unsigned char *buffer;
+
+    if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > UDP_MAXIMUM_USER_DATA_SIZE)) {
+        return RE_ERROR(EINVAL);
+    }
+
+    ncb = (ncb_t *) objrefr(hld);
+    if (!ncb) {
+        return RE_ERROR(ENOENT);
+    }
+
+    retval = -1;
+    buffer = NULL;
+    do {
+        buffer = (unsigned char *) malloc(cb);
+        if (!buffer) {
+            retval = RE_ERROR(ENOMEM);
+            break;
+        }
+
+        if (maker) {
+            if ((*maker)(buffer, cb, par) < 0) {
+                break;
+            }
+        }else{
+            if (udp_maker(buffer, cb, par) < 0){
+                break;
+            }
+        }
+
+        retval = __udp_tx_single_packet(ncb, buffer, cb, r_ipstr, r_port);
+        if (retval < 0) {
+            break;
+        }
+
         objdefr(hld);
         return 0;
     } while (0);
@@ -256,7 +335,7 @@ int udp_set_boardcast(ncb_t *ncb, int enable) {
     if (ncb) {
         return setsockopt(ncb->sockfd, SOL_SOCKET, SO_BROADCAST, (const void *) &enable, sizeof (enable));
     }
-    return -EINVAL;
+    return RE_ERROR(EINVAL);
 }
 
 int udp_get_boardcast(ncb_t *ncb, int *enabled) {
@@ -264,7 +343,7 @@ int udp_get_boardcast(ncb_t *ncb, int *enabled) {
         socklen_t optlen = sizeof (int);
         return getsockopt(ncb->sockfd, SOL_SOCKET, SO_BROADCAST, (void * __restrict)enabled, &optlen);
     }
-    return -EINVAL;
+    return RE_ERROR(EINVAL);
 }
 
 /*
@@ -292,7 +371,7 @@ int udp_joingrp(HUDPLINK lnk, const char *g_ipstr, uint16_t g_port) {
     int retval;
 
     if (lnk < 0 || !g_ipstr || 0 == g_port) {
-        return -EINVAL;
+        return RE_ERROR(EINVAL);
     }
 
     ncb = objrefr(hld);
@@ -335,7 +414,7 @@ int udp_dropgrp(HUDPLINK lnk){
     int retval;
     
     if (lnk < 0){
-        return -EINVAL;
+        return RE_ERROR(EINVAL);
     }
     
     ncb = objrefr(hld);

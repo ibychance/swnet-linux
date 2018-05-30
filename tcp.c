@@ -11,10 +11,12 @@ void tcp_update_opts(ncb_t *ncb) {
         ncb_set_window_size(ncb, SO_RCVBUF, TCP_BUFFER_SIZE);
         ncb_set_window_size(ncb, SO_SNDBUF, TCP_BUFFER_SIZE);
         
+        /* atomic keepalive */
         tcp_set_keepalive(ncb, 1);
         tcp_set_keepalive_value(ncb, 30, 5, 6);
 
-        tcp_set_nodelay(ncb, 1); /* 为保证小包效率， 禁用 Nginx 算法 */
+        /* disable the Nginx algorithm */
+        tcp_set_nodelay(ncb, 1);
     }
 }
 
@@ -46,11 +48,11 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
         return -1;
     }
 
-    /* 允许端口复用 */
+    /* allow port reuse */
     optval = 1;
     retval = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof ( optval));
 
-    /* 绑定地址，建立对象 */
+    /* binding address, and then allocate NCB object */
     addrlocal.sin_addr.s_addr = l_ipstr ? inet_addr(l_ipstr) : INADDR_ANY;
     addrlocal.sin_family = AF_INET;
     addrlocal.sin_port = htons(l_port);
@@ -84,13 +86,13 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
         ncb_set_linger(ncb, 0, 1);
         tcp_save_info(ncb);
 
-        /*分配TCP普通包*/
+        /* allocate normal TCP package */
         ncb->packet = (char *) malloc(TCP_BUFFER_SIZE);
         if (!ncb->packet) {
             break;
         }
 
-        /*清空协议头*/
+        /* zeroization protocol head*/
         ncb->rx_parse_offset = 0;
         ncb->rx_buffer = (char *) malloc(TCP_BUFFER_SIZE);
         if (!ncb->rx_buffer) {
@@ -118,7 +120,7 @@ int tcp_settst(HTCPLINK lnk, const tst_t *tst) {
 
     /* size of tcp template must be less or equal to 32bytes */
     if (tst->cb_ > TCP_MAXIMUM_TEMPLATE_SIZE) {
-        return -EINVAL;
+        return RE_ERROR(EINVAL);
     }
 
     ncb->template.cb_ = tst->cb_;
@@ -143,9 +145,8 @@ int tcp_gettst(HTCPLINK lnk, tst_t *tst) {
 }
 
 /*
- * 关闭响应变更:
- * 对象销毁操作有可能是希望中断某些阻塞操作， 如 connect
- * 故将销毁行为调整为直接关闭描述符后， 通过智能指针销毁对象
+ * Object destruction operations may be intended to interrupt some blocking operations. just like @tcp_connect
+ * so,close the file descriptor directly, destroy the object through the smart pointer.
  */
 void tcp_destroy(HTCPLINK lnk) {
     ncb_t *ncb;
@@ -374,7 +375,7 @@ int tcp_listen(HTCPLINK lnk, int block) {
             break;
         }
 
-        /* 该 NCB 对象只可能读网络数据， 而且一定是接收链接 */
+        /* this NCB object is readonly， and it must be used for accept */
         ncb->ncb_read = &tcp_syn;
         ncb->ncb_write = NULL;
         
@@ -423,29 +424,28 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
             break;
         }
 
-        /* 发送队列过长， 无法进行发送操作 */
+        /* to large length of current queue,no more message can be post */
         if (fque_size(&ncb->tx_fifo) >= TCP_MAXIMUM_SENDER_CACHED_CNT) {
             break;
         }
 
-        /*必须有合法TST指定*/
+        /* there must be a effective TST specified */
         if (!(*ncb->template.builder_)) {
             ncb_report_debug_information(ncb, "[TCP]invalidated link object TST builder function address.");
             break;
         }
 
-        /* 分配数据缓冲区 */
         buffer = (unsigned char *) malloc(cb + ncb->template.cb_);
         if (!buffer) {
             break;
         }
 
-        /*构建协议头*/
+        /* build protocol head */
         if ((*ncb->template.builder_)(buffer, cb) < 0) {
             break;
         }
 
-        /*用户数据填入*/
+        /* fill user data seg */
         if (maker) {
             if ((*maker)(buffer + ncb->template.cb_, cb, par) < 0) {
                 break;
@@ -456,11 +456,10 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
             }
         }
 
-        /* 向发送队列增加一个节点, 并投递激活消息 */
+        /* push message to the tail of the queue, awaken write thread */
         if (fque_push(&ncb->tx_fifo, buffer, cb + ncb->template.cb_, NULL) < 0) {
             break;
         }
-
         post_write_task(hld, kTaskType_TxTest);
 
         objdefr(hld);
@@ -544,7 +543,7 @@ int tcp_setmss(ncb_t *ncb, int mss) {
         return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_MAXSEG, (const void *) &mss, sizeof (mss));
     }
 
-    return -EINVAL;
+    return RE_ERROR(EINVAL);
 }
 
 int tcp_getmss(ncb_t *ncb) {
@@ -552,7 +551,7 @@ int tcp_getmss(ncb_t *ncb) {
         socklen_t lenmss = sizeof (ncb->mss);
         return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_MAXSEG, (void *__restrict) & ncb->mss, &lenmss);
     }
-    return -EINVAL;
+    return RE_ERROR(EINVAL);
 }
 
 int tcp_set_nodelay(ncb_t *ncb, int set) {
@@ -560,7 +559,7 @@ int tcp_set_nodelay(ncb_t *ncb, int set) {
         return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (const void *) &set, sizeof ( set));
     }
 
-    return -EINVAL;
+    return RE_ERROR(EINVAL);
 }
 
 int tcp_get_nodelay(ncb_t *ncb, int *set) {
@@ -568,7 +567,7 @@ int tcp_get_nodelay(ncb_t *ncb, int *set) {
         socklen_t optlen = sizeof (int);
         return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (void *__restrict)set, &optlen);
     }
-    return -EINVAL;
+    return RE_ERROR(EINVAL);
 }
 
 int tcp_set_cork(ncb_t *ncb, int set) {
@@ -576,7 +575,7 @@ int tcp_set_cork(ncb_t *ncb, int set) {
         return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_CORK, (const void *) &set, sizeof ( set));
     }
 
-    return -EINVAL;
+    return RE_ERROR(EINVAL);
 }
 
 int tcp_get_cork(ncb_t *ncb, int *set) {
@@ -584,14 +583,14 @@ int tcp_get_cork(ncb_t *ncb, int *set) {
         socklen_t optlen = sizeof (int);
         return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_CORK, (void *__restrict)set, &optlen);
     }
-    return -EINVAL;
+    return RE_ERROR(EINVAL);
 }
 
 int tcp_set_keepalive(ncb_t *ncb, int enable) {
     if (ncb) {
         return setsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (const char *) &enable, sizeof ( enable));
     }
-    return -EINVAL;
+    return RE_ERROR(EINVAL);
 }
 
 int tcp_get_keepalive(ncb_t *ncb, int *enabled){
@@ -599,7 +598,7 @@ int tcp_get_keepalive(ncb_t *ncb, int *enabled){
         socklen_t optlen = sizeof(int);
         return getsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (void *__restrict)enabled, &optlen);
     }
-    return -EINVAL;
+    return RE_ERROR(EINVAL);
 }
 
 int tcp_set_keepalive_value(ncb_t *ncb, int idle, int interval, int probes) {

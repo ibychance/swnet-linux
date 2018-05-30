@@ -5,7 +5,19 @@ INSTALL_DIR=
 SRC_EXT=c
 SYS_WIDTH=$(shell getconf LONG_BIT)
 
-SRCS=$(wildcard *.$(SRC_EXT)) $(wildcard ../libnsp/com/*.$(SRC_EXT))
+#SRCS=$(wildcard *.$(SRC_EXT)) $(wildcard ../libnsp/com/*.$(SRC_EXT))
+SRCS=./fque.c \
+		./io.c \
+		./mxx.c \
+		./ncb.c \
+		./tcp.c \
+		./tcpal.c \
+		./tcpio.c \
+		./udp.c \
+		./udpio.c \
+		./wpool.c
+
+SRCS+=$(wildcard ../libnsp/com/*.$(SRC_EXT))
 OBJS=$(patsubst %.$(SRC_EXT),%.o,$(SRCS))
 
 CFLAGS+=-I ../libnsp/icom -fPIC -Wall -std=gnu99

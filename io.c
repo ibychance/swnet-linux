@@ -244,7 +244,7 @@ int ioatth(void *ncbptr, int mask) {
     
     ncb = (ncb_t *)ncbptr;
     if (!ncb) {
-        return -EINVAL;
+        return RE_ERROR(EINVAL);
     }
     
     e_evt.data.fd = ncb->hld;
@@ -267,7 +267,7 @@ int iomod(void *ncbptr, int mask ) {
     
     ncb = (ncb_t *)ncbptr;
     if (!ncb) {
-        return -EINVAL;
+        return RE_ERROR(EINVAL);
     }
 
     e_evt.data.fd = ncb->hld;

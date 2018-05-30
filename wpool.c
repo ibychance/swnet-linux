@@ -183,7 +183,7 @@ int __write_pool_init() {
     write_pool.write_thread_count = get_nprocs();
     write_pool.write_threads = (struct write_thread_node *)malloc(sizeof(struct write_thread_node) * write_pool.write_thread_count);
     if (!write_pool.write_threads) {
-        return -1;
+        return RE_ERROR(ENOMEM);
     }
     
     for (i = 0; i < write_pool.write_thread_count; i++){
@@ -255,7 +255,7 @@ int post_write_task(objhld_t hld, enum task_type type){
     struct write_thread_node *thread;
     
     if (NULL == (task = (struct task_node *)malloc(sizeof(struct task_node)))){
-        return -ENOMEM;
+        return RE_ERROR(ENOMEM);
     }
 
     task->hld = hld;
