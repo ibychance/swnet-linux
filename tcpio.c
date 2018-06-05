@@ -11,8 +11,6 @@ int __tcp_syn(ncb_t *ncb_server) {
     socklen_t addrlen;
     ncb_t *ncb_client;
     objhld_t hld_client;
-    nis_event_t c_event;
-    tcp_data_t c_data;
     int errcode;
 
     addrlen = sizeof ( addr_income);
@@ -20,12 +18,12 @@ int __tcp_syn(ncb_t *ncb_server) {
     errcode = errno;
     if (fd_client < 0) {
 
-        /* 系统调用中断， 可以立即执行再一次读取操作 */
+        /* syscall again if system interrupted */
         if (errcode == EINTR) {
             return 0;
         }
 
-        /*已经没有数据可供读出，不需要继续为工作线程投递读取任务，等待下一次的EPOLL边界触发通知*/
+        /* no more data canbe read, waitting for next epoll edge trigger */
         if ((errcode == EAGAIN) || (errcode == EWOULDBLOCK)) {
             return EAGAIN;
         }
@@ -33,7 +31,7 @@ int __tcp_syn(ncb_t *ncb_server) {
         return -1;
     }
 
-    /* 已经得到了对端链接， 无需在处理客户链接的初始化等操作时，返回失败 */
+    /* allocate ncb object for client */
     hld_client = objallo(sizeof ( ncb_t), NULL, &ncb_uninit, NULL, 0);
     if (hld_client < 0) {
         close(fd_client);
@@ -48,11 +46,11 @@ int __tcp_syn(ncb_t *ncb_server) {
         ncb_client->proto_type = kProtocolType_TCP;
         ncb_client->nis_callback = ncb_server->nis_callback;
 
-        /* 本地和对端的地址结构体 */
-        getpeername(fd_client, (struct sockaddr *) &ncb_client->remot_addr, &addrlen); /* 对端的地址信息 */
-        getsockname(fd_client, (struct sockaddr *) &ncb_client->local_addr, &addrlen); /* 本地的地址信息 */
+        /* save local and remote address struct */
+        getpeername(fd_client, (struct sockaddr *) &ncb_client->remot_addr, &addrlen); /* remote */
+        getsockname(fd_client, (struct sockaddr *) &ncb_client->local_addr, &addrlen); /* local */
 
-        /*ET模型必须保持所有文件描述符异步进行*/
+        /*all file descriptor must kept asynchronous with ET mode*/
         if (setasio(ncb_client->sockfd) < 0) {
             break;
         }
@@ -60,31 +58,25 @@ int __tcp_syn(ncb_t *ncb_server) {
         /* set other options */
         tcp_update_opts(ncb_client);
 
-        /*分配TCP普通包*/
+        /* allocate memory for TCP normal package */
         ncb_client->packet = (char *) malloc(TCP_BUFFER_SIZE);
         if (!ncb_client->packet) {
             break;
         }
 
-        /*清空协议头*/
+        /* clear the protocol head */
         ncb_client->rx_parse_offset = 0;
         ncb_client->rx_buffer = (char *) malloc(TCP_BUFFER_SIZE);
         if (!ncb_client->rx_buffer) {
             break;
         }
 
-        /* 接收上来的链接， 关注数据包 
-           为了保证 accept 消息上层处理函数可以正确发包，需要在这里对IO处理例程进行指定*/
+        /* specify data handler proc for client ncb object */
         ncb_client->ncb_read = &tcp_rx;
         ncb_client->ncb_write = &tcp_tx;
 
-        /*回调通知上层, 有链接到来*/
-        c_event.Event = EVT_TCP_ACCEPTED;
-        c_event.Ln.Tcp.Link = ncb_server->hld;
-        c_data.e.Accept.AcceptLink = hld_client;
-        if (ncb_server->nis_callback) {
-            ncb_server->nis_callback(&c_event, &c_data);
-        }
+        /* tell calling thread, link has been accepted*/
+        ncb_post_accepted(ncb_server, hld_client);
         
         if (ioatth(ncb_client, EPOLLIN) < 0) {
             break;
@@ -129,7 +121,8 @@ int __tcp_rx(ncb_t *ncb) {
         do {
             overplus = tcp_parse_pkt(ncb, ncb->rx_buffer + offset, cpcb);
             if (overplus < 0) {
-                /* 底层协议解析出错，直接关闭该链接 */
+                /* fatal to parse low level protocol, 
+                    close the object immediately */
                 return -1;
             }
             offset += (cpcb - overplus);
@@ -145,13 +138,12 @@ int __tcp_rx(ncb_t *ncb) {
     /* ECONNRESET 104 Connection reset by peer */
     if (recvcb < 0) {
 
-        /* 任何系统中断导致的读数据返回，且还没有任何数据来得及写入应用层缓冲区
-         * 此时应该立即再执行一次读操作 */
+        /* A signal occurred before any data  was  transmitted, try again by next loop */
         if (errcode == EINTR) {
             return 0;
         }
 
-        /*已经没有数据可供读出，不需要继续为工作线程投递读取任务，等待下一次的EPOLL边界触发通知*/
+        /* no more data canbe read, waitting for next epoll edge trigger */
         if ((errcode == EAGAIN) || (errcode == EWOULDBLOCK)) {
             return EAGAIN;
         }
@@ -166,7 +158,7 @@ int tcp_rx(ncb_t *ncb) {
 
     tcp_save_info(ncb);
 
-    /* 将接收缓冲区读空为止 */
+    /* read receive buffer until it's empty */
     do {
         retval = __tcp_rx(ncb);
     } while (0 == retval);
@@ -178,11 +170,10 @@ int __tcp_tx_single_packet(int sockfd, struct tx_node *node) {
     int wcb;
     int errcode;
 
-    /* 仅对头节点执行操作 */
     while (node->offset < node->wcb) {
         wcb = send(sockfd, node->data + node->offset, node->wcb - node->offset, 0);
 
-        /* 对端断开， 或， 其他不可容忍的错误 */
+        /* fatal-error/connection-terminated  */
         if (0 == wcb) {
             return -1;
         }
@@ -197,12 +188,13 @@ int __tcp_tx_single_packet(int sockfd, struct tx_node *node) {
                 return EAGAIN;
             }
 
-            /* 中断信号导致的写操作中止，而且没有任何一个字节完成写入，可以就地恢复 */
+            /* A signal occurred before any data  was  transmitted
+                continue and send again */
             if (EINTR == errcode) {
                 continue;
             }
 
-            /* 发生其他无法容忍且无法处理的错误, 这个错误返回会导致断开链接 */
+            /* other error, these errors should cause link close */
             return RE_ERROR(errcode);
         }
 
@@ -212,9 +204,7 @@ int __tcp_tx_single_packet(int sockfd, struct tx_node *node) {
     return 0;
 }
 
-/*
- * 发送处理器
- */
+/* TCP sender proc */
 int tcp_tx(ncb_t *ncb) {
     struct tx_node *node;
     int retval;
@@ -223,7 +213,7 @@ int tcp_tx(ncb_t *ncb) {
         return -1;
     }
 
-    /* 若无特殊情况， 需要把所有发送缓冲包全部写入内核 */
+    /* try to write all package into system kernel send-buffer */
     while (NULL != (node = fque_get(&ncb->tx_fifo))) {
 
         retval = __tcp_tx_single_packet(ncb->sockfd, node);
@@ -235,8 +225,6 @@ int tcp_tx(ncb_t *ncb) {
                 return EAGAIN;
             } else {
 #if DBG_SAVE_ELAPSE
-                nis_event_t c_event;
-                tcp_data_t c_data;
                 int nprint = 0;
                 char tx_mesg[128];
                 int i;
@@ -251,13 +239,7 @@ int tcp_tx(ncb_t *ncb) {
                         nprint += sprintf(&tx_mesg[nprint],"%02X ", node->data[i]);
                     }
                 }
-                c_event.Ln.Tcp.Link = (HTCPLINK) ncb->hld;
-                c_event.Event = EVT_SENDDATA;
-                c_data.e.Packet.Size = node->offset;
-                c_data.e.Packet.Data = (const char *) ((char *) &tx_mesg);
-                if (ncb->nis_callback) {
-                    ncb->nis_callback(&c_event, &c_data);
-                }
+                ncb_post_senddata(ncb, node->offset, tx_mesg);
 #endif
             }
         }
@@ -278,7 +260,7 @@ static int __tcp_check_connection_bypoll(int sockfd, int *err) {
     errlen = sizeof(error);
 
     if (!err) {
-        return -1;
+        return RE_ERROR(EINVAL);
     }
 
     do {
@@ -307,8 +289,6 @@ static int __tcp_check_connection_bypoll(int sockfd, int *err) {
 int tcp_tx_syn(ncb_t *ncb) {
     int retval;
     int e;
-    nis_event_t c_event;
-    tcp_data_t c_data;
     socklen_t addrlen;
 
     while (1) {
@@ -329,10 +309,7 @@ int tcp_tx_syn(ncb_t *ncb) {
                 objclos(ncb->hld);
                 return -1;
             }
-            c_event.Event = EVT_TCP_CONNECTED;
-            c_event.Ln.Tcp.Link = ncb->hld;
-            c_data.e.LinkOption.OptionLink = ncb->hld;
-            ncb->nis_callback(&c_event, &c_data);
+            ncb_post_connected(ncb);
             return 0;
         }
 

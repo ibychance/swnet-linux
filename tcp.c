@@ -237,8 +237,6 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
     int e;
     socklen_t addrlen;
     int optval;
-    nis_event_t c_event;
-    tcp_data_t c_data;
 
     if (lnk < 0 || !r_ipstr || 0 == port_remote) {
         return -1;
@@ -284,10 +282,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
         if (retval >= 0) {
             retval = ioatth(ncb, EPOLLIN);
             if (retval >= 0) {
-                c_event.Event = EVT_TCP_CONNECTED;
-                c_event.Ln.Tcp.Link = lnk;
-                c_data.e.LinkOption.OptionLink = lnk;
-                ncb->nis_callback(&c_event, &c_data);
+                ncb_post_connected(ncb);
             }
         }
     }
@@ -415,10 +410,10 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
     }
 
     do {
-        /* 上层应用有可能发生如下情形:
-         * 创建完成后，立即调用发包函数，此时尚未建立连接，或尚未形成监听
-         * 这个情况下， wpool::run_task 可能得到一个任务， 但是 ncb->ncb_write 为空， 引发进程崩溃
-         * 因此在发送操作中对操作函数进行前置判断是一个保险的行为
+        /* the calling thread is likely to occur as follows:
+         * immediately call @tcp_write after creation, but no connection established and no listening has yet been taken
+         * in this situation, @wpool::run_task maybe take a task, but @ncb->ncb_write is ineffectiveness.application may crashed.
+         * Judging these two parameters to ensure their effectiveness
          */
         if (!ncb->ncb_write || !ncb->ncb_read) {
             break;

@@ -6,8 +6,6 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
     int used;
     int overplus;
     const char *cpbuff;
-    nis_event_t c_event;
-    tcp_data_t c_data;
     int total_packet_length;
     int user_data_size;
     int retcb;
@@ -18,13 +16,7 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
 
     /* 没有指定包头模板， 直接回调整个TCP包 */
     if (0 == ncb->template.cb_) {
-        c_event.Ln.Tcp.Link = (HTCPLINK) ncb->hld;
-        c_event.Event = EVT_RECEIVEDATA;
-        c_data.e.Packet.Size = cpcb;
-        c_data.e.Packet.Data = (const char *) ((char *) data);
-        if (ncb->nis_callback) {
-            ncb->nis_callback(&c_event, &c_data);
-        }
+        ncb_post_recvdata(ncb, cpcb, data);
         ncb->rx_parse_offset = 0;
         return 0;
     }
@@ -43,13 +35,7 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
         memcpy(ncb->lbdata + ncb->lboffset, cpbuff, overplus);
 
         /*完成组包, 回调给上层模块*/
-        if (ncb->nis_callback) {
-            c_event.Ln.Tcp.Link = ncb->hld;
-            c_event.Event = EVT_RECEIVEDATA;
-            c_data.e.Packet.Data = (ncb->lbdata + ncb->template.cb_);
-            c_data.e.Packet.Size = ncb->lbsize - ncb->template.cb_;
-            ncb->nis_callback(&c_event, &c_data);
-        }
+        ncb_post_recvdata(ncb, ncb->lbsize - ncb->template.cb_, ncb->lbdata + ncb->template.cb_);
 
         /*释放大包缓冲区*/
         free(ncb->lbdata);
@@ -126,13 +112,7 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
         retcb = (overplus - (total_packet_length - ncb->rx_parse_offset));
 
         /*完成组包, 回调给上层模块*/
-        c_event.Ln.Tcp.Link = ncb->hld;
-        c_event.Event = EVT_RECEIVEDATA;
-        c_data.e.Packet.Data = (ncb->packet + ncb->template.cb_);
-        c_data.e.Packet.Size = user_data_size;
-        if (ncb->nis_callback) {
-            ncb->nis_callback(&c_event, &c_data);
-        }
+        ncb_post_recvdata(ncb, user_data_size, ncb->packet + ncb->template.cb_);
 
         ncb->rx_parse_offset = 0;
         return retcb;

@@ -160,4 +160,17 @@ int ncb_set_linger(ncb_t *ncb, int onoff, int lin);
 extern
 int ncb_get_linger(ncb_t *ncb, int *onoff, int *lin);
 
+extern
+void ncb_post_preclose(ncb_t *ncb);
+extern
+void ncb_post_close(ncb_t *ncb);
+extern
+void ncb_post_recvdata(ncb_t *ncb,  int cb, const char *data);
+extern
+void ncb_post_accepted(ncb_t *ncb, HTCPLINK link);
+extern
+void ncb_post_senddata(ncb_t *ncb,  int cb, const char *data);
+extern
+void ncb_post_connected(ncb_t *ncb);
+
 #endif

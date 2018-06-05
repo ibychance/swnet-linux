@@ -16,7 +16,7 @@ int ncb_init(ncb_t *ncb) {
         
         fque_init(&ncb->tx_fifo);
 
-        /* IO 阻止标志， 初始化为 "非阻止" */
+        /* flag of write IO block, initialize status is not blocking */
         ncb->write_io_blocked = posix__false;
         return 0;
     }
@@ -25,8 +25,6 @@ int ncb_init(ncb_t *ncb) {
 }
 
 void ncb_uninit(objhld_t ignore, void *p) {
-    nis_event_t c_event;
-    tcp_data_t c_data;
     ncb_t *ncb;
 
     if (!p) {
@@ -35,20 +33,17 @@ void ncb_uninit(objhld_t ignore, void *p) {
 
     ncb = (ncb_t *) p;
 
-    /* 尽可能保证和WIN32版本的行为一致性， 投递关闭前通知 */
-    if (ncb->nis_callback && ncb->hld >= 0) {
-        c_event.Ln.Tcp.Link = ncb->hld;
-        c_event.Event = EVT_PRE_CLOSE;
-        c_data.e.LinkOption.OptionLink = ncb->hld;
-        ncb->nis_callback(&c_event, &c_data);
+    /* post pre close event to calling thread */
+    if (ncb->hld >= 0) {
+        ncb_post_preclose(ncb);
     }
     
-    /* 停止网络服务
-     * 如果有epoll关联， 则取消关联
-     * 关闭描述符 */
+    /* stop network service
+     * cancel relation of epoll 
+     * close file descriptor */
     ioclose(ncb);
     
-    /* 释放缓冲包内存 */
+    /* free packet cache */
     if (ncb->packet) {
         free(ncb->packet);
         ncb->packet = NULL;
@@ -58,28 +53,28 @@ void ncb_uninit(objhld_t ignore, void *p) {
         ncb->rx_buffer = NULL;
     }
 
-    /*释放用户上下文内存*/
+    /* free context of user data */
     if (ncb->context && ncb->context_size > 0) {
         free(ncb->context);
         ncb->context = NULL;
         ncb->context_size = 0;
     }
 
-    /*清空所有仍在缓冲区的未发送包, 这里没有线程安全问题 */
+    /* clear all packages pending in send queue */
     fque_uninit(&ncb->tx_fifo);
     
-    /* 如果存在TCP的下层信息， 需要清除 */
+    /* clear ktcp data*/
     if (ncb->ktcp){
         free(ncb->ktcp);
     }
     
-    /* 通知上层已经完成对该网络对象的关闭 */
-    if (ncb->nis_callback && ncb->hld >= 0) {
-        c_event.Ln.Tcp.Link = ncb->hld;
-        c_event.Event = EVT_CLOSED;
-        c_data.e.LinkOption.OptionLink = ncb->hld;
-        ncb->nis_callback(&c_event, &c_data);
+    /* post close event to calling thread */
+    if (ncb->hld >= 0) {
+        ncb_post_close(ncb);
     }
+
+    /* set callback function to ineffectiveness */
+    ncb->nis_callback = NULL;
 }
 
 void ncb_report_debug_information(ncb_t *ncb, const char *fmt, ...) {
@@ -209,4 +204,90 @@ int ncb_get_linger(ncb_t *ncb, int *onoff, int *lin) {
     }
     
     return 0;
+}
+
+void ncb_post_preclose(ncb_t *ncb) {
+    nis_event_t c_event;
+    tcp_data_t c_data;
+
+    if (ncb) {
+        if (ncb->nis_callback) {
+            c_event.Ln.Tcp.Link = ncb->hld;
+            c_event.Event = EVT_PRE_CLOSE;
+            c_data.e.LinkOption.OptionLink = ncb->hld;
+            ncb->nis_callback(&c_event, &c_data);
+        }
+    }
+}
+
+void ncb_post_close(ncb_t *ncb) {
+    nis_event_t c_event;
+    tcp_data_t c_data;
+
+    if (ncb) {
+        if (ncb->nis_callback) {
+            c_event.Ln.Tcp.Link = ncb->hld;
+            c_event.Event = EVT_CLOSED;
+            c_data.e.LinkOption.OptionLink = ncb->hld;
+            ncb->nis_callback(&c_event, &c_data);
+        }
+    }
+}
+
+void ncb_post_recvdata(ncb_t *ncb,  int cb, const char *data) {
+    nis_event_t c_event;
+    tcp_data_t c_data;
+
+    if (ncb) {
+        if (ncb->nis_callback) {
+            c_event.Ln.Tcp.Link = (HTCPLINK) ncb->hld;
+            c_event.Event = EVT_RECEIVEDATA;
+            c_data.e.Packet.Size = cb;
+            c_data.e.Packet.Data = (const char *) ((char *) data);
+            ncb->nis_callback(&c_event, &c_data);
+        }
+    }
+}
+
+void ncb_post_accepted(ncb_t *ncb, HTCPLINK link) {
+    nis_event_t c_event;
+    tcp_data_t c_data;
+
+    if (ncb) {
+        if (ncb->nis_callback) {
+            c_event.Event = EVT_TCP_ACCEPTED;
+            c_event.Ln.Tcp.Link = ncb->hld;
+            c_data.e.Accept.AcceptLink = link;
+            ncb->nis_callback(&c_event, &c_data);
+        }
+    }
+}
+
+void ncb_post_senddata(ncb_t *ncb,  int cb, const char *data) {
+    nis_event_t c_event;
+    tcp_data_t c_data;
+
+    if (ncb) {
+        if (ncb->nis_callback) {
+            c_event.Ln.Tcp.Link = (HTCPLINK) ncb->hld;
+            c_event.Event = EVT_SENDDATA;
+            c_data.e.Packet.Size = cb;
+            c_data.e.Packet.Data = data;
+            ncb->nis_callback(&c_event, &c_data);
+        }
+    }
+}
+
+void ncb_post_connected(ncb_t *ncb) {
+    nis_event_t c_event;
+    tcp_data_t c_data;
+
+    if (ncb) {
+        if (ncb->nis_callback) {
+            c_event.Event = EVT_TCP_CONNECTED;
+            c_event.Ln.Tcp.Link = ncb->hld;
+            c_data.e.LinkOption.OptionLink = ncb->hld;
+            ncb->nis_callback(&c_event, &c_data);
+        }
+    } 
 }
