@@ -181,9 +181,9 @@ int __tcp_tx_single_packet(int sockfd, struct tx_node *node) {
         if (wcb < 0) {
             errcode = errno;
 
-            /* 写入缓冲区已满， 激活并等待 EPOLLOUT 才能继续执行下一片写入
-             * 此时需要处理队列头节点， 将未处理完的节点还原回队列头
-             * oneshot 方式强制关注写入操作完成点 */
+            /* the write buffer is full, active EPOLLOUT and waitting for epoll event trigger
+             * at this point, we need to deal with the queue header node and restore the unprocessed node back to the queue header.
+             * the way 'oneshot' focus on the write operation completion point */
             if (EAGAIN == errcode) {
                 return EAGAIN;
             }
@@ -326,7 +326,8 @@ int tcp_tx_syn(ncb_t *ncb) {
                 ncb_report_debug_information(ncb, "tcp syn retry.e=%d.", e);
                 break;
 
-            /* Connection refused */
+            /* Connection refused
+             * ulimit -n overflow(open file cout lg then 1024 in default) */
             case ECONNREFUSED:
             default:
                 ncb_report_debug_information(ncb, "tcp syn error.e=%d.", e);

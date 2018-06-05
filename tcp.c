@@ -110,6 +110,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
 
 int tcp_settst(HTCPLINK lnk, const tst_t *tst) {
     ncb_t *ncb;
+    int retval;
 
     if (lnk < 0 || !tst) return -1;
 
@@ -118,16 +119,18 @@ int tcp_settst(HTCPLINK lnk, const tst_t *tst) {
         return -1;
     }
 
-    /* size of tcp template must be less or equal to 32bytes */
-    if (tst->cb_ > TCP_MAXIMUM_TEMPLATE_SIZE) {
-        return RE_ERROR(EINVAL);
+    /* size of tcp template must be less or equal to 32 bytes */
+    if (tst->cb_ >TCP_MAXIMUM_TEMPLATE_SIZE) {
+        retval = RE_ERROR(EINVAL);
+    }else{
+        ncb->template.cb_ = tst->cb_;
+        ncb->template.builder_ = tst->builder_;
+        ncb->template.parser_ = tst->parser_;
+        retval = 0;
     }
 
-    ncb->template.cb_ = tst->cb_;
-    ncb->template.builder_ = tst->builder_;
-    ncb->template.parser_ = tst->parser_;
     objdefr((objhld_t) lnk);
-    return 0;
+    return retval;
 }
 
 int tcp_gettst(HTCPLINK lnk, tst_t *tst) {
@@ -136,17 +139,20 @@ int tcp_gettst(HTCPLINK lnk, tst_t *tst) {
     if (lnk < 0 || !tst) return -1;
 
     ncb = (ncb_t *) objrefr((objhld_t) lnk);
-    if (!ncb) return -1;
+    if (!ncb) {
+        return -1;
+    }
 
     tst->cb_ = ncb->template.cb_;
     tst->builder_ = ncb->template.builder_;
     tst->parser_ = ncb->template.parser_;
+    objdefr((objhld_t) lnk);
     return 0;
 }
 
 /*
  * Object destruction operations may be intended to interrupt some blocking operations. just like @tcp_connect
- * so,close the file descriptor directly, destroy the object through the smart pointer.
+ * so,close the file descriptor directly, destroy the object by the smart pointer.
  */
 void tcp_destroy(HTCPLINK lnk) {
     ncb_t *ncb;
