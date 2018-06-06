@@ -75,16 +75,15 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
     }
 
     do {
-        /* 基本初始化 */
         ncb_init(ncb);
 
-        /* 复制参数 */
+        /* copy initialize parameters */
         ncb->nis_callback = user_callback;
         ncb->sockfd = fd;
         ncb->hld = hld;
         ncb->proto_type = kProtocolType_UDP;
 
-        /*ET模型必须保持所有文件描述符异步进行*/
+        /* must keep all file descriptor in asynchronous mode with ET mode */
         if (setasio(fd) < 0) {
             break;
         }
@@ -94,13 +93,13 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
             break;
         }
 
-        /*分配包缓冲区*/
+        /* allocate buffer for normal packet */
         ncb->packet = (char *) malloc(UDP_BUFFER_SIZE);
         if (!ncb->packet) {
             break;
         }
 
-        /* 处理广播/组播对象 */
+        /* extension of broadcast/multicast */
         if (flag & UDP_FLAG_BROADCAST) {
             if (udp_set_boardcast(ncb, 1) < 0) {
                 break;
@@ -112,14 +111,14 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
             }
         }
 
-        /* 获取本地地址 */
+        /* get local address info */
         getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen);
 
-        /* 关注数据包 */
+        /* set data handler function pointer for Rx/Tx */
         ncb->ncb_read = &udp_rx;
         ncb->ncb_write = &udp_tx;
         
-        /* 附加到 EPOLL */
+        /* attach to epoll */
         retval = ioatth(ncb, EPOLLIN);
         if (retval < 0) {
             break;
@@ -165,7 +164,7 @@ int udp_sendto(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const 
     retval = -1;
     buffer = NULL;
     do {
-        /* 发送队列过长， 无法进行发送操作 */
+       /* to large length of current queue,no more message can be post */
         if ((fque_size(&ncb->tx_fifo) >= UDP_MAXIMUM_SENDER_CACHED_CNT)) {
             break;
         }
@@ -176,7 +175,7 @@ int udp_sendto(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const 
             break;
         }
 
-        /* 自己构造包数据 */
+        /* fill user data seg */
         if (maker) {
             if ((*maker)(buffer, cb, par) < 0) {
                 break;
@@ -186,14 +185,11 @@ int udp_sendto(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const 
                 break;
             }
         }
-        
 
-        /* 向发送队列增加一个节点, 并投递激活消息 */
+        /* push message to the tail of the queue, awaken write thread */
         addr.sin_family = AF_INET;
         addr.sin_addr.s_addr = inet_addr(r_ipstr);
         addr.sin_port = htons(r_port);
-
-        /* 向发送队列增加一个节点, 并投递激活消息 */
         if (fque_push(&ncb->tx_fifo, buffer, cb, &addr) < 0) {
             break;
         }
