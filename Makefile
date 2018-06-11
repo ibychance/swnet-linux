@@ -1,11 +1,11 @@
-TARGET=nshost.so.9.6.3
+TARGET=nshost.so.9.6.4
 build=automatic
 arch=x86_64
 INSTALL_DIR=
 SRC_EXT=c
 SYS_WIDTH=$(shell getconf LONG_BIT)
 
-#SRCS=$(wildcard *.$(SRC_EXT)) $(wildcard ../libnsp/com/*.$(SRC_EXT))
+#SRCS=$(wildcard *.$(SRC_EXT))
 SRCS=./fque.c \
 		./io.c \
 		./mxx.c \
@@ -17,7 +17,18 @@ SRCS=./fque.c \
 		./udpio.c \
 		./wpool.c
 
-SRCS+=$(wildcard ../libnsp/com/*.$(SRC_EXT))
+#SRCS+=$(wildcard ../libnsp/com/*.$(SRC_EXT))
+SRCS+=../libnsp/com/avltree.c \
+		../libnsp/com/logger.c \
+		../libnsp/com/posix_ifos.c \
+		../libnsp/com/posix_string.c \
+		../libnsp/com/posix_time.c \
+		../libnsp/com/hash.c \
+		../libnsp/com/object.c \
+		../libnsp/com/posix_naos.c \
+		../libnsp/com/posix_thread.c \
+		../libnsp/com/posix_wait.c
+
 OBJS=$(patsubst %.$(SRC_EXT),%.o,$(SRCS))
 
 CFLAGS+=-I ../libnsp/icom -fPIC -Wall -std=gnu99

@@ -57,6 +57,11 @@ int __tcp_syn(ncb_t *ncb_server) {
 
         /* set other options */
         tcp_update_opts(ncb_client);
+        /* acquire save TCP Info and adjust linger in the accept phase. 
+            l_onoff on and l_linger not zero, these settings means:
+            TCP drop any data cached in the kernel buffer of this socket file descriptor when close(2) called.
+            post a TCP-RST to peer, do not use FIN-FINACK, using this flag to avoid TIME_WAIT stauts */
+        ncb_set_linger(ncb_client, 1, 0);
 
         /* allocate memory for TCP normal package */
         ncb_client->packet = (char *) malloc(TCP_BUFFER_SIZE);

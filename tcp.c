@@ -83,7 +83,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
         memcpy(&ncb->local_addr, &addrlocal, sizeof (addrlocal));
 
         /* acquire save TCP Info and adjust linger in the creation phase. */
-        ncb_set_linger(ncb, 0, 1);
+        ncb_set_linger(ncb, 0, 0);
         tcp_save_info(ncb);
 
         /* allocate normal TCP package */
