@@ -37,7 +37,11 @@ LDFLAGS=-shared
 ifeq ($(build),debug)
 	CFLAGS+=-g
 else
-	CFLAGS+=-O2
+	ifeq ($(build),gdb)
+		CFLAGS+=-ggdb3
+	else
+		CFLAGS+=-O2
+	endif
 endif
 
 ifeq ($(arch),arm)

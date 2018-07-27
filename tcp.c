@@ -112,8 +112,10 @@ int tcp_settst(HTCPLINK lnk, const tst_t *tst) {
     ncb_t *ncb;
     int retval;
 
-    if (lnk < 0 || !tst) return -1;
-
+    if (lnk < 0 || !tst) {
+        return -1;
+    }
+    
     ncb = (ncb_t *) objrefr((objhld_t) lnk);
     if (!ncb) {
         return -1;
