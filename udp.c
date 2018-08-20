@@ -273,9 +273,6 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const c
         if (retval < 0) {
             break;
         }
-
-        objdefr(hld);
-        return 0;
     } while (0);
 
     if (buffer) {
