@@ -2,6 +2,7 @@
 #define FQUE_H_20170118
 
 /* forward queued */
+#include "compiler.h"
 
 #include <netinet/in.h>
 #include <stdlib.h>
@@ -9,7 +10,6 @@
 
 #include "clist.h"
 #include "posix_thread.h"
-
 
 #define DBG_SAVE_ELAPSE     (0)
 
@@ -25,8 +25,7 @@ struct tx_node {
     uint64_t tick_pop_fque;
     uint64_t tick_revert_fque;
 #endif
-
-};
+} __POSIX_TYPE_ALIGNED__;
 
 #define PACKET_NODE_FREE(node)  \
             do { if (!node) break;if ( node->data ) free(node->data);free(node); } while (0)
@@ -35,7 +34,7 @@ struct tx_fifo {
     struct list_head head;
     int size;
     posix__pthread_mutex_t lock;
-} ;
+} __POSIX_TYPE_ALIGNED__;
 
 extern
 void fque_init(struct tx_fifo *fque);

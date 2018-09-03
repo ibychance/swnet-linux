@@ -5,7 +5,6 @@ INSTALL_DIR=
 SRC_EXT=c
 SYS_WIDTH=$(shell getconf LONG_BIT)
 
-#SRCS=$(wildcard *.$(SRC_EXT))
 SRCS=./fque.c \
 		./io.c \
 		./mxx.c \
@@ -17,7 +16,6 @@ SRCS=./fque.c \
 		./udpio.c \
 		./wpool.c
 
-#SRCS+=$(wildcard ../libnsp/com/*.$(SRC_EXT))
 SRCS+=../libnsp/com/avltree.c \
 		../libnsp/com/logger.c \
 		../libnsp/com/posix_ifos.c \
@@ -31,7 +29,7 @@ SRCS+=../libnsp/com/avltree.c \
 
 OBJS=$(patsubst %.$(SRC_EXT),%.o,$(SRCS))
 
-CFLAGS+=-I ../libnsp/icom -fPIC -Wall -std=gnu99
+CFLAGS+=-I ../libnsp/icom -fPIC -Wall -Werror -std=gnu99
 LDFLAGS=-shared
 
 ifeq ($(build),debug)

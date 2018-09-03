@@ -37,7 +37,7 @@ struct task_node {
     objhld_t hld;
     enum task_type type;
     struct list_head link;
-};
+} __POSIX_TYPE_ALIGNED__;
 
 struct write_thread_node {
     posix__pthread_t    thread;
@@ -45,13 +45,14 @@ struct write_thread_node {
     posix__waitable_handle_t task_signal;
     struct list_head task_list; /* struct task_node::link */
     int task_list_size;
-};
+} __POSIX_TYPE_ALIGNED__;
 
 struct write_pool_manager {
     struct write_thread_node *write_threads;
     int write_thread_count;
     posix__boolean_t    stop;
-};
+} __POSIX_TYPE_ALIGNED__;
+
 static struct write_pool_manager write_pool;
 
 static void __add_task(struct write_thread_node *thread, struct task_node *task) {

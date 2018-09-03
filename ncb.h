@@ -34,7 +34,7 @@ enum ncb__protocol_type {
     kProtocolType_UDP,
 };
 
-typedef struct _ncb {
+struct __ncb {
     int hld;
     int sockfd;
     int epfd;  /* 绑定的EPOLL描述符 */
@@ -58,8 +58,8 @@ typedef struct _ncb {
     int context_size;
 
     /* IO 响应例程 */
-    int (*ncb_read)(struct _ncb *);
-    int (*ncb_write)(struct _ncb *);
+    int (*ncb_read)(struct __ncb *);
+    int (*ncb_write)(struct __ncb *);
     
     /* 重要:
      * 用于 write 操作发生 EAGAIN 后
@@ -115,7 +115,9 @@ typedef struct _ncb {
             struct ip_mreq *mreq;
         };
     };
-} ncb_t;
+} __POSIX_TYPE_ALIGNED__;
+
+typedef struct __ncb ncb_t;
 
 /* 布尔状态表达， 非0则IO阻止， 否则 IO 可行 */
 #define ncb_if_wblocked(ncb)    (ncb->write_io_blocked)

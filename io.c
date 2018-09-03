@@ -33,12 +33,12 @@ struct epoll_object {
     posix__boolean_t actived;
     posix__pthread_t thread;
     int load; /* load of current thread */
-} ;
+} __POSIX_TYPE_ALIGNED__;
 
 struct epoll_object_manager {
     struct epoll_object *epos;
     int divisions;		/* count of epoll thread */
-};
+} __POSIX_TYPE_ALIGNED__;
 
 static struct epoll_object_manager epmgr;
 
