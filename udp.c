@@ -270,9 +270,6 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const c
         }
 
         retval = __udp_tx_single_packet(ncb, buffer, cb, r_ipstr, r_port);
-        if (retval < 0) {
-            break;
-        }
     } while (0);
 
     if (buffer) {
