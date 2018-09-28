@@ -12,6 +12,7 @@
 #include "ncb.h"
 #include "worker.h"
 #include "tcp.h"
+#include "mxx.h"
 
 #include "posix_thread.h"
 #include "posix_wait.h"
