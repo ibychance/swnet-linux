@@ -149,7 +149,8 @@ int tcp_settst(HTCPLINK lnk, const tst_t *tst) {
     /* size of tcp template must be less or equal to 32 bytes */
     if (tst->cb_ > TCP_MAXIMUM_TEMPLATE_SIZE) {
         retval = RE_ERROR(EINVAL);
-    }else{
+    } else {
+        /* allows change the tst info that is already existed.  */
         ncb->template.cb_ = tst->cb_;
         ncb->template.builder_ = tst->builder_;
         ncb->template.parser_ = tst->parser_;
@@ -185,20 +186,17 @@ int tcp_gettst(HTCPLINK lnk, tst_t *tst) {
  */
 void tcp_destroy(HTCPLINK lnk) {
     ncb_t *ncb;
-    objhld_t hld;
 
     if (tcp_init() < 0) {
         return;
     }
 
-    hld = (objhld_t) lnk;
-    ncb = objrefr(hld);
+    /* it should be the last reference operation of this object no matter how many ref-count now. */
+    ncb = objreff((objhld_t) lnk);
     if (ncb) {
         ioclose(ncb);
         objdefr(hld);
     }
-
-    objclos(hld);
 }
 
 #if 0
@@ -583,7 +581,7 @@ int tcp_getaddr(HTCPLINK lnk, int type, uint32_t* ipv4, uint16_t* port) {
             objdefr(hld);
             return -1;
     }
-    
+
     objdefr(hld);
     return 0;
 }

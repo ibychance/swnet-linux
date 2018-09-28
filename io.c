@@ -310,7 +310,7 @@ void ioclose(void *ncbptr) {
             On Linux (and some other systems), closing the file descriptor in another thread has no effect on select().
             In summary, any application that relies on a particular behavior in this scenario must be considered buggy 
         */
-        if (ncb->epfd> 0){
+        if (ncb->epfd > 0){
             iodeth(ncb);
             ncb->epfd = -1;
         }

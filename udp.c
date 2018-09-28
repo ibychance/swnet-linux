@@ -138,8 +138,17 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
 }
 
 void udp_destroy(HUDPLINK lnk) {
-    if (udp_init() >= 0) {
-        objclos(lnk);
+    ncb_t *ncb;
+
+    if (udp_init() < 0) {
+        return;
+    }
+
+    /* it should be the last reference operation of this object no matter how many ref-count now. */
+    ncb = objreff((objhld_t) lnk);
+    if (ncb) {
+        ioclose(ncb);
+        objdefr(hld);
     }
 }
 
