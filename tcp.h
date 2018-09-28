@@ -37,25 +37,6 @@ int tcp_tx_syn(ncb_t *ncb);
 extern
 int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb);
 
-/*
- *	kernel status of tcpi_state
- * 	enum
- *	{
- *	  TCP_ESTABLISHED = 1,
- *	  TCP_SYN_SENT,
- *	  TCP_SYN_RECV,
- *	  TCP_FIN_WAIT1,
- *	  TCP_FIN_WAIT2,
- *	  TCP_TIME_WAIT,
- *	  TCP_CLOSE,
- *	  TCP_CLOSE_WAIT,
- *	  TCP_LAST_ACK,
- *	  TCP_LISTEN,
- *	  TCP_CLOSING 
- *	};
- */
-
-
 //for TCP_INFO socket option 
 //#define TCPI_OPT_TIMESTAMPS 1
 //#define TCPI_OPT_SACK 2

@@ -6,6 +6,29 @@
 #include "tcp.h"
 #include "mxx.h"
 
+/*
+ *  kernel status of tcpi_state
+ *  defined in /usr/include/netinet/tcp.h
+ *  enum
+ *  {
+ *    TCP_ESTABLISHED = 1,
+ *    TCP_SYN_SENT,
+ *    TCP_SYN_RECV,
+ *    TCP_FIN_WAIT1,
+ *    TCP_FIN_WAIT2,
+ *    TCP_TIME_WAIT,
+ *    TCP_CLOSE,
+ *    TCP_CLOSE_WAIT,
+ *    TCP_LAST_ACK,
+ *    TCP_LISTEN,
+ *    TCP_CLOSING 
+ *  };
+ */
+static const char *TCP_KERNEL_STATE_NAME[] = {
+    "TCP_UNDEFINED", "TCP_ESTABLISHED", "TCP_SYN_SENT", "TCP_SYN_RECV", "TCP_FIN_WAIT1", "TCP_FIN_WAIT2", 
+    "TCP_TIME_WAIT", "TCP_CLOSE", "TCP_CLOSE_WAIT", "TCP_LAST_ACK", "TCP_LISTEN", "TCP_CLOSING"
+};
+
 void tcp_update_opts(ncb_t *ncb) {
     if (ncb) {
         ncb_set_window_size(ncb, SO_RCVBUF, TCP_BUFFER_SIZE);
@@ -265,27 +288,38 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         return -1;
     }
 
-    /* get the socket status of tcp_info, include the connect states */
-    tcp_save_info(ncb, &ktcp);
-
-    /* try no more than 3 times of tcp::syn */
-    optval = 3;
-    setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
-
-    addr_to.sin_family = PF_INET;
-    addr_to.sin_port = htons(r_port);
-    addr_to.sin_addr.s_addr = inet_addr(r_ipstr);
-
-    /* syscall @connect can be interrupted by other signal. */
     do {
-        retval = connect(ncb->sockfd, (const struct sockaddr *) &addr_to, sizeof (struct sockaddr));
-        e = errno;
-    } while((e == EINTR) && (retval < 0));
+        retval = -1;
 
-    if (retval < 0) {
-        /* if this socket is already connected, or it is in listening states, sys-call failed with error EISCONN  */
-        ncb_report_debug_information(ncb, "tcp 0x%08X failed connect remote endpoint %s:%d, err=%d", lnk, r_ipstr, r_port, e);
-    } else {
+        /* get the socket status of tcp_info to check the socket tcp statues */
+        if (tcp_save_info(ncb, &ktcp) < 0) {
+            break;
+        }
+        if (ktcp.tcpi_state != TCP_CLOSE) {
+            ncb_report_debug_information(ncb, "tcp 0x%08X kernel states %s cannot be use for connect.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+            break;
+        }
+
+        /* try no more than 3 times of tcp::syn */
+        optval = 3;
+        setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
+
+        addr_to.sin_family = PF_INET;
+        addr_to.sin_port = htons(r_port);
+        addr_to.sin_addr.s_addr = inet_addr(r_ipstr);
+
+        /* syscall @connect can be interrupted by other signal. */
+        do {
+            retval = connect(ncb->sockfd, (const struct sockaddr *) &addr_to, sizeof (struct sockaddr));
+            e = errno;
+        } while((e == EINTR) && (retval < 0));
+
+        if (retval < 0) {
+            /* if this socket is already connected, or it is in listening states, sys-call failed with error EISCONN  */
+            ncb_report_debug_information(ncb, "tcp 0x%08X failed connect remote endpoint %s:%d, err=%d", lnk, r_ipstr, r_port, e);
+            break;
+        }
+
         /* set other options */
         tcp_update_opts(ncb);
         
@@ -307,7 +341,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
                 ncb_post_connected(ncb);
             }
         }
-    }
+    }while( 0 );
 
     objdefr((objhld_t) lnk);
     return retval;
@@ -318,6 +352,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
     int retval;
     int e;
     int optval;
+    struct tcp_info ktcp;
 
     if (lnk < 0 || !r_ipstr || 0 == r_port || tcp_init() < 0) {
         return -1;
@@ -327,13 +362,23 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
     if (!ncb) {
         return -1;
     }
-
-    /* try no more than 3 times of tcp::syn */
-    optval = 3;
-    setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
-
-    retval = -1;
+    
     do {
+        retval = -1;
+
+        /* get the socket status of tcp_info to check the socket tcp statues */
+        if (tcp_save_info(ncb, &ktcp) < 0) {
+            break;
+        }
+        if (ktcp.tcpi_state != TCP_CLOSE) {
+            ncb_report_debug_information(ncb, "tcp 0x%08X kernel states %s cannot be use for connect2.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+            break;
+        }
+
+        /* try no more than 3 times of tcp::syn */
+        optval = 3;
+        setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
+
         ncb->ncb_write = &tcp_tx_syn;
         
         /* queue object into epoll manage befor syscall @connect,
@@ -368,6 +413,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
 int tcp_listen(HTCPLINK lnk, int block) {
     ncb_t *ncb;
     int retval;
+    struct tcp_info ktcp;
 
     if (lnk < 0 || tcp_init() < 0) {
         return -1;
@@ -378,8 +424,18 @@ int tcp_listen(HTCPLINK lnk, int block) {
         return -1;
     }
 
-    retval = -1;
     do {
+        retval = -1;
+
+        /* get the socket status of tcp_info to check the socket tcp statues */
+        if (tcp_save_info(ncb, &ktcp) < 0) {
+            break;
+        }
+        if (ktcp.tcpi_state != TCP_CLOSE) {
+            ncb_report_debug_information(ncb, "tcp 0x%08X kernel states %s cannot be use for listen.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+            break;
+        }
+
         /* '/proc/sys/net/core/somaxconn' in POSIX.1 this value default to 128
            so,for ensure high concurrency performance in the establishment phase of the TCP connection,
            we will ignore the @block argument and use macro SOMAXCONN which defined in /usr/include/bits/socket.h anyway
