@@ -52,7 +52,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt){
 
         /* disconnect/error happend */
         if ((evts[i].events & EPOLLRDHUP) || (evts[i].events & EPOLLERR) ) {
-            nis_call_ecr("[close]nshost.io.event:%d, associated link: %d", hld, evts[i].events);
+            nis_call_ecr("[close]nshost.io.event:%d, associated link: %d", evts[i].events, hld);
 	        objclos(hld);
             continue;
         }
