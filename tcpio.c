@@ -215,7 +215,6 @@ int tcp_tx(ncb_t *ncb) {
 
     /* try to write all package into system kernel send-buffer */
     while (NULL != (node = fque_get(&ncb->tx_fifo))) {
-
         retval = __tcp_tx_single_packet(ncb->sockfd, node);
         if (retval < 0) {
             return retval;
@@ -223,27 +222,8 @@ int tcp_tx(ncb_t *ncb) {
             if (EAGAIN == retval) {
                 fque_revert(&ncb->tx_fifo, node);
                 return EAGAIN;
-            } else {
-#if DBG_SAVE_ELAPSE
-                int nprint = 0;
-                char tx_mesg[128];
-                int i;
-
-                nprint += sprintf(tx_mesg, "push:%lld, pop:%lld, revert:%lld ", node->tick_push_fque, node->tick_pop_fque, node->tick_revert_fque);
-                if (node->offset >= 20) {
-                    for (i = 0; i < 20; i++) {
-                        nprint += sprintf(&tx_mesg[nprint],"%02X ", node->data[i]);
-                    }
-                }else{
-                    for (i = 0; i < node->offset; i++) {
-                        nprint += sprintf(&tx_mesg[nprint],"%02X ", node->data[i]);
-                    }
-                }
-                ncb_post_senddata(ncb, node->offset, tx_mesg);
-#endif
             }
         }
-
         PACKET_NODE_FREE(node);
     }
 

@@ -35,7 +35,7 @@ enum ncb__protocol_type {
 };
 
 typedef struct _ncb {
-    int hld;
+    objhld_t hld;
     int sockfd;
     int epfd;  /* 绑定的EPOLL描述符 */
     enum ncb__protocol_type proto_type;

@@ -4,10 +4,6 @@
 #include <string.h>
 #include <errno.h>
 
-#if DBG_SAVE_ELAPSE
-    #include "posix_time.h"
-#endif
-
 void fque_init(struct tx_fifo *fque) {
     if (fque) {
         INIT_LIST_HEAD(&fque->head);
@@ -83,11 +79,6 @@ int fque_push(struct tx_fifo *fque, unsigned char *data, int cb, const struct so
     }
 
     posix__pthread_mutex_lock(&fque->lock);
-
-#if DBG_SAVE_ELAPSE
-    node->tick_push_fque = posix__clock_gettime();
-#endif
-
     list_add_tail(&node->link, &fque->head);
     retval = ++fque->size;
     posix__pthread_mutex_unlock(&fque->lock);
@@ -105,11 +96,6 @@ int fque_revert(struct tx_fifo *fque, struct tx_node *node) {
     posix__pthread_mutex_lock(&fque->lock);
     list_add(&node->link, &fque->head);
     retval = ++fque->size;
-
-#if DBG_SAVE_ELAPSE
-    node->tick_revert_fque = posix__clock_gettime();
-#endif
-
     posix__pthread_mutex_unlock(&fque->lock);
 
     return retval;
@@ -127,11 +113,6 @@ struct tx_node *fque_get(struct tx_fifo *fque) {
         list_del(&node->link);
         INIT_LIST_HEAD(&node->link);
         --fque->size;
-
-#if DBG_SAVE_ELAPSE
-        node->tick_pop_fque = posix__clock_gettime();
-#endif
-
     }
     posix__pthread_mutex_unlock(&fque->lock);
 
