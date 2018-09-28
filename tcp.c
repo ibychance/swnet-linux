@@ -70,7 +70,12 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
 
     fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) {
-        nis_call_ecr("Failed creat TCP socket,ip:%s,port:%u,errno:%u",l_ipstr, l_port, errno);
+        if (l_ipstr) {
+            nis_call_ecr("[error]nshost.tcp.socket: file descriptor create failed,%s:%u,errno:%u",l_ipstr, l_port, errno);
+        } else {
+            nis_call_ecr("[error]nshost.tcp.socket: file descriptor create failed, 0.0.0.0:%u,errno:%u", l_port, errno);
+        }
+        
         return -1;
     }
 
@@ -84,7 +89,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
     addrlocal.sin_port = htons(l_port);
     retval = bind(fd, (struct sockaddr *) &addrlocal, sizeof ( struct sockaddr));
     if (retval < 0) {
-        nis_call_ecr("Failed bind local IF %s:%u, errno:%d.\n", l_ipstr, l_port, errno);
+        nis_call_ecr("[error]nshost.tcp.socket:bind sockaddr failed, %s:%u, errno:%d.\n", l_ipstr, l_port, errno);
         close(fd);
         return -1;
     }
@@ -294,7 +299,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
             break;
         }
         if (ktcp.tcpi_state != TCP_CLOSE) {
-            ncb_report_debug_information(ncb, "tcp 0x%08X kernel states %s cannot be use for connect.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+            ncb_report_debug_information(ncb, "[error]nshost.tcp.connect:state illegal,link:%d, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
             break;
         }
 
@@ -314,7 +319,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
 
         if (retval < 0) {
             /* if this socket is already connected, or it is in listening states, sys-call failed with error EISCONN  */
-            ncb_report_debug_information(ncb, "tcp 0x%08X failed connect remote endpoint %s:%d, err=%d", lnk, r_ipstr, r_port, e);
+            ncb_report_debug_information(ncb, "[error]nshost.tcp.connect:fatal syscall, link:%d, %s:%d, err=%d", lnk, r_ipstr, r_port, e);
             break;
         }
 
@@ -369,7 +374,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
             break;
         }
         if (ktcp.tcpi_state != TCP_CLOSE) {
-            ncb_report_debug_information(ncb, "tcp 0x%08X kernel states %s cannot be use for connect2.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+            ncb_report_debug_information(ncb, "[error]nshost.tcp.connect2:state illegal,link:%d, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
             break;
         }
 
@@ -430,7 +435,7 @@ int tcp_listen(HTCPLINK lnk, int block) {
             break;
         }
         if (ktcp.tcpi_state != TCP_CLOSE) {
-            ncb_report_debug_information(ncb, "tcp 0x%08X kernel states %s cannot be use for listen.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+            ncb_report_debug_information(ncb, "[error]nshost.tcp.listen:state illegal,link:%d, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
             break;
         }
 
@@ -440,7 +445,7 @@ int tcp_listen(HTCPLINK lnk, int block) {
          */
         retval = listen(ncb->sockfd, ((0 == block) || (block > SOMAXCONN)) ? SOMAXCONN : block);
         if (retval < 0) {
-            ncb_report_debug_information(ncb, "tcp failed syscall listen.errno=%d.", errno);
+            ncb_report_debug_information(ncb, "[error]nshost.tcp.listen:fatal syscall,err=%d", errno);
             break;
         }
 
@@ -506,7 +511,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
             break;
         }
         if (ktcp.tcpi_state != TCP_ESTABLISHED) {
-            ncb_report_debug_information(ncb, "tcp 0x%08X kernel states %s cannot be use for send.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+            ncb_report_debug_information(ncb, "[error]nshost.tcp.send:state illegal,link:%d, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
             break;
         }
 
@@ -517,7 +522,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
 
         /* there must be a effective TST specified */
         if (!(*ncb->template.builder_)) {
-            ncb_report_debug_information(ncb, "tcp invalidated link object TST builder function address.");
+            ncb_report_debug_information(ncb, "[error]nshost.tcp.send:tst no found.");
             break;
         }
 

@@ -51,7 +51,11 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
 
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
-        nis_call_ecr("Failed creat UDP socket,ip:%s,port:%u,errno:%u",l_ipstr, l_port, errno);
+        if (l_ipstr) {
+            nis_call_ecr("[error]nshost.udp.socket: file descriptor create failed,%s:%u,errno:%u",l_ipstr, l_port, errno);
+        } else {
+            nis_call_ecr("[error]nshost.udp.socket: file descriptor create failed, 0.0.0.0:%u,errno:%u", l_port, errno);
+        }
         return -1;
     }
 
