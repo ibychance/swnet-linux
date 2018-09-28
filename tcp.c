@@ -147,7 +147,7 @@ int tcp_settst(HTCPLINK lnk, const tst_t *tst) {
     }
 
     /* size of tcp template must be less or equal to 32 bytes */
-    if (tst->cb_ >TCP_MAXIMUM_TEMPLATE_SIZE) {
+    if (tst->cb_ > TCP_MAXIMUM_TEMPLATE_SIZE) {
         retval = RE_ERROR(EINVAL);
     }else{
         ncb->template.cb_ = tst->cb_;
@@ -442,7 +442,7 @@ int tcp_listen(HTCPLINK lnk, int block) {
          */
         retval = listen(ncb->sockfd, ((0 == block) || (block > SOMAXCONN)) ? SOMAXCONN : block);
         if (retval < 0) {
-            ncb_report_debug_information(ncb, "failed syscall listen.errno=%d.", errno);
+            ncb_report_debug_information(ncb, "tcp failed syscall listen.errno=%d.", errno);
             break;
         }
 
@@ -479,6 +479,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
     ncb_t *ncb;
     objhld_t hld;
     unsigned char *buffer;
+    struct tcp_info ktcp;
 
     if ( lnk < 0 || cb <= 0 || cb > TCP_MAXIMUM_PACKET_SIZE || tcp_init() < 0 ) {
         return -1;
@@ -502,6 +503,15 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
             break;
         }
 
+        /* get the socket status of tcp_info to check the socket tcp statues */
+        if (tcp_save_info(ncb, &ktcp) < 0) {
+            break;
+        }
+        if (ktcp.tcpi_state != TCP_ESTABLISHED) {
+            ncb_report_debug_information(ncb, "tcp 0x%08X kernel states %s cannot be use for send.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+            break;
+        }
+
         /* to large length of current queue,no more message can be post */
         if (fque_size(&ncb->tx_fifo) >= TCP_MAXIMUM_SENDER_CACHED_CNT) {
             break;
@@ -509,7 +519,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
 
         /* there must be a effective TST specified */
         if (!(*ncb->template.builder_)) {
-            ncb_report_debug_information(ncb, "[TCP]invalidated link object TST builder function address.");
+            ncb_report_debug_information(ncb, "tcp invalidated link object TST builder function address.");
             break;
         }
 
@@ -573,6 +583,7 @@ int tcp_getaddr(HTCPLINK lnk, int type, uint32_t* ipv4, uint16_t* port) {
             objdefr(hld);
             return -1;
     }
+    
     objdefr(hld);
     return 0;
 }
@@ -610,13 +621,13 @@ int tcp_getopt(HTCPLINK lnk, int level, int opt, char *__restrict val, int *len)
 }
 
 int tcp_save_info(ncb_t *ncb, struct tcp_info *ktcp) {
-    socklen_t tcp_info_length = sizeof (struct tcp_info);
+    socklen_t len = sizeof (struct tcp_info);
 
     if (!ktcp) {
         return -1;
     }
 
-    return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_INFO, (void * __restrict)ktcp, &tcp_info_length);
+    return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_INFO, (void * __restrict)ktcp, &len);
 }
 
 int tcp_setmss(ncb_t *ncb, int mss) {

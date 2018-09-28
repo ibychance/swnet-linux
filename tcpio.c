@@ -57,6 +57,7 @@ int __tcp_syn(ncb_t *ncb_server) {
 
         /* set other options */
         tcp_update_opts(ncb_client);
+        
         /* acquire save TCP Info and adjust linger in the accept phase. 
             l_onoff on and l_linger not zero, these settings means:
             TCP drop any data cached in the kernel buffer of this socket file descriptor when close(2) called.
