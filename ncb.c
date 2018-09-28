@@ -63,11 +63,6 @@ void ncb_uninit(objhld_t ignore, void *p) {
     /* clear all packages pending in send queue */
     fque_uninit(&ncb->tx_fifo);
     
-    /* clear ktcp data*/
-    if (ncb->ktcp){
-        free(ncb->ktcp);
-    }
-    
     /* post close event to calling thread */
     if (ncb->hld >= 0) {
         ncb_post_close(ncb);

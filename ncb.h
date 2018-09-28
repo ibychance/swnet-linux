@@ -98,9 +98,6 @@ typedef struct _ncb {
     
              /* 下层解包模板 */
             tst_t template;
-    
-            /* getsockopt(TCP_INFO) for Linux, {Free,Net}BSD */
-            struct tcp_info *ktcp; 
 
             /* MSS of tcp link */
             int mss;

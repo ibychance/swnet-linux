@@ -87,7 +87,6 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
 
         /* acquire save TCP Info and adjust linger in the creation phase. */
         ncb_set_linger(ncb, 0, 0);
-        tcp_save_info(ncb);
 
         /* allocate normal TCP package */
         ncb->packet = (char *) malloc(TCP_BUFFER_SIZE);
@@ -248,15 +247,16 @@ static int __tcp_check_connection(int sockfd) {
 
 #endif
 
-int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
+int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
     ncb_t *ncb;
     int retval;
     struct sockaddr_in addr_to;
     int e;
     socklen_t addrlen;
     int optval;
+    struct tcp_info ktcp;
 
-    if (lnk < 0 || !r_ipstr || 0 == port_remote || tcp_init() < 0) {
+    if (lnk < 0 || !r_ipstr || 0 == r_port || tcp_init() < 0) {
         return -1;
     }
 
@@ -265,12 +265,15 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
         return -1;
     }
 
+    /* get the socket status of tcp_info, include the connect states */
+    tcp_save_info(ncb, &ktcp);
+
     /* try no more than 3 times of tcp::syn */
     optval = 3;
     setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
 
     addr_to.sin_family = PF_INET;
-    addr_to.sin_port = htons(port_remote);
+    addr_to.sin_port = htons(r_port);
     addr_to.sin_addr.s_addr = inet_addr(r_ipstr);
 
     /* syscall @connect can be interrupted by other signal. */
@@ -280,7 +283,8 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
     } while((e == EINTR) && (retval < 0));
 
     if (retval < 0) {
-        ncb_report_debug_information(ncb, "tcp 0x%08X failed connect remote endpoint %s:%d, err=%d", lnk, r_ipstr, port_remote, e);
+        /* if this socket is already connected, or it is in listening states, sys-call failed with error EISCONN  */
+        ncb_report_debug_information(ncb, "tcp 0x%08X failed connect remote endpoint %s:%d, err=%d", lnk, r_ipstr, r_port, e);
     } else {
         /* set other options */
         tcp_update_opts(ncb);
@@ -309,13 +313,13 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
     return retval;
 }
 
-int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
+int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
     ncb_t *ncb;
     int retval;
     int e;
     int optval;
 
-    if (lnk < 0 || !r_ipstr || 0 == port_remote || tcp_init() < 0) {
+    if (lnk < 0 || !r_ipstr || 0 == r_port || tcp_init() < 0) {
         return -1;
     }
 
@@ -343,7 +347,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
         }
 
         ncb->remot_addr.sin_family = PF_INET;
-        ncb->remot_addr.sin_port = htons(port_remote);
+        ncb->remot_addr.sin_port = htons(r_port);
         ncb->remot_addr.sin_addr.s_addr = inet_addr(r_ipstr);
 
         retval = connect(ncb->sockfd, (const struct sockaddr *) &ncb->remot_addr, sizeof (struct sockaddr));
@@ -376,12 +380,6 @@ int tcp_listen(HTCPLINK lnk, int block) {
 
     retval = -1;
     do {
-        /* file descriptor must set to asynchronous mode befor accept */
-        retval = setasio(ncb->sockfd);
-        if (retval < 0){
-            break;
-        }
-
         /* '/proc/sys/net/core/somaxconn' in POSIX.1 this value default to 128
            so,for ensure high concurrency performance in the establishment phase of the TCP connection,
            we will ignore the @block argument and use macro SOMAXCONN which defined in /usr/include/bits/socket.h anyway
@@ -389,6 +387,12 @@ int tcp_listen(HTCPLINK lnk, int block) {
         retval = listen(ncb->sockfd, ((0 == block) || (block > SOMAXCONN)) ? SOMAXCONN : block);
         if (retval < 0) {
             ncb_report_debug_information(ncb, "failed syscall listen.errno=%d.", errno);
+            break;
+        }
+
+        /* file descriptor must set to asynchronous mode befor accept */
+        retval = setasio(ncb->sockfd);
+        if (retval < 0){
             break;
         }
 
@@ -549,17 +553,14 @@ int tcp_getopt(HTCPLINK lnk, int level, int opt, char *__restrict val, int *len)
     return retval;
 }
 
-int tcp_save_info(ncb_t *ncb) {
+int tcp_save_info(ncb_t *ncb, struct tcp_info *ktcp) {
     socklen_t tcp_info_length = sizeof (struct tcp_info);
 
-    if (!ncb->ktcp) {
-        ncb->ktcp = (struct tcp_info *) malloc(sizeof (struct tcp_info));
+    if (!ktcp) {
+        return -1;
     }
 
-    if (ncb->ktcp) {
-        return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_INFO, (void * __restrict)ncb->ktcp, &tcp_info_length);
-    }
-    return -1;
+    return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_INFO, (void * __restrict)ktcp, &tcp_info_length);
 }
 
 int tcp_setmss(ncb_t *ncb, int mss) {

@@ -99,8 +99,6 @@ int __tcp_syn(ncb_t *ncb_server) {
 int tcp_syn(ncb_t *ncb_server) {
     int retval;
 
-    tcp_save_info(ncb_server);
-
     do {
         retval = __tcp_syn(ncb_server);
     } while (0 == retval);
@@ -114,8 +112,6 @@ int __tcp_rx(ncb_t *ncb) {
     int offset;
     int cpcb;
     int errcode;
-
-    tcp_save_info(ncb);
 
     recvcb = recv(ncb->sockfd, ncb->rx_buffer, TCP_BUFFER_SIZE, 0);
     errcode = errno;
@@ -160,8 +156,6 @@ int __tcp_rx(ncb_t *ncb) {
 
 int tcp_rx(ncb_t *ncb) {
     int retval;
-
-    tcp_save_info(ncb);
 
     /* read receive buffer until it's empty */
     do {
