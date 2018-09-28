@@ -45,6 +45,10 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
     socklen_t addrlen;
     ncb_t *ncb;
 
+    if (udp_init() < 0) {
+        return INVALID_HUDPLINK;
+    }
+
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
         nis_call_ecr("Failed creat UDP socket,ip:%s,port:%u,errno:%u",l_ipstr, l_port, errno);
@@ -134,7 +138,9 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
 }
 
 void udp_destroy(HUDPLINK lnk) {
-    objclos(lnk);
+    if (udp_init() >= 0) {
+        objclos(lnk);
+    }
 }
 
 static int udp_maker(void *data, int cb, void *context) {
@@ -152,7 +158,7 @@ int udp_sendto(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const 
     objhld_t hld = (objhld_t) lnk;
     unsigned char *buffer;
 
-    if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > UDP_MAXIMUM_USER_DATA_SIZE)) {
+    if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > UDP_MAXIMUM_USER_DATA_SIZE) || udp_init() < 0) {
         return RE_ERROR(EINVAL);
     }
 
@@ -284,7 +290,9 @@ int udp_getaddr(HUDPLINK lnk, uint32_t *ipv4, uint16_t *port) {
     objhld_t hld = (objhld_t) lnk;
 
     ncb = objrefr(hld);
-    if (!ncb) return -1;
+    if (!ncb) {
+        return -1;
+    }
 
     *ipv4 = htonl(ncb->local_addr.sin_addr.s_addr);
     *port = htons(ncb->local_addr.sin_port);
@@ -299,7 +307,9 @@ int udp_setopt(HUDPLINK lnk, int level, int opt, const char *val, int len) {
     int retval;
 
     ncb = objrefr(hld);
-    if (!ncb) return -1;
+    if (!ncb) {
+        return -1;
+    }
 
     retval = setsockopt(ncb->sockfd, level, opt, val, len);
 
@@ -313,8 +323,10 @@ int udp_getopt(HUDPLINK lnk, int level, int opt, char *val, int *len) {
     int retval;
 
     ncb = objrefr(hld);
-    if (!ncb) return -1;
-
+    if (!ncb) {
+        return -1;
+    }
+    
     retval = getsockopt(ncb->sockfd, level, opt, val, (socklen_t *)len);
 
     objdefr(hld);

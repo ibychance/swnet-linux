@@ -22,8 +22,9 @@ void tcp_update_opts(ncb_t *ncb) {
 
 /* tcp impls */
 int tcp_init() {
-    ioinit();
-    write_pool_init();
+    if (ioinit() >= 0) {
+        write_pool_init();
+    }
     return 0;
 }
 
@@ -40,7 +41,9 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
     ncb_t *ncb;
     objhld_t hld = -1;
 
-    if (!user_callback) return INVALID_HTCPLINK;
+    if (!user_callback) {
+        return INVALID_HTCPLINK;
+    }
 
     fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) {
@@ -138,7 +141,9 @@ int tcp_settst(HTCPLINK lnk, const tst_t *tst) {
 int tcp_gettst(HTCPLINK lnk, tst_t *tst) {
     ncb_t *ncb;
 
-    if (lnk < 0 || !tst) return -1;
+    if (lnk < 0 || !tst) {
+        return -1;
+    }
 
     ncb = (ncb_t *) objrefr((objhld_t) lnk);
     if (!ncb) {
@@ -158,8 +163,13 @@ int tcp_gettst(HTCPLINK lnk, tst_t *tst) {
  */
 void tcp_destroy(HTCPLINK lnk) {
     ncb_t *ncb;
-    objhld_t hld = (objhld_t) lnk;
+    objhld_t hld;
 
+    if (tcp_init() < 0) {
+        return;
+    }
+
+    hld = (objhld_t) lnk;
     ncb = objrefr(hld);
     if (ncb) {
         ioclose(ncb);
@@ -246,7 +256,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
     socklen_t addrlen;
     int optval;
 
-    if (lnk < 0 || !r_ipstr || 0 == port_remote) {
+    if (lnk < 0 || !r_ipstr || 0 == port_remote || tcp_init() < 0) {
         return -1;
     }
 
@@ -305,7 +315,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t port_remote) {
     int e;
     int optval;
 
-    if (lnk < 0 || !r_ipstr || 0 == port_remote) {
+    if (lnk < 0 || !r_ipstr || 0 == port_remote || tcp_init() < 0) {
         return -1;
     }
 
@@ -355,6 +365,10 @@ int tcp_listen(HTCPLINK lnk, int block) {
     ncb_t *ncb;
     int retval;
 
+    if (lnk < 0 || tcp_init() < 0) {
+        return -1;
+    }
+
     ncb = (ncb_t *) objrefr(lnk);
     if (!ncb) {
         return -1;
@@ -372,7 +386,7 @@ int tcp_listen(HTCPLINK lnk, int block) {
            so,for ensure high concurrency performance in the establishment phase of the TCP connection,
            we will ignore the @block argument and use macro SOMAXCONN which defined in /usr/include/bits/socket.h anyway
          */
-        retval = listen(ncb->sockfd, SOMAXCONN);
+        retval = listen(ncb->sockfd, ((0 == block) || (block > SOMAXCONN)) ? SOMAXCONN : block);
         if (retval < 0) {
             ncb_report_debug_information(ncb, "failed syscall listen.errno=%d.", errno);
             break;
@@ -392,7 +406,8 @@ int tcp_listen(HTCPLINK lnk, int block) {
     return retval;
 }
 
-static int tcp_maker(void *data, int cb, void *context) {
+static 
+int tcp_maker(void *data, int cb, void *context) {
     if (data && cb > 0 && context) {
         memcpy(data, context, cb);
         return 0;
@@ -405,7 +420,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
     objhld_t hld;
     unsigned char *buffer;
 
-    if (INVALID_HTCPLINK == lnk || cb <= 0 || cb > TCP_MAXIMUM_PACKET_SIZE ) {
+    if ( lnk < 0 || cb <= 0 || cb > TCP_MAXIMUM_PACKET_SIZE || tcp_init() < 0 ) {
         return -1;
     }
 
@@ -481,7 +496,9 @@ int tcp_getaddr(HTCPLINK lnk, int type, uint32_t* ipv4, uint16_t* port) {
     objhld_t hld = (objhld_t) lnk;
 
     ncb = objrefr(hld);
-    if (!ncb) return -1;
+    if (!ncb) {
+        return -1;
+    }
 
     switch (type) {
         case LINK_ADDR_LOCAL:
@@ -506,7 +523,9 @@ int tcp_setopt(HTCPLINK lnk, int level, int opt, const char *val, int len) {
     int retval;
 
     ncb = objrefr(hld);
-    if (!ncb) return -1;
+    if (!ncb) {
+        return -1;
+    }
 
     retval = setsockopt(ncb->sockfd, level, opt, (const void *) val, (socklen_t) len);
 
@@ -520,7 +539,9 @@ int tcp_getopt(HTCPLINK lnk, int level, int opt, char *__restrict val, int *len)
     int retval;
 
     ncb = objrefr(hld);
-    if (!ncb) return -1;
+    if (!ncb) {
+        return -1;
+    }
 
     retval = getsockopt(ncb->sockfd, level, opt, (void * __restrict)val, (socklen_t *) len);
 
