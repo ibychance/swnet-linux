@@ -195,7 +195,7 @@ void tcp_destroy(HTCPLINK lnk) {
     ncb = objreff((objhld_t) lnk);
     if (ncb) {
         ioclose(ncb);
-        objdefr(hld);
+        objdefr((objhld_t) lnk);
     }
 }
 

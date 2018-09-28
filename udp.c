@@ -148,7 +148,7 @@ void udp_destroy(HUDPLINK lnk) {
     ncb = objreff((objhld_t) lnk);
     if (ncb) {
         ioclose(ncb);
-        objdefr(hld);
+        objdefr((objhld_t) lnk);
     }
 }
 
