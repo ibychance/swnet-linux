@@ -150,6 +150,8 @@ static void *__run(void *p) {
     int retval;
     
     thread = (struct write_thread_node *)p;
+    nis_call_ecr("nshost.pool.LWP:%u startup.", posix__gettid());
+
     while (!write_pool.stop) {
         retval = posix__waitfor_waitable_handle(&thread->task_signal, 10);
         if ( retval < 0) {
@@ -169,6 +171,7 @@ static void *__run(void *p) {
         }
     }
 
+    nis_call_ecr("nshost.pool.LWP:%u terminated.", posix__gettid());
     pthread_exit((void *) 0);
     return NULL;
 }

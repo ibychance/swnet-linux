@@ -127,7 +127,7 @@ static void *__epoll_proc(void *argv) {
     static const int EP_TIMEDOUT = 500;
 
     epo = (struct epoll_object *)argv;
-    nis_call_ecr("IO Thread Startup.LWP:%u epfd:%u", posix__gettid(), epo->epfd);
+    nis_call_ecr("nshost.io.LWP:%u nshost.io.efd:%u startup.", posix__gettid(), epo->epfd);
 
     while (epo->actived) {
         sigcnt = epoll_wait(epo->epfd, evts, EPOLL_SIZE, EP_TIMEDOUT);
@@ -152,7 +152,7 @@ static void *__epoll_proc(void *argv) {
         }
     }
 
-    nis_call_ecr("IO Thread Terminated.LWP:%u epfd:%u", posix__gettid(), epo->epfd);
+    nis_call_ecr("nshost.io.LWP:%u nshost.io.efd:%u terminated.", posix__gettid(), epo->epfd);
     posix__pthread_exit( (void *)0 );
     return NULL;
 }
