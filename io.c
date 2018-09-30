@@ -52,7 +52,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt){
 
         /* disconnect/error happend */
         if ((evts[i].events & EPOLLRDHUP) || (evts[i].events & EPOLLERR) ) {
-            nis_call_ecr("[close]nshost.io.event:%d, associated link: %d", evts[i].events, hld);
+            nis_call_ecr("nshost.io.__iorun: close event: %d, associated link: %d", evts[i].events, hld);
 	        objclos(hld);
             continue;
         }
@@ -92,7 +92,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt){
                     objclos(ncb->hld);
                 }
             }else{
-                ncb_report_debug_information(ncb, "[error]nshost.io.EPOLLIN:ncb_read function address is NULL");
+                ncb_report_debug_information(ncb, "nshost.io.__iorun:ncb_read function address is NULL");
             }
         }
 
@@ -127,7 +127,7 @@ static void *__epoll_proc(void *argv) {
     static const int EP_TIMEDOUT = 500;
 
     epo = (struct epoll_object *)argv;
-    nis_call_ecr("[startup]nshost.io.LWP:%u nshost.io.efd:%u", posix__gettid(), epo->epfd);
+    nis_call_ecr("nshost.io.epoll: epfd:%u LWP:%u startup.", epo->epfd, posix__gettid());
 
     while (epo->actived) {
         sigcnt = epoll_wait(epo->epfd, evts, EPOLL_SIZE, EP_TIMEDOUT);
@@ -141,7 +141,7 @@ static void *__epoll_proc(void *argv) {
                 continue;
             }
 
-            nis_call_ecr("[error]nshost.io.LWP:%u efd:%u errno:%u", posix__gettid(), epo->epfd, errcode);
+            nis_call_ecr("nshost.io.epoll:epfd:%u LWP:%u errno:%u", epo->epfd, posix__gettid(), errcode);
             break;
         }
 
@@ -152,7 +152,7 @@ static void *__epoll_proc(void *argv) {
         }
     }
 
-    nis_call_ecr("[terminated]nshost.io.LWP:%u nshost.io.efd:%u", posix__gettid(), epo->epfd);
+    nis_call_ecr("nshost.io.epoll:epfd:%u LWP:%u terminated.", epo->epfd, posix__gettid());
     posix__pthread_exit( (void *)0 );
     return NULL;
 }
@@ -175,7 +175,7 @@ int __ioinit() {
         epmgr.epos[i].load = 0;
         epmgr.epos[i].epfd = epoll_create(EPOLL_SIZE);
         if (epmgr.epos[i].epfd < 0) {
-            nis_call_ecr("[error]nshost.io.fd:epoll_create errno:%u\n", errno);
+            nis_call_ecr("nshost.io.epoll:file descriptor creat failed. error:%u\n", errno);
             epmgr.epos[i].actived = posix__false;
             continue;
         }
@@ -330,12 +330,12 @@ int setasio(int fd) {
 
     opt = fcntl(fd, F_GETFL);
     if (opt < 0) {
-        nis_call_ecr("[error]nshost.io.fd:fcntl,F_GETFL, errno:%u\n", errno);
+        nis_call_ecr("nshost.io.setasio: fcntl F_GETFL failed.error:%u\n", errno);
         return -1;
     }
 
     if (fcntl(fd, F_SETFL, opt | O_NONBLOCK) < 0) {
-        nis_call_ecr("[error]nshost.io.fd:fcntl,F_SETFL,O_NONBLOCK, errno:%u\n", errno);
+        nis_call_ecr("nshost.io.setasio: fcntl F_SETFL failed.error:%u\n", errno);
         return -1;
     }
     return 0;
@@ -350,13 +350,13 @@ int setsyio(int fd){
 
     opt = fcntl(fd, F_GETFL);
     if (opt < 0) {
-        nis_call_ecr("[error]nshost.io.fd:fcntl,F_GETFL, errno:%u\n", errno);
+        nis_call_ecr("nshost.io.setsyio: fcntl F_GETFL failed.error:%u\n", errno);
         return -1;
     }
 
     opt &= ~O_NONBLOCK;
     if (fcntl(fd, F_SETFL, opt) < 0) {
-        nis_call_ecr("[error]nshost.io.fd:fcntl,F_SETFL,O_BLOCK, errno:%u\n", errno);
+        nis_call_ecr("nshost.io.setsyio: fcntl F_SETFL failed.error:%u\n", errno);
         return -1;
     }
     return 0;

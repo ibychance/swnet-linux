@@ -208,8 +208,18 @@ int __tcp_tx_single_packet(int sockfd, struct tx_node *node) {
 int tcp_tx(ncb_t *ncb) {
     struct tx_node *node;
     int retval;
+    struct tcp_info ktcp;
 
     if (!ncb) {
+        return -1;
+    }
+
+    /* get the socket status of tcp_info to check the socket tcp statues */
+    if (tcp_save_info(ncb, &ktcp) < 0) {
+        return -1;
+    }
+    if (ktcp.tcpi_state != TCP_ESTABLISHED) {
+        ncb_report_debug_information(ncb, "nshost.tcpio.tx:state illegal,link:%d, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
         return -1;
     }
 
@@ -303,14 +313,14 @@ int tcp_tx_syn(ncb_t *ncb) {
              * Only a few linux version likely to happen. */
             case EINTR:
             case EAGAIN:
-                ncb_report_debug_information(ncb, "tcp syn retry.e=%d.", e);
+                ncb_report_debug_information(ncb, "nshost.tcpio.syn:tcp syn retry.e=%d.", e);
                 break;
 
             /* Connection refused
              * ulimit -n overflow(open file cout lg then 1024 in default) */
             case ECONNREFUSED:
             default:
-                ncb_report_debug_information(ncb, "tcp syn error.e=%d.", e);
+                ncb_report_debug_information(ncb, "nshost.tcpio.syn: fatal syscall, e=%d.", e);
                 return -1;
         }
     }

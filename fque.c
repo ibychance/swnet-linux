@@ -56,7 +56,8 @@ int fque_priority_push(struct tx_fifo *fque, unsigned char *data, int cb, int of
     return retval;
 }
 
-/* 注意， 内部不对数据作深拷贝*/
+/* be careful! no deepcopy in this method
+    save your own pointer */
 int fque_push(struct tx_fifo *fque, unsigned char *data, int cb, const struct sockaddr_in *target) {
     struct tx_node *node;
     int retval;

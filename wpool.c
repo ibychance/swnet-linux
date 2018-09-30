@@ -114,6 +114,7 @@ static int __run_task(struct task_node *task) {
     
     /* 发生无可挽救的系统错误, 该链接将被关闭 */
     if(retval < 0){
+        ncb_report_debug_information(ncb, "nshost.wpool.task:write fr:%d, link %d will be close", retval, ncb->hld);
         objclos(ncb->hld);
     }
     
@@ -151,7 +152,7 @@ static void *__run(void *p) {
     int retval;
     
     thread = (struct write_thread_node *)p;
-    nis_call_ecr("[startup]nshost.pool.LWP:%u startup.", posix__gettid());
+    nis_call_ecr("nshost.wpool.init: LWP:%u startup.", posix__gettid());
 
     while (!write_pool.stop) {
         retval = posix__waitfor_waitable_handle(&thread->task_signal, 10);
@@ -172,7 +173,7 @@ static void *__run(void *p) {
         }
     }
 
-    nis_call_ecr("nshost.pool.LWP:%u terminated.", posix__gettid());
+    nis_call_ecr("nshost.pool.wpool: LWP:%u terminated.", posix__gettid());
     pthread_exit((void *) 0);
     return NULL;
 }

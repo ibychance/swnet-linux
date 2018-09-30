@@ -52,9 +52,9 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
         if (l_ipstr) {
-            nis_call_ecr("[error]nshost.udp.socket: file descriptor create failed,%s:%u,errno:%u",l_ipstr, l_port, errno);
+            nis_call_ecr("nshost.udp.create: file descriptor create failed,%s:%u,errno:%u",l_ipstr, l_port, errno);
         } else {
-            nis_call_ecr("[error]nshost.udp.socket: file descriptor create failed, 0.0.0.0:%u,errno:%u", l_port, errno);
+            nis_call_ecr("nshost.udp.create: file descriptor create failed, 0.0.0.0:%u,errno:%u", l_port, errno);
         }
         return -1;
     }
@@ -67,6 +67,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
     addrlocal.sin_port = htons(l_port);
     retval = bind(fd, (struct sockaddr *) &addrlocal, sizeof ( struct sockaddr));
     if (retval < 0) {
+        nis_call_ecr("nshost.udp.create: bind sockaddr failed, %s:%u, errno:%d.\n", l_ipstr, l_port, errno);
         close(fd);
         return -1;
     }
@@ -156,7 +157,8 @@ void udp_destroy(HUDPLINK lnk) {
     }
 }
 
-static int udp_maker(void *data, int cb, void *context) {
+static 
+int udp_maker(void *data, int cb, void *context) {
     if (data && cb > 0 && context) {
         memcpy(data, context, cb);
         return 0;
@@ -271,6 +273,7 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const c
 
     retval = -1;
     buffer = NULL;
+    
     do {
         buffer = (unsigned char *) malloc(cb);
         if (!buffer) {
