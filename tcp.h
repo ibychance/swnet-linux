@@ -20,6 +20,8 @@
 #define NS_TCP_NODELAY_UNSET  (0)
 #define NS_TCP_NODELAY_SET  (1)
 
+extern const char *TCP_KERNEL_STATE_NAME[];
+
 extern
 void tcp_update_opts(ncb_t *ncb);
 

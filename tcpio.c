@@ -219,7 +219,7 @@ int tcp_tx(ncb_t *ncb) {
         return -1;
     }
     if (ktcp.tcpi_state != TCP_ESTABLISHED) {
-        ncb_report_debug_information(ncb, "nshost.tcpio.tx:state illegal,link:%d, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+        ncb_report_debug_information(ncb, "nshost.tcpio.tx:state illegal,link:%d, kernel states %s.", ncb->hld, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
         return -1;
     }
 
