@@ -482,6 +482,8 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
     ncb_t *ncb;
     objhld_t hld;
     unsigned char *buffer;
+    nis_sender_maker_t amaker;
+    int packet_length;
     struct tcp_info ktcp;
 
     if ( lnk < 0 || cb <= 0 || cb > TCP_MAXIMUM_PACKET_SIZE || tcp_init() < 0 ) {
@@ -520,29 +522,38 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
             break;
         }
 
-        /* there must be a effective TST specified */
+        /* user data filler */
+        amaker = maker;
+        if (!maker) {
+            amaker = &tcp_maker;
+        }
+
+        /* if template.builder is specified then use it, otherwise, indicate the packet size by input parameter @cb */
         if (!(*ncb->template.builder_)) {
-            ncb_report_debug_information(ncb, "nshost.tcp.write:tst no found.");
-            break;
-        }
-
-        buffer = (unsigned char *) malloc(cb + ncb->template.cb_);
-        if (!buffer) {
-            break;
-        }
-
-        /* build protocol head */
-        if ((*ncb->template.builder_)(buffer, cb) < 0) {
-            break;
-        }
-
-        /* fill user data seg */
-        if (maker) {
-            if ((*maker)(buffer + ncb->template.cb_, cb, par) < 0) {
+            packet_length = cb;
+            buffer = (unsigned char *) malloc(packet_length);
+            if (!buffer) {
                 break;
             }
-        }else{
-            if (tcp_maker(buffer + ncb->template.cb_, cb, par) < 0) {
+
+             /* fill user data seg */
+            if ((*amaker)(buffer, cb, par) < 0){
+                break;
+            }
+        } else {
+            packet_length = cb + ncb->template.cb_;
+            buffer = (unsigned char *) malloc(packet_length);
+            if (!buffer) {
+                break;
+            }
+
+            /* build protocol head */
+            if ((*ncb->template.builder_)(buffer, cb) < 0) {
+                break;
+            }
+
+            /* fill user data seg */
+            if ((*amaker)(buffer + ncb->template.cb_, cb, par) < 0){
                 break;
             }
         }

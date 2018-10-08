@@ -26,7 +26,7 @@ static int __udp_update_opts(ncb_t *ncb) {
 
 int udp_init() {
     if (ioinit() >= 0) {
-        write_pool_init();
+        return write_pool_init();
     }
     return -1;
 }

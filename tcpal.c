@@ -15,7 +15,7 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
     cpbuff = data;
 
     /* 没有指定包头模板， 直接回调整个TCP包 */
-    if (0 == ncb->template.cb_) {
+    if (0 == ncb->template.cb_ || !ncb->template.parser_) {
         ncb_post_recvdata(ncb, cpcb, data);
         ncb->rx_parse_offset = 0;
         return 0;
