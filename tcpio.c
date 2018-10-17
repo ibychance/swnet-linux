@@ -215,12 +215,11 @@ int tcp_tx(ncb_t *ncb) {
     }
 
     /* get the socket status of tcp_info to check the socket tcp statues */
-    if (tcp_save_info(ncb, &ktcp) < 0) {
-        return -1;
-    }
-    if (ktcp.tcpi_state != TCP_ESTABLISHED) {
-        ncb_report_debug_information(ncb, "nshost.tcpio.tx:state illegal,link:%d, kernel states %s.", ncb->hld, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
-        return -1;
+    if (tcp_save_info(ncb, &ktcp) >= 0) {
+        if (ktcp.tcpi_state != TCP_ESTABLISHED) {
+            ncb_report_debug_information(ncb, "nshost.tcpio.tx:state illegal,link:%d, kernel states %s.", ncb->hld, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+            return -1;
+        }
     }
 
     /* try to write all package into system kernel send-buffer */

@@ -295,12 +295,11 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         retval = -1;
 
         /* get the socket status of tcp_info to check the socket tcp statues */
-        if (tcp_save_info(ncb, &ktcp) < 0) {
-            break;
-        }
-        if (ktcp.tcpi_state != TCP_CLOSE) {
-            ncb_report_debug_information(ncb, "nshost.tcp.connect:state illegal,link:%d, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
-            break;
+        if (tcp_save_info(ncb, &ktcp) >= 0) {
+            if (ktcp.tcpi_state != TCP_CLOSE) {
+                ncb_report_debug_information(ncb, "nshost.tcp.connect:state illegal,link:%d, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+                break;
+            }
         }
 
         /* try no more than 3 times of tcp::syn */
@@ -370,12 +369,11 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         retval = -1;
 
         /* get the socket status of tcp_info to check the socket tcp statues */
-        if (tcp_save_info(ncb, &ktcp) < 0) {
-            break;
-        }
-        if (ktcp.tcpi_state != TCP_CLOSE) {
-            ncb_report_debug_information(ncb, "nshost.tcp.connect2:state illegal,link:%d, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
-            break;
+        if (tcp_save_info(ncb, &ktcp) >= 0) {
+            if (ktcp.tcpi_state != TCP_CLOSE) {
+                ncb_report_debug_information(ncb, "nshost.tcp.connect2:state illegal,link:%d, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+                break;
+            }
         }
 
         /* try no more than 3 times of tcp::syn */
@@ -431,12 +429,11 @@ int tcp_listen(HTCPLINK lnk, int block) {
         retval = -1;
 
         /* get the socket status of tcp_info to check the socket tcp statues */
-        if (tcp_save_info(ncb, &ktcp) < 0) {
-            break;
-        }
-        if (ktcp.tcpi_state != TCP_CLOSE) {
-            ncb_report_debug_information(ncb, "nshost.tcp.listen:state illegal,link:%d, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
-            break;
+        if (tcp_save_info(ncb, &ktcp) >= 0) {
+            if (ktcp.tcpi_state != TCP_CLOSE) {
+                ncb_report_debug_information(ncb, "nshost.tcp.listen:state illegal,link:%d, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+                break;
+            }
         }
 
         /* '/proc/sys/net/core/somaxconn' in POSIX.1 this value default to 128
@@ -509,12 +506,11 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
         }
 
         /* get the socket status of tcp_info to check the socket tcp statues */
-        if (tcp_save_info(ncb, &ktcp) < 0) {
-            break;
-        }
-        if (ktcp.tcpi_state != TCP_ESTABLISHED) {
-            ncb_report_debug_information(ncb, "nshost.tcp.write:state illegal,link:%d, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
-            break;
+        if (tcp_save_info(ncb, &ktcp) >= 0) {
+            if (ktcp.tcpi_state != TCP_ESTABLISHED) {
+                ncb_report_debug_information(ncb, "nshost.tcp.write:state illegal,link:%d, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+                break;
+            }
         }
 
         /* to large length of current queue,no more message can be post */
