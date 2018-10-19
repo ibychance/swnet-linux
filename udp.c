@@ -158,7 +158,7 @@ void udp_destroy(HUDPLINK lnk) {
 }
 
 static 
-int udp_maker(void *data, int cb, void *context) {
+int udp_maker(void *data, int cb, const void *context) {
     if (data && cb > 0 && context) {
         memcpy(data, context, cb);
         return 0;
@@ -166,7 +166,7 @@ int udp_maker(void *data, int cb, void *context) {
     return -1;
 }
 
-int udp_sendto(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const char* r_ipstr, uint16_t r_port) {
+int udp_sendto(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, const char* r_ipstr, uint16_t r_port) {
     int retval;
     ncb_t *ncb;
     struct sockaddr_in addr;
@@ -256,7 +256,7 @@ int __udp_tx_single_packet(ncb_t *ncb, const unsigned char *data, int cb, const 
     return 0;
 }
 
-int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, void *par, const char* r_ipstr, uint16_t r_port) {
+int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, const char* r_ipstr, uint16_t r_port) {
     int retval;
     ncb_t *ncb;
     objhld_t hld = (objhld_t) lnk;

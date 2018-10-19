@@ -467,7 +467,7 @@ int tcp_listen(HTCPLINK lnk, int block) {
 }
 
 static 
-int tcp_maker(void *data, int cb, void *context) {
+int tcp_maker(void *data, int cb, const void *context) {
     if (data && cb > 0 && context) {
         memcpy(data, context, cb);
         return 0;
@@ -475,7 +475,7 @@ int tcp_maker(void *data, int cb, void *context) {
     return -1;
 }
 
-int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, void *par) {
+int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
     ncb_t *ncb;
     objhld_t hld;
     unsigned char *buffer;
