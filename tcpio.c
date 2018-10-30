@@ -12,6 +12,17 @@ int __tcp_syn(ncb_t *ncb_server) {
     ncb_t *ncb_client;
     objhld_t hld_client;
     int errcode;
+    struct tcp_info ktcp;
+
+    /* get the socket status of tcp_info to check the socket tcp statues,
+        it must be listen states when accept syscall */
+    if (tcp_save_info(ncb_server, &ktcp) >= 0) {
+        if (ktcp.tcpi_state != TCP_LISTEN) {
+            ncb_report_debug_information(ncb_server, "nshost.tcpio.__tcp_syn:state illegal,link:%d, kernel states %s.",
+                ncb_server->hld, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+            return 0;
+        }
+    }
 
     addrlen = sizeof ( addr_income);
     fd_client = accept(ncb_server->sockfd, (struct sockaddr *) &addr_income, &addrlen);
@@ -28,6 +39,13 @@ int __tcp_syn(ncb_t *ncb_server) {
             return EAGAIN;
         }
 
+        /* the connection has been terminated before accept syscall in kernel.
+            do NOT close the service link by this connection error. but nothing canbe continue for it */
+        if (ECONNABORTED == errcode) {
+            return 0;
+        }
+
+        ncb_report_debug_information(ncb_server, "nshost.tcpio.__tcp_syn:accept syscall fatal with err:%d, link:%d", errcode, ncb_server->hld);
         return -1;
     }
 

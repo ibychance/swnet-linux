@@ -89,10 +89,11 @@ static void __iorun(struct epoll_event *evts, int sigcnt){
         if (evts[i].events & EPOLLIN) {
             if (ncb->ncb_read) {
                 if (ncb->ncb_read(ncb) < 0) {
+                    ncb_report_debug_information(ncb, "nshost.io.__iorun:ncb read function return fatal error, this will cause link close.link : %d", hld);
                     objclos(ncb->hld);
                 }
             }else{
-                ncb_report_debug_information(ncb, "nshost.io.__iorun:ncb_read function address is NULL");
+                ncb_report_debug_information(ncb, "nshost.io.__iorun:ncb read function address is NULL");
             }
         }
 
