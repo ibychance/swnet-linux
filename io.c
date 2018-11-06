@@ -248,6 +248,7 @@ int ioatth(void *ncbptr, int mask) {
         return RE_ERROR(EINVAL);
     }
     
+    memset(&e_evt, 0, sizeof(e_evt));
     e_evt.data.fd = ncb->hld;
     e_evt.events = (EPOLLET | EPOLLRDHUP | EPOLLHUP | EPOLLERR); 
 	e_evt.events |= mask;

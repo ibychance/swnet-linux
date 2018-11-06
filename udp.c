@@ -121,6 +121,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         }
 
         /* get local address info */
+        addrlen = sizeof(ncb->local_addr);
         getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen);
 
         /* set data handler function pointer for Rx/Tx */

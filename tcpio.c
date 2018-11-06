@@ -45,6 +45,10 @@ int __tcp_syn(ncb_t *ncb_server) {
             return 0;
         }
 
+        /* for example: 
+            EMFILE(24)  means there are too many file-descriptor opened/check user's own open file limit by ulimit -n(1024 by default)
+            EBADFD(77)  the server sock fd has been closed before accept syscall but after epoll notify
+            */
         ncb_report_debug_information(ncb_server, "nshost.tcpio.__tcp_syn:accept syscall fatal with err:%d, link:%d", errcode, ncb_server->hld);
         return -1;
     }
