@@ -114,7 +114,7 @@ static int __run_task(struct task_node *task) {
     
     /* 发生无可挽救的系统错误, 该链接将被关闭 */
     if(retval < 0){
-        ncb_report_debug_information(ncb, "nshost.wpool.task:write fr:%d, link %d will be close", retval, ncb->hld);
+        nis_call_ecr("nshost.wpool.task:write fr:%d, link %d will be close", retval, ncb->hld);
         objclos(ncb->hld);
     }
     

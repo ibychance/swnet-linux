@@ -30,7 +30,7 @@ int nis_setctx(HLNK lnk, const void * user_context, int user_context_size) {
 
     ncb->context_size = 0;
 
-    /*指定空指针和0长度，可以清空当前的用户上下文*/
+    /* Specifying null pointer and 0 length can empty the current user context. */
     if (!user_context || 0 == user_context_size) {
         if (ncb->context && ncb->context_size > 0) {
             free(ncb->context);
@@ -40,7 +40,7 @@ int nis_setctx(HLNK lnk, const void * user_context, int user_context_size) {
         return 0;
     }
 
-    /*确认是否变更了用户上下文的长度*/
+    /* Confirm whether the user context length is changed.*/
     if (user_context_size != ncb->context_size && ncb->context) {
         free(ncb->context);
         ncb->context = NULL;
@@ -171,7 +171,7 @@ int nis_gethost(const char *name, uint32_t *ipv4) {
         return -1;
     }
     
-    /* 目前仅支持 IPv4 */
+    /* only IPv4 protocol supported */
     if (AF_INET != remote->h_addrtype) {
         return -1;
     }
@@ -188,25 +188,6 @@ int nis_gethost(const char *name, uint32_t *ipv4) {
     *ipv4 = ntohl(addr.s_addr);
     return 0;
 }
-
-/* 通过 getaddrinfo 获得本地域名解析 /etc/hosts
- *  retval = getaddrinfo("domian.subversion.cc", NULL,  NULL, &res);
- * if (0 == retval){
-        struct addrinfo *cursor;
-        cursor = res;
-        while (cursor) {
-            //char dst[128];
-            printf("%s\n", inet_ntoa(((struct sockaddr_in *)cursor->ai_addr)->sin_addr));
-            //const char *p = inet_ntop(AF_INET, cursor->ai_addr, dst, 128);
-            //printf("%s\n", p);
-            cursor = cursor->ai_next;
-        }
- * }
- * if (res){
-        freeaddrinfo(res); 
- * }
- */
-
 
 /* manage ECR and it's calling */
 static nis_event_callback_t current_ecr = NULL;

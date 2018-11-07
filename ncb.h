@@ -130,8 +130,6 @@ extern
 int ncb_init(ncb_t *ncb);
 extern
 void ncb_uninit(objhld_t ignore, void */*ncb_t * */ncb);
-extern
-void ncb_report_debug_information(ncb_t *ncb, const char *fmt, ...);
 
 extern
 int ncb_set_rcvtimeo(ncb_t *ncb, struct timeval *timeo);

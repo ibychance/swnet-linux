@@ -72,35 +72,6 @@ void ncb_uninit(objhld_t ignore, void *p) {
     ncb->nis_callback = NULL;
 }
 
-void ncb_report_debug_information(ncb_t *ncb, const char *fmt, ...) {
-    udp_data_t c_data;
-    nis_event_t c_event;
-    char logstr[128];
-    va_list ap;
-    int retval;
-
-    if (!ncb || !fmt) {
-        return;
-    }
-
-    c_event.Ln.Udp.Link = ncb->hld;
-    c_event.Event = EVT_DEBUG_LOG;
-
-    va_start(ap, fmt);
-    retval = posix__vsprintf(logstr, cchof(logstr), fmt, ap);
-    va_end(ap);
-
-    if (retval <= 0) {
-        return;
-    }
-    logstr[retval] = 0;
-
-    c_data.e.DebugLog.logstr = &logstr[0];
-    if (ncb->nis_callback) {
-        ncb->nis_callback(&c_event, &c_data);
-    }
-}
-
 int ncb_set_rcvtimeo(ncb_t *ncb, struct timeval *timeo){
     if (ncb && timeo > 0){
         return setsockopt(ncb->sockfd, SOL_SOCKET, SO_RCVTIMEO, (const void *)timeo, sizeof(struct timeval));

@@ -18,7 +18,7 @@ int __tcp_syn(ncb_t *ncb_server) {
         it must be listen states when accept syscall */
     if (tcp_save_info(ncb_server, &ktcp) >= 0) {
         if (ktcp.tcpi_state != TCP_LISTEN) {
-            ncb_report_debug_information(ncb_server, "nshost.tcpio.__tcp_syn:state illegal,link:%d, kernel states %s.",
+            nis_call_ecr("nshost.tcpio.__tcp_syn:state illegal,link:%d, kernel states %s.",
                 ncb_server->hld, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
             return 0;
         }
@@ -49,7 +49,7 @@ int __tcp_syn(ncb_t *ncb_server) {
             EMFILE(24)  means there are too many file-descriptor opened/check user's own open file limit by ulimit -n(1024 by default)
             EBADFD(77)  the server sock fd has been closed before accept syscall but after epoll notify
             */
-        ncb_report_debug_information(ncb_server, "nshost.tcpio.__tcp_syn:accept syscall fatal with err:%d, link:%d", errcode, ncb_server->hld);
+        nis_call_ecr("nshost.tcpio.__tcp_syn:accept syscall fatal with err:%d, link:%d", errcode, ncb_server->hld);
         return -1;
     }
 
@@ -239,7 +239,7 @@ int tcp_tx(ncb_t *ncb) {
     /* get the socket status of tcp_info to check the socket tcp statues */
     if (tcp_save_info(ncb, &ktcp) >= 0) {
         if (ktcp.tcpi_state != TCP_ESTABLISHED) {
-            ncb_report_debug_information(ncb, "nshost.tcpio.tx:state illegal,link:%d, kernel states %s.", ncb->hld, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+            nis_call_ecr("nshost.tcpio.tx:state illegal,link:%d, kernel states %s.", ncb->hld, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
             return -1;
         }
     }
@@ -334,14 +334,14 @@ int tcp_tx_syn(ncb_t *ncb) {
              * Only a few linux version likely to happen. */
             case EINTR:
             case EAGAIN:
-                ncb_report_debug_information(ncb, "nshost.tcpio.syn:tcp syn retry.e=%d.", e);
+                nis_call_ecr("nshost.tcpio.syn:tcp syn retry.e=%d.", e);
                 break;
 
             /* Connection refused
              * ulimit -n overflow(open file cout lg then 1024 in default) */
             case ECONNREFUSED:
             default:
-                ncb_report_debug_information(ncb, "nshost.tcpio.syn: fatal syscall, e=%d.", e);
+                nis_call_ecr("nshost.tcpio.syn: fatal syscall, e=%d.", e);
                 return -1;
         }
     }
