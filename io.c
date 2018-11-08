@@ -158,9 +158,6 @@ static void *__epoll_proc(void *argv) {
     return NULL;
 }
 
-static int __inited = -1;
-static pthread_mutex_t __init_locker = PTHREAD_MUTEX_INITIALIZER;
-
 int __ioinit() {
     int i;
 
@@ -193,29 +190,24 @@ int __ioinit() {
     return 0;
 }
 
+posix__atomic_initial_declare_variable(__inited__);
+
 int ioinit() {
-    int retval;
-
-    retval = 0;
-
-    if (__inited >= 0) {
-        return 0;
+    if (posix__atomic_initial_try(&__inited__)) {
+        if (__ioinit() < 0) {
+            posix__atomic_initial_exception(&__inited__);
+        } else {
+            posix__atomic_initial_complete(&__inited__);
+        }
     }
 
-    pthread_mutex_lock(&__init_locker);
-     /* double check if other thread complete the initialize request */
-    if (__inited < 0) {
-        retval = __ioinit();
-        posix__atomic_xchange(&__inited, retval);
-    }
-    pthread_mutex_unlock(&__init_locker);
-    return retval;
+    return __inited__;
 }
 
 void iouninit() {
     int i;
-    
-    if (posix__atomic_xchange(&__inited, -1) < 0) {
+
+    if (!posix__atomic_initial_regress(__inited__)) {
         return;
     }
     
@@ -242,6 +234,10 @@ void iouninit() {
 int ioatth(void *ncbptr, int mask) {
     struct epoll_event e_evt;
     ncb_t *ncb;
+
+    if (!posix__atomic_initial_passed(__inited__)) {
+        return -1;
+    }
     
     ncb = (ncb_t *)ncbptr;
     if (!ncb) {
@@ -266,6 +262,10 @@ int ioatth(void *ncbptr, int mask) {
 int iomod(void *ncbptr, int mask ) {
     struct epoll_event e_evt;
     ncb_t *ncb;
+
+    if (!posix__atomic_initial_passed(__inited__)) {
+        return -1;
+    }
     
     ncb = (ncb_t *)ncbptr;
     if (!ncb) {
@@ -282,10 +282,12 @@ int iomod(void *ncbptr, int mask ) {
 void iodeth(void *ncbptr) {
     struct epoll_event evt;
     ncb_t *ncb;
-    
-    ncb = (ncb_t *)ncbptr;
-    if (ncb) {
-        epoll_ctl(ncb->epfd, EPOLL_CTL_DEL, ncb->sockfd, &evt);
+
+    if (posix__atomic_initial_passed(__inited__)) {
+        ncb = (ncb_t *)ncbptr;
+        if (ncb) {
+            epoll_ctl(ncb->epfd, EPOLL_CTL_DEL, ncb->sockfd, &evt);
+        }
     }
 }
 

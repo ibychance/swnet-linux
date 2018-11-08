@@ -178,8 +178,7 @@ static void *__run(void *p) {
     return NULL;
 }
 
-static int __inited = -1;
-static pthread_mutex_t __init_locker = PTHREAD_MUTEX_INITIALIZER;
+
 
 int __write_pool_init() {
     int i;
@@ -202,27 +201,18 @@ int __write_pool_init() {
     return 0;
 }
 
-int write_pool_init(){
-    int retval;
+posix__atomic_initial_declare_variable(__inited__);
 
-    retval = 0;
-
-    if (__inited >= 0) {
-        return 0;
-    }
-
-    pthread_mutex_lock(&__init_locker);
-     /* double check if other thread complete the initialize request */
-    if (__inited < 0) {
-        retval = __write_pool_init();
-        if (retval < 0) {
-            ;
-        }else{
-            posix__atomic_xchange(&__inited, retval);
+int write_pool_init() {
+    if (posix__atomic_initial_try(&__inited__)) {
+        if (__write_pool_init() < 0) {
+            posix__atomic_initial_exception(&__inited__);
+        } else {
+            posix__atomic_initial_complete(&__inited__);
         }
     }
-    pthread_mutex_unlock(&__init_locker);
-    return retval;
+
+    return __inited__;
 }
 
 void write_pool_uninit(){
@@ -230,7 +220,7 @@ void write_pool_uninit(){
     void *retval;
     struct task_node *task;
     
-    if ( posix__atomic_xchange(&__inited, -1) < 0 ) {
+    if (!posix__atomic_initial_regress(__inited__)) {
         return;
     }
     
@@ -255,9 +245,13 @@ void write_pool_uninit(){
     write_pool.write_threads = NULL;
 }
 
-int post_write_task(objhld_t hld, enum task_type type){
+int post_write_task(objhld_t hld, enum task_type type) {
     struct task_node *task;
     struct write_thread_node *thread;
+
+    if (!posix__atomic_initial_passed(__inited__)) {
+        return -1;
+    }
     
     if (NULL == (task = (struct task_node *)malloc(sizeof(struct task_node)))){
         return RE_ERROR(ENOMEM);
