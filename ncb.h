@@ -10,8 +10,8 @@
 
 #include <netdb.h>
 #include <sys/socket.h>
-#include <sys/param.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <netinet/tcp.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -101,7 +101,7 @@ typedef struct _ncb {
 
             /* MSS of tcp link */
             int mss;
-        };
+        } tcp;
         
         /* UDP 独占属性 */
         struct {
@@ -110,8 +110,8 @@ typedef struct _ncb {
             
             /* 适用于 IP 组播的 mreq 对象 */
             struct ip_mreq *mreq;
-        };
-    };
+        } udp;
+    } u;
 } ncb_t;
 
 /* 布尔状态表达， 非0则IO阻止， 否则 IO 可行 */
@@ -124,7 +124,7 @@ typedef struct _ncb {
 /* 对这个 NCB 取消 IO 阻塞 */
 #define ncb_cancel_wblock(ncb) posix__atomic_xchange(&ncb->write_io_blocked, posix__false);
 
-#define ncb_lb_marked(ncb) ((ncb) ? ((NULL != ncb->lbdata) && (ncb->lbsize > 0)) : (posix__false))
+#define ncb_lb_marked(ncb) ((ncb) ? ((NULL != ncb->u.tcp.lbdata) && (ncb->u.tcp.lbsize > 0)) : (posix__false))
 
 extern
 int ncb_init(ncb_t *ncb);

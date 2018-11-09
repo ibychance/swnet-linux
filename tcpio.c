@@ -93,9 +93,9 @@ int __tcp_syn(ncb_t *ncb_server) {
         }
 
         /* clear the protocol head */
-        ncb_client->rx_parse_offset = 0;
-        ncb_client->rx_buffer = (char *) malloc(TCP_BUFFER_SIZE);
-        if (!ncb_client->rx_buffer) {
+        ncb_client->u.tcp.rx_parse_offset = 0;
+        ncb_client->u.tcp.rx_buffer = (char *) malloc(TCP_BUFFER_SIZE);
+        if (!ncb_client->u.tcp.rx_buffer) {
             break;
         }
 
@@ -136,14 +136,14 @@ int __tcp_rx(ncb_t *ncb) {
     int cpcb;
     int errcode;
 
-    recvcb = recv(ncb->sockfd, ncb->rx_buffer, TCP_BUFFER_SIZE, 0);
+    recvcb = recv(ncb->sockfd, ncb->u.tcp.rx_buffer, TCP_BUFFER_SIZE, 0);
     errcode = errno;
     if (recvcb > 0) {
         cpcb = recvcb;
         overplus = recvcb;
         offset = 0;
         do {
-            overplus = tcp_parse_pkt(ncb, ncb->rx_buffer + offset, cpcb);
+            overplus = tcp_parse_pkt(ncb, ncb->u.tcp.rx_buffer + offset, cpcb);
             if (overplus < 0) {
                 /* fatal to parse low level protocol, 
                     close the object immediately */

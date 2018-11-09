@@ -123,9 +123,9 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
         }
 
         /* zeroization protocol head*/
-        ncb->rx_parse_offset = 0;
-        ncb->rx_buffer = (char *) malloc(TCP_BUFFER_SIZE);
-        if (!ncb->rx_buffer) {
+        ncb->u.tcp.rx_parse_offset = 0;
+        ncb->u.tcp.rx_buffer = (char *) malloc(TCP_BUFFER_SIZE);
+        if (!ncb->u.tcp.rx_buffer) {
             break;
         }
 
@@ -156,9 +156,9 @@ int tcp_settst(HTCPLINK lnk, const tst_t *tst) {
         retval = RE_ERROR(EINVAL);
     } else {
         /* allows change the tst info that is already existed.  */
-        ncb->template.cb_ = tst->cb_;
-        ncb->template.builder_ = tst->builder_;
-        ncb->template.parser_ = tst->parser_;
+        ncb->u.tcp.template.cb_ = tst->cb_;
+        ncb->u.tcp.template.builder_ = tst->builder_;
+        ncb->u.tcp.template.parser_ = tst->parser_;
         retval = 0;
     }
 
@@ -178,9 +178,9 @@ int tcp_gettst(HTCPLINK lnk, tst_t *tst) {
         return -1;
     }
 
-    tst->cb_ = ncb->template.cb_;
-    tst->builder_ = ncb->template.builder_;
-    tst->parser_ = ncb->template.parser_;
+    tst->cb_ = ncb->u.tcp.template.cb_;
+    tst->builder_ = ncb->u.tcp.template.builder_;
+    tst->parser_ = ncb->u.tcp.template.parser_;
     objdefr((objhld_t) lnk);
     return 0;
 }
@@ -525,7 +525,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
         }
 
         /* if template.builder is specified then use it, otherwise, indicate the packet size by input parameter @cb */
-        if (!(*ncb->template.builder_)) {
+        if (!(*ncb->u.tcp.template.builder_)) {
             packet_length = cb;
             buffer = (unsigned char *) malloc(packet_length);
             if (!buffer) {
@@ -537,25 +537,25 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
                 break;
             }
         } else {
-            packet_length = cb + ncb->template.cb_;
+            packet_length = cb + ncb->u.tcp.template.cb_;
             buffer = (unsigned char *) malloc(packet_length);
             if (!buffer) {
                 break;
             }
 
             /* build protocol head */
-            if ((*ncb->template.builder_)(buffer, cb) < 0) {
+            if ((*ncb->u.tcp.template.builder_)(buffer, cb) < 0) {
                 break;
             }
 
             /* fill user data seg */
-            if ((*amaker)(buffer + ncb->template.cb_, cb, par) < 0){
+            if ((*amaker)(buffer + ncb->u.tcp.template.cb_, cb, par) < 0){
                 break;
             }
         }
 
         /* push message to the tail of the queue, awaken write thread */
-        if (fque_push(&ncb->tx_fifo, buffer, cb + ncb->template.cb_, NULL) < 0) {
+        if (fque_push(&ncb->tx_fifo, buffer, cb + ncb->u.tcp.template.cb_, NULL) < 0) {
             break;
         }
         post_write_task(hld, kTaskType_TxTest);
@@ -650,8 +650,8 @@ int tcp_setmss(ncb_t *ncb, int mss) {
 
 int tcp_getmss(ncb_t *ncb) {
     if (ncb) {
-        socklen_t lenmss = sizeof (ncb->mss);
-        return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_MAXSEG, (void *__restrict) & ncb->mss, &lenmss);
+        socklen_t lenmss = sizeof (ncb->u.tcp.mss);
+        return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_MAXSEG, (void *__restrict) & ncb->u.tcp.mss, &lenmss);
     }
     return RE_ERROR(EINVAL);
 }

@@ -48,9 +48,9 @@ void ncb_uninit(objhld_t ignore, void *p) {
         free(ncb->packet);
         ncb->packet = NULL;
     }
-    if (ncb->rx_buffer) {
-        free(ncb->rx_buffer);
-        ncb->rx_buffer = NULL;
+    if (ncb->u.tcp.rx_buffer) {
+        free(ncb->u.tcp.rx_buffer);
+        ncb->u.tcp.rx_buffer = NULL;
     }
 
     /* free context of user data */
@@ -73,7 +73,7 @@ void ncb_uninit(objhld_t ignore, void *p) {
 }
 
 int ncb_set_rcvtimeo(ncb_t *ncb, struct timeval *timeo){
-    if (ncb && timeo > 0){
+    if (ncb && timeo){
         return setsockopt(ncb->sockfd, SOL_SOCKET, SO_RCVTIMEO, (const void *)timeo, sizeof(struct timeval));
     }
     return RE_ERROR(EINVAL);
@@ -88,7 +88,7 @@ int ncb_get_rcvtimeo(ncb_t *ncb){
 }
 
 int ncb_set_sndtimeo(ncb_t *ncb, struct timeval *timeo){
-    if (ncb && timeo > 0){
+    if (ncb && timeo) {
         return setsockopt(ncb->sockfd, SOL_SOCKET, SO_SNDTIMEO, (const void *)timeo, sizeof(struct timeval));
     }
     return RE_ERROR(EINVAL);

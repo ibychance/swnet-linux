@@ -218,7 +218,7 @@ void nis_call_ecr(const char *fmt,...) {
     }
     logstr[retval] = 0;
 
-    // double check the callback address
+    /* double check the callback address */
     old = __sync_lock_test_and_set(&ecr, current_ecr);
     if (ecr && !old) {
         ecr(logstr, NULL, 0);
