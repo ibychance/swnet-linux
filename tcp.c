@@ -549,7 +549,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
             }
 
             /* fill user data seg */
-            if ((*amaker)(buffer + ncb->u.tcp.template.cb_, cb, par) < 0){
+            if ((*amaker)(buffer + ncb->u.tcp.template.cb_, cb, par) < 0) {
                 break;
             }
         }

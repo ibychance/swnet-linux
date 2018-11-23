@@ -32,7 +32,7 @@ SRCS+=../libnsp/com/avltree.c \
 OBJS=$(patsubst %.$(SRC_EXT),%.o,$(SRCS))
 
 CFLAGS+=-I ../libnsp/icom -fPIC -Wall -std=gnu99 
-LDFLAGS=-shared
+LDFLAGS=-shared -lcrypt
 
 ifeq ($(build),debug)
 	CFLAGS+=-g
