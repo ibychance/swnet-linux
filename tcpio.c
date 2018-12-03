@@ -156,6 +156,7 @@ int __tcp_rx(ncb_t *ncb) {
 
     /* a stream socket peer has performed an orderly shutdown */
     if (0 == recvcb) {
+        nis_call_ecr("nshost.tcpio.rx:link %d has performed an orderly shutdown", ncb->hld);
         return -1;
     }
 
@@ -172,6 +173,7 @@ int __tcp_rx(ncb_t *ncb) {
             return EAGAIN;
         }
 
+        nis_call_ecr("nshost.tcpio.rx:link %d occur error %d", ncb->hld, errcode);
         return -1;
     }
     return 0;
@@ -244,8 +246,8 @@ int tcp_tx(ncb_t *ncb) {
         }
     }
 
-    /* try to write all package into system kernel send-buffer */
-    while (NULL != (node = fque_get(&ncb->tx_fifo))) {
+    /* try to write front package into system kernel send-buffer */
+    if (NULL != (node = fque_get(&ncb->tx_fifo))) {
         retval = __tcp_tx_single_packet(ncb->sockfd, node);
         if (retval < 0) {
             return retval;

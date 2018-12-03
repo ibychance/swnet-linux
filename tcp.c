@@ -2,6 +2,7 @@
 #include <time.h>
 #include <sys/select.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 #include "tcp.h"
 #include "mxx.h"
@@ -94,7 +95,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
         return -1;
     }
 
-    hld = objallo(sizeof ( ncb_t), NULL, &ncb_uninit, NULL, 0);
+    hld = objallo(sizeof(ncb_t), NULL, &ncb_uninit, NULL, 0);
     if (hld < 0) {
         close(fd);
         return -1;
@@ -360,7 +361,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         return -1;
     }
 
-    ncb = (ncb_t *) objrefr((objhld_t) lnk);
+    ncb = (ncb_t *) objrefr(lnk);
     if (!ncb) {
         return -1;
     }

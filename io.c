@@ -42,13 +42,13 @@ struct epoll_object_manager {
 
 static struct epoll_object_manager epmgr;
 
-static void __iorun(struct epoll_event *evts, int sigcnt){
+static void __iorun(struct epoll_event *evts, int sigcnt) {
     int i;
     ncb_t *ncb;
     objhld_t hld;
 
     for (i = 0; i < sigcnt; i++) {
-        hld = evts[i].data.fd;
+        hld = (objhld_t)evts[i].data.u64;
 
         /* disconnect/error happend */
         if ((evts[i].events & EPOLLRDHUP) || (evts[i].events & EPOLLERR) ) {
@@ -245,7 +245,7 @@ int ioatth(void *ncbptr, int mask) {
     }
     
     memset(&e_evt, 0, sizeof(e_evt));
-    e_evt.data.fd = ncb->hld;
+    e_evt.data.u64 = (uint64_t)ncb->hld;
     e_evt.events = (EPOLLET | EPOLLRDHUP | EPOLLHUP | EPOLLERR); 
 	e_evt.events |= mask;
 	
@@ -272,7 +272,7 @@ int iomod(void *ncbptr, int mask ) {
         return RE_ERROR(EINVAL);
     }
 
-    e_evt.data.fd = ncb->hld;
+    e_evt.data.u64 = (uint64_t)ncb->hld;
     e_evt.events = (EPOLLET | EPOLLRDHUP | EPOLLHUP | EPOLLERR); 
 	e_evt.events |= mask;
 	

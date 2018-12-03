@@ -94,7 +94,7 @@ static int __run_task(struct task_node *task) {
     }
     
     /* 当前状态为IO隔离，则不能响应任何的 TxTest 任务 */
-    if (ncb_if_wblocked(ncb)){
+    if (ncb_if_wblocked(ncb)) {
         if (task->type == kTaskType_TxTest) {
             objdefr(hld);
             return EAGAIN;
@@ -110,18 +110,17 @@ static int __run_task(struct task_node *task) {
     if (!ncb->ncb_write) {
         return -1;
     }
-    retval = ncb->ncb_write(ncb);
     
-    /* 发生无可挽救的系统错误, 该链接将被关闭 */
+    retval = ncb->ncb_write(ncb);
     if(retval < 0){
+        /* fatal error cause by syscall, close this link */
         nis_call_ecr("nshost.wpool.task:write fr:%d, link %d will be close", retval, ncb->hld);
         objclos(ncb->hld);
     }
     
-    /* 本次节点顺利写入内核  */
+    /* this node has been written to system kernel  */
     else if (0 == retval) {
-        /* 如果是在IO隔离期间发生的完成写入，则取消IO隔离，同时切换EPOLL关注读出缓冲区
-         */
+        /* if complete write occurs during IO-isolation, the IO-isolation is cancelled and EPOLL is switched to focus on only read/EPOLLIN */
         if (task->type == kTaskType_TxOrder && ncb_if_wblocked(ncb) ) {
             ncb_cancel_wblock(ncb);
             iomod(ncb, EPOLLIN);
@@ -131,13 +130,15 @@ static int __run_task(struct task_node *task) {
     /* 
      * 发生 EAGAIN， 并且已经设置了IO隔离，因为写操作对象总是在同一个线程上下文进行，因此不存在线程安全问题
      * 设置IO隔离， 同时将EPOLL设置为关注写入缓冲区
+     * 被revert的数据，将通过EPOLLOUT的事件触发来获得写入任务
      */
-    else if (EAGAIN == retval ){
+    else if (EAGAIN == retval ) {
+        nis_call_ecr("nshost.wpool.task:link %d mark to write blocked.", ncb->hld);
         ncb_mark_wblocked(ncb);
         iomod(ncb, EPOLLIN | EPOLLOUT);
     }
     
-    /* 没有任何数据需要写入， 本轮轮空 */
+    /* nothing have been written, nop */
     else {
         ;
     }
@@ -160,8 +161,8 @@ static void *__run(void *p) {
             break;
         }
 
+        /* reset wait object to block status immediately when the wait object timeout */
         if ( 0 == retval ) {
-            /* reset wait object to block status immediately */
             posix__block_waitable_handle(&thread->task_signal);
         }
 
@@ -177,8 +178,6 @@ static void *__run(void *p) {
     pthread_exit((void *) 0);
     return NULL;
 }
-
-
 
 int __write_pool_init() {
     int i;
