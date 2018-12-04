@@ -248,7 +248,7 @@ int __udp_tx_single_packet(ncb_t *ncb, const unsigned char *data, int cb, const 
                 continue;
             }
             
-            nis_call_ecr("nshost.udp.__udp_tx: link %d syscall error on sendto, error code:%d", ncb->hld, errno);
+            nis_call_ecr("nshost.udp.__udp_tx: link %lld syscall error on sendto, error code:%d", ncb->hld, errno);
             return RE_ERROR(errno);
         }
 

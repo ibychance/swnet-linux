@@ -18,7 +18,7 @@ int __tcp_syn(ncb_t *ncb_server) {
         it must be listen states when accept syscall */
     if (tcp_save_info(ncb_server, &ktcp) >= 0) {
         if (ktcp.tcpi_state != TCP_LISTEN) {
-            nis_call_ecr("nshost.tcpio.__tcp_syn:state illegal,link:%d, kernel states %s.",
+            nis_call_ecr("nshost.tcpio.__tcp_syn:state illegal,link:%lld, kernel states %s.",
                 ncb_server->hld, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
             return 0;
         }
@@ -49,7 +49,7 @@ int __tcp_syn(ncb_t *ncb_server) {
             EMFILE(24)  means there are too many file-descriptor opened/check user's own open file limit by ulimit -n(1024 by default)
             EBADFD(77)  the server sock fd has been closed before accept syscall but after epoll notify
             */
-        nis_call_ecr("nshost.tcpio.__tcp_syn:accept syscall fatal with err:%d, link:%d", errcode, ncb_server->hld);
+        nis_call_ecr("nshost.tcpio.__tcp_syn:accept syscall fatal with err:%d, link:%lld", errcode, ncb_server->hld);
         return -1;
     }
 
@@ -156,7 +156,7 @@ int __tcp_rx(ncb_t *ncb) {
 
     /* a stream socket peer has performed an orderly shutdown */
     if (0 == recvcb) {
-        nis_call_ecr("nshost.tcpio.rx:link %d has performed an orderly shutdown", ncb->hld);
+        nis_call_ecr("nshost.tcpio.rx:link %lld has performed an orderly shutdown", ncb->hld);
         return -1;
     }
 
@@ -173,7 +173,7 @@ int __tcp_rx(ncb_t *ncb) {
             return EAGAIN;
         }
 
-        nis_call_ecr("nshost.tcpio.rx:link %d occur error %d", ncb->hld, errcode);
+        nis_call_ecr("nshost.tcpio.rx:link %lld occur error %d", ncb->hld, errcode);
         return -1;
     }
     return 0;
@@ -241,7 +241,7 @@ int tcp_tx(ncb_t *ncb) {
     /* get the socket status of tcp_info to check the socket tcp statues */
     if (tcp_save_info(ncb, &ktcp) >= 0) {
         if (ktcp.tcpi_state != TCP_ESTABLISHED) {
-            nis_call_ecr("nshost.tcpio.tx:state illegal,link:%d, kernel states %s.", ncb->hld, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+            nis_call_ecr("nshost.tcpio.tx:state illegal,link:%lld, kernel states %s.", ncb->hld, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
             return -1;
         }
     }

@@ -52,7 +52,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt) {
 
         /* disconnect/error happend */
         if ((evts[i].events & EPOLLRDHUP) || (evts[i].events & EPOLLERR) ) {
-            nis_call_ecr("nshost.io.__iorun: close event: %d, associated link: %d", evts[i].events, hld);
+            nis_call_ecr("nshost.io.__iorun: close event: %d, associated link: %lld", evts[i].events, hld);
 	        objclos(hld);
             continue;
         }
@@ -89,7 +89,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt) {
         if (evts[i].events & EPOLLIN) {
             if (ncb->ncb_read) {
                 if (ncb->ncb_read(ncb) < 0) {
-                    nis_call_ecr("nshost.io.__iorun:link %d ncb read function return fatal error, this will cause link close.", hld);
+                    nis_call_ecr("nshost.io.__iorun:link %lld ncb read function return fatal error, this will cause link close.", hld);
                     objclos(ncb->hld);
                 }
             }else{

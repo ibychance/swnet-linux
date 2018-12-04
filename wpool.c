@@ -114,7 +114,7 @@ static int __run_task(struct task_node *task) {
     retval = ncb->ncb_write(ncb);
     if(retval < 0){
         /* fatal error cause by syscall, close this link */
-        nis_call_ecr("nshost.wpool.task:write fr:%d, link %d will be close", retval, ncb->hld);
+        nis_call_ecr("nshost.wpool.task:write fr:%d, link %lld will be close", retval, ncb->hld);
         objclos(ncb->hld);
     }
     
@@ -133,7 +133,7 @@ static int __run_task(struct task_node *task) {
      * 被revert的数据，将通过EPOLLOUT的事件触发来获得写入任务
      */
     else if (EAGAIN == retval ) {
-        nis_call_ecr("nshost.wpool.task:link %d mark to write blocked.", ncb->hld);
+        nis_call_ecr("nshost.wpool.task:link %lld mark to write blocked.", ncb->hld);
         ncb_mark_wblocked(ncb);
         iomod(ncb, EPOLLIN | EPOLLOUT);
     }

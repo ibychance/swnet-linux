@@ -30,7 +30,7 @@ int __udp_rx(ncb_t *ncb) {
     }
     
     if (0 == recvcb) {
-        nis_call_ecr("nshost.udpio.__udp_rx: link %d zero bytes return by syscall recvfrom", ncb->hld);
+        nis_call_ecr("nshost.udpio.__udp_rx: link %lld zero bytes return by syscall recvfrom", ncb->hld);
         return -1;
     }
     
@@ -45,7 +45,7 @@ int __udp_rx(ncb_t *ncb) {
             return 0;
         }
 
-        nis_call_ecr("nshost.udpio.__udp_rx: link %d syscall error on recvfrom, error code:%d", ncb->hld, errcode);
+        nis_call_ecr("nshost.udpio.__udp_rx: link %lld syscall error on recvfrom, error code:%d", ncb->hld, errcode);
         return -1;
     }
     
