@@ -156,6 +156,7 @@ int __tcp_rx(ncb_t *ncb) {
 
     /* a stream socket peer has performed an orderly shutdown */
     if (0 == recvcb) {
+        nis_call_ecr("nshost.tcpio.__tcp_rx: link %lld zero bytes return by syscall recv", ncb->hld);
         return -1;
     }
 
@@ -172,6 +173,7 @@ int __tcp_rx(ncb_t *ncb) {
             return EAGAIN;
         }
 
+        nis_call_ecr("nshost.tcpio.__tcp_rx: link %lld syscall recvfrom error, code:%d", ncb->hld, errcode);
         return -1;
     }
     return 0;
@@ -188,15 +190,16 @@ int tcp_rx(ncb_t *ncb) {
 }
 
 static
-int __tcp_tx_single_packet(int sockfd, struct tx_node *node) {
+int __tcp_tx(ncb_t *ncb, struct tx_node *node) {
     int wcb;
     int errcode;
 
     while (node->offset < node->wcb) {
-        wcb = send(sockfd, node->data + node->offset, node->wcb - node->offset, 0);
+        wcb = send(ncb->sockfd, node->data + node->offset, node->wcb - node->offset, 0);
 
         /* fatal-error/connection-terminated  */
         if (0 == wcb) {
+            nis_call_ecr("nshost.tcpio.__tcp_tx: link %d zero bytes return by syscall send", ncb->hld);
             return -1;
         }
 
@@ -246,7 +249,7 @@ int tcp_tx(ncb_t *ncb) {
 
     /* try to write all package into system kernel send-buffer */
     while (NULL != (node = fque_get(&ncb->tx_fifo))) {
-        retval = __tcp_tx_single_packet(ncb->sockfd, node);
+        retval = __tcp_tx(ncb, node);
         if (retval < 0) {
             return retval;
         } else {
@@ -255,7 +258,7 @@ int tcp_tx(ncb_t *ncb) {
                 return EAGAIN;
             }
         }
-        PACKET_NODE_FREE(node);
+        fque_free_node(node);
     }
 
     return 0;

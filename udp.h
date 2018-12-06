@@ -2,6 +2,7 @@
 #define UDP_H_20170121
 
 #include "ncb.h"
+#include "fque.h"
 
 #define UDP_MAXIMUM_SENDER_CACHED_CNT	( 44 ) /* 以每个包 1460 计, 最多可以接受 64KB 的发送堆积 */
 
@@ -13,8 +14,8 @@
 #define UDP_BUFFER_SIZE          (0xFFFF) 
 #endif
 
-#if !defined UDP_MAXIMUM_USER_DATA_SIZE
-#define UDP_MAXIMUM_USER_DATA_SIZE	(1472)		/* MTU - UDP_P_SIZE - IP_P_SIZE */
+#if !defined MAX_UDP_SIZE
+#define MAX_UDP_SIZE		(MTU - (ETHERNET_P_SIZE + IP_P_SIZE + UDP_P_SIZE))
 #endif
 
 /* udp io */

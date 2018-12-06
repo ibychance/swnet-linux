@@ -133,6 +133,7 @@ static int __run_task(struct task_node *task) {
      * 设置IO隔离， 同时将EPOLL设置为关注写入缓冲区
      */
     else if (EAGAIN == retval ){
+        nis_call_ecr("nshost.wpool.task:link %d mark to write blocked.", ncb->hld);
         ncb_mark_wblocked(ncb);
         iomod(ncb, EPOLLIN | EPOLLOUT);
     }

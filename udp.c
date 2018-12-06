@@ -3,13 +3,6 @@
 #include "udp.h"
 #include "mxx.h"
 
-#if !defined MAX_UDP_SIZE
-#define MAX_UDP_SIZE		(MTU - (ETHERNET_P_SIZE + IP_P_SIZE + UDP_P_SIZE))
-#endif
-
-extern
-void (*__notify_nshost_dbglog)(const char *logstr);
-
 static int __udp_update_opts(ncb_t *ncb) {
     static const int RECV_BUFFER_SIZE = 0xFFFF;
     static const int SEND_BUFFER_SIZE = 0xFFFF;
@@ -153,6 +146,7 @@ void udp_destroy(HUDPLINK lnk) {
     /* it should be the last reference operation of this object no matter how many ref-count now. */
     ncb = objreff((objhld_t) lnk);
     if (ncb) {
+        nis_call_ecr("nshost.udp.destroy: link %d order to destroy", ncb->hld);
         ioclose(ncb);
         objdefr((objhld_t) lnk);
     }
@@ -174,7 +168,7 @@ int udp_sendto(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, 
     objhld_t hld = (objhld_t) lnk;
     unsigned char *buffer;
 
-    if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > UDP_MAXIMUM_USER_DATA_SIZE) || udp_init() < 0) {
+    if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > MAX_UDP_SIZE) || udp_init() < 0) {
         return RE_ERROR(EINVAL);
     }
 
@@ -229,7 +223,7 @@ int udp_sendto(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, 
 }
 
 static
-int __udp_tx_single_packet(ncb_t *ncb, const unsigned char *data, int cb, const char* r_ipstr, uint16_t r_port)  {
+int __udp_tx(ncb_t *ncb, const unsigned char *data, int cb, const char* r_ipstr, uint16_t r_port)  {
     int wcb;
     int offset;
     struct sockaddr_in addr;
@@ -243,9 +237,13 @@ int __udp_tx_single_packet(ncb_t *ncb, const unsigned char *data, int cb, const 
     while (offset < cb) {
         wcb = sendto(ncb->sockfd, data + offset, cb - offset, 0, (__CONST_SOCKADDR_ARG)&addr, sizeof(struct sockaddr) );
         if (wcb <= 0) {
-            /* interrupt by other operation, continue */
             if (EINTR == errno) {
                 continue;
+            }
+
+            if (EAGAIN == errno) {
+                nis_call_ecr("nshost.udp.__udp_tx: link %d requested operation sendto would block.kernel memory overload", ncb->hld);
+                return EAGAIN;
             }
             
             nis_call_ecr("nshost.udp.__udp_tx: link %d syscall error on sendto, error code:%d", ncb->hld, errno);
@@ -264,7 +262,7 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, c
     objhld_t hld = (objhld_t) lnk;
     unsigned char *buffer;
 
-    if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > UDP_MAXIMUM_USER_DATA_SIZE)) {
+    if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > MAX_UDP_SIZE)) {
         return RE_ERROR(EINVAL);
     }
 
@@ -279,7 +277,6 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, c
     do {
         buffer = (unsigned char *) malloc(cb);
         if (!buffer) {
-            retval = RE_ERROR(ENOMEM);
             break;
         }
 
@@ -293,12 +290,13 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, c
             }
         }
 
-        retval = __udp_tx_single_packet(ncb, buffer, cb, r_ipstr, r_port);
+        retval = __udp_tx(ncb, buffer, cb, r_ipstr, r_port);
     } while (0);
 
     if (buffer) {
         free(buffer);
     }
+    
     objdefr(hld);
     return retval;
 }

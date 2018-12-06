@@ -15,7 +15,7 @@ int __udp_rx(ncb_t *ncb) {
     int errcode;
 
     addrlen = sizeof (struct sockaddr_in);
-    recvcb = recvfrom(ncb->sockfd, ncb->packet, UDP_BUFFER_SIZE, 0, (struct sockaddr *) &remote, &addrlen);
+    recvcb = recvfrom(ncb->sockfd, ncb->packet, MAX_UDP_SIZE, 0, (struct sockaddr *) &remote, &addrlen);
     errcode = errno;
     if (recvcb > 0) {
         c_event.Ln.Udp.Link = ncb->hld;
@@ -45,7 +45,7 @@ int __udp_rx(ncb_t *ncb) {
             return 0;
         }
 
-        nis_call_ecr("nshost.udpio.__udp_rx: link %d syscall error on recvfrom, error code:%d", ncb->hld, errcode);
+        nis_call_ecr("nshost.udpio.__udp_rx: link %d syscall recvfrom error, code:%d", ncb->hld, errcode);
         return -1;
     }
     
@@ -63,18 +63,19 @@ int udp_rx(ncb_t *ncb) {
 }
 
 static
-int __udp_tx_single_packet(int sockfd, struct tx_node *packet){
+int __udp_tx(ncb_t *ncb, struct tx_node *packet) {
     int wcb;
     int errcode;
     socklen_t len = sizeof(struct sockaddr);
     
     /* 仅对头节点执行操作 */
     while (packet->offset < packet->wcb) {
-        wcb = sendto(sockfd, packet->data + packet->offset, packet->wcb - packet->offset, 0,
+        wcb = sendto(ncb->sockfd, packet->data + packet->offset, packet->wcb - packet->offset, 0,
                 (__CONST_SOCKADDR_ARG)&packet->udp_target, len );
 
         /* 对端断开， 或， 其他不可容忍的错误 */
         if (0 == wcb) {
+            nis_call_ecr("nshost.udpio.__udp_tx: link %d zero bytes return by syscall sendto", ncb->hld);
             return -1;
         }
 
@@ -85,6 +86,7 @@ int __udp_tx_single_packet(int sockfd, struct tx_node *packet){
              * 此时需要处理队列头节点， 将未处理完的节点还原回队列头
              * oneshot 方式强制关注写入操作完成点 */
             if (EAGAIN == errcode) {
+                nis_call_ecr("nshost.udpio.__udp_tx: link %d requested operation sendto would block.kernel memory overload", ncb->hld);
                 return EAGAIN;
             }
 
@@ -94,6 +96,7 @@ int __udp_tx_single_packet(int sockfd, struct tx_node *packet){
             }
             
              /* 发生其他无法容忍且无法处理的错误, 这个错误返回会导致断开链接 */
+            nis_call_ecr("nshost.udpio.__udp_tx: link %d syscall sendto error, code:%d", ncb->hld, errcode);
             return RE_ERROR(errcode);
         }
 
@@ -110,10 +113,10 @@ int udp_tx(ncb_t *ncb) {
     if (!ncb) {
         return -1;
     }
-    
+
     /* 若无特殊情况， 需要把所有发送缓冲包全部写入内核 */
     while (NULL != (packet = fque_get(&ncb->tx_fifo))) {
-        retval = __udp_tx_single_packet(ncb->sockfd, packet);
+        retval = __udp_tx(ncb, packet);
         if (retval < 0) {
             return retval;
         }  else {
@@ -123,7 +126,7 @@ int udp_tx(ncb_t *ncb) {
             }
         }
 
-        PACKET_NODE_FREE(packet);
+        fque_free_node(packet);
     }
     
     return 0;

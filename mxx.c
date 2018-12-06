@@ -203,7 +203,7 @@ nis_event_callback_t nis_checr(const nis_event_callback_t ecr) {
 void nis_call_ecr(const char *fmt,...) {
     nis_event_callback_t ecr = NULL, old;
     va_list ap;
-    char logstr[128]; 
+    char logstr[1280]; 
     int retval;
 
     if (!current_ecr) {

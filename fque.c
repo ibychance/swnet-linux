@@ -29,6 +29,15 @@ void fque_uninit(struct tx_fifo *fque) {
     }
 }
 
+void fque_free_node(struct tx_node *node) {
+    if (node) {
+        if ( node->data ) {
+            free(node->data);
+        }
+        free(node);
+    }
+}
+
 int fque_priority_push(struct tx_fifo *fque, unsigned char *data, int cb, int offset, const struct sockaddr_in *target) {
     struct tx_node *node;
     int retval;

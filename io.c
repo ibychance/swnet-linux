@@ -125,7 +125,7 @@ static void *__epoll_proc(void *argv) {
     int sigcnt;
     int errcode;
     struct epoll_object *epo;
-    static const int EP_TIMEDOUT = 500;
+    static const int EP_TIMEDOUT = -1;
 
     epo = (struct epoll_object *)argv;
     nis_call_ecr("nshost.io.epoll: epfd:%u LWP:%u startup.", epo->epfd, posix__gettid());

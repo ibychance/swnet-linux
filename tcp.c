@@ -199,6 +199,7 @@ void tcp_destroy(HTCPLINK lnk) {
     /* it should be the last reference operation of this object, no matter how many ref-count now. */
     ncb = objreff((objhld_t) lnk);
     if (ncb) {
+        nis_call_ecr("nshost.tcp.destroy: link %d order to destroy", ncb->hld);
         ioclose(ncb);
         objdefr((objhld_t) lnk);
     }

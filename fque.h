@@ -18,9 +18,6 @@ struct tx_node {
     struct list_head link; /* 勾链 */
 };
 
-#define PACKET_NODE_FREE(node)  \
-            do { if (!node) break;if ( node->data ) free(node->data);free(node); } while (0)
-
 struct tx_fifo {
     struct list_head head;
     int size;
@@ -31,6 +28,8 @@ extern
 void fque_init(struct tx_fifo *fque);
 extern
 void fque_uninit(struct tx_fifo *fque);
+extern
+void fque_free_node(struct tx_node *node);
 
 extern
 int fque_priority_push(struct tx_fifo *fque, unsigned char *data, int cb, int offset, const struct sockaddr_in *target);
