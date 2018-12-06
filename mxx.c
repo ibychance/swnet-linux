@@ -3,23 +3,16 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
+#include "mxx.h"
 
 #include <string.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <netdb.h>
-#include <stddef.h>
 #include <ctype.h>
 #include <stdarg.h>
-
-#include "mxx.h"
-#include "ncb.h"
-#include "object.h"
-
 #include <arpa/inet.h> 
 
-#include "posix_atomic.h"
-#include "posix_string.h"
+#include "ncb.h"
+#include "object.h"
 
 int nis_setctx(HLNK lnk, const void * user_context, int user_context_size) {
     ncb_t *ncb;
@@ -129,11 +122,11 @@ int nis_getver(swnet_version_t *version) {
     if (!version) {
         return -1;
     }
-    
-    version->procedure_ = 0;
-    version->main_ = 1;
-    version->sub_ = 1;
-    version->leaf_ = 13;
+
+    version->major_ = 9;
+    version->minor_ = 7;
+    version->revision_ = 1;
+    nis_call_ecr("nshost version %d.%d.%d", version->major_, version->minor_, version->revision_);
     return 0;
 }
 
@@ -201,9 +194,10 @@ nis_event_callback_t nis_checr(const nis_event_callback_t ecr) {
 }
 
 void nis_call_ecr(const char *fmt,...) {
-    nis_event_callback_t ecr = NULL, old;
+    nis_event_callback_t ecr = NULL;
+    nis_event_callback_t old;
     va_list ap;
-    char logstr[128]; 
+    char logstr[1280]; 
     int retval;
 
     if (!current_ecr) {
@@ -211,7 +205,7 @@ void nis_call_ecr(const char *fmt,...) {
     }
 
     va_start(ap, fmt);
-    retval = posix__vsprintf(logstr, cchof(logstr), fmt, ap);
+    retval = vsnprintf(logstr, cchof(logstr) - 1, fmt, ap);
     va_end(ap);
     if (retval <= 0) {
         return;

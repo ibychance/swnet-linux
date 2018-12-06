@@ -200,6 +200,7 @@ void tcp_destroy(HTCPLINK lnk) {
     /* it should be the last reference operation of this object, no matter how many ref-count now. */
     ncb = objreff((objhld_t) lnk);
     if (ncb) {
+        nis_call_ecr("nshost.tcp.destroy: link %lld order to destroy", ncb->hld);
         ioclose(ncb);
         objdefr((objhld_t) lnk);
     }
@@ -319,7 +320,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
 
         if (retval < 0) {
             /* if this socket is already connected, or it is in listening states, sys-call failed with error EISCONN  */
-            nis_call_ecr("nshost.tcp.connect:fatal syscall, link:%lld, %s:%d, err=%d", lnk, r_ipstr, r_port, e);
+            nis_call_ecr("nshost.tcp.connect:fatal syscall, link:%lld, %s:%u, err=%d", lnk, r_ipstr, r_port, e);
             break;
         }
 

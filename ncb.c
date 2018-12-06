@@ -1,13 +1,5 @@
 #include "ncb.h"
-#include "nis.h"
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdarg.h>
-
-#include "posix_thread.h"
-#include "posix_string.h"
+#include "mxx.h"
 
 int ncb_init(ncb_t *ncb) {
 
@@ -70,6 +62,7 @@ void ncb_uninit(objhld_t ignore, void *p) {
 
     /* set callback function to ineffectiveness */
     ncb->nis_callback = NULL;
+    nis_call_ecr("nshost.ncb.uninit: object %lld finalization freed",ncb->hld);
 }
 
 int ncb_set_rcvtimeo(ncb_t *ncb, struct timeval *timeo){
