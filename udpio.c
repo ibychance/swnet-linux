@@ -101,7 +101,7 @@ int __udp_tx(ncb_t *ncb, struct tx_node *packet) {
         packet->offset += wcb;
     }
     
-    return 0;
+    return packet->wcb;
 }
 
 int udp_tx(ncb_t *ncb) {
@@ -125,6 +125,7 @@ int udp_tx(ncb_t *ncb) {
         }
 
         fque_free_node(packet);
+        return retval;
     }
     
     return 0;

@@ -18,7 +18,7 @@
 #include "io.h"
 #include "ncb.h"
 #include "object.h"
-#include "worker.h"
+#include "wpool.h"
 #include "clist.h"
 #include "mxx.h"
 

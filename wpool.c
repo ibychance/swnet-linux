@@ -10,7 +10,7 @@
 #include "object.h"
 #include "clist.h"
 #include "ncb.h"
-#include "worker.h"
+#include "wpool.h"
 #include "tcp.h"
 #include "mxx.h"
 
@@ -34,47 +34,51 @@
  * 需要进行的测试项:
  * 1. 发生EAGAIN 后再关注 EPOLL_OUT 事件， 是否能确保事件被抓获
  */
-struct task_node {
-    objhld_t hld;
-    enum task_type type;
-    struct list_head link;
-};
 
-struct write_thread_node {
-    posix__pthread_t    thread;
-    posix__pthread_mutex_t task_lock;
-    posix__waitable_handle_t task_signal;
-    struct list_head task_list; /* struct task_node::link */
+struct wthread {
+    posix__pthread_t thread;
+    posix__pthread_mutex_t mutex;
+    posix__waitable_handle_t signal;
+    struct list_head tasks; /* struct task_node::link */
     int task_list_size;
 };
 
-struct write_pool_manager {
-    struct write_thread_node *write_threads;
-    int write_thread_count;
-    posix__boolean_t    stop;
+struct task_node {
+    objhld_t hld;
+    enum task_type type;
+    struct wthread *thread;
+    struct list_head link;
 };
-static struct write_pool_manager write_pool;
 
-static void __add_task(struct write_thread_node *thread, struct task_node *task) {
-    if (task && thread) {
+struct wpool_manager {
+    struct wthread *write_threads;
+    int wthread_count;
+    int stop;
+};
+static struct wpool_manager __wpool;
+
+static void __add_task(struct task_node *task) {
+    struct wthread *thread;
+    if (task) {
+        thread = task->thread;
         INIT_LIST_HEAD(&task->link);
-        posix__pthread_mutex_lock(&thread->task_lock);
-        list_add_tail(&task->link, &thread->task_list);
+        posix__pthread_mutex_lock(&thread->mutex);
+        list_add_tail(&task->link, &thread->tasks);
         ++thread->task_list_size;
-        posix__pthread_mutex_unlock(&thread->task_lock);
+        posix__pthread_mutex_unlock(&thread->mutex);
     }
 }
 
-static struct task_node *__get_task(struct write_thread_node *thread){
+static struct task_node *__get_task(struct wthread *thread){
     struct task_node *task;
     
-    posix__pthread_mutex_lock(&thread->task_lock);
-    if (NULL != (task = list_first_entry_or_null(&thread->task_list, struct task_node, link))) {
+    posix__pthread_mutex_lock(&thread->mutex);
+    if (NULL != (task = list_first_entry_or_null(&thread->tasks, struct task_node, link))) {
          --thread->task_list_size;
         list_del(&task->link);
         INIT_LIST_HEAD(&task->link);
     }
-    posix__pthread_mutex_unlock(&thread->task_lock);
+    posix__pthread_mutex_unlock(&thread->mutex);
     
     return task;
 }
@@ -83,6 +87,7 @@ static int __run_task(struct task_node *task) {
     objhld_t hld;
     int retval;
     ncb_t *ncb;
+    struct task_node *next;
 
     assert(NULL != task);
     
@@ -93,7 +98,7 @@ static int __run_task(struct task_node *task) {
         return -1;
     }
     
-    /* 当前状态为IO隔离，则不能响应任何的 TxTest 任务 */
+    /* when the status is io blocked, Not responding to any task which type is kTaskType_TxTest */
     if (ncb_if_wblocked(ncb)) {
         if (task->type == kTaskType_TxTest) {
             objdefr(hld);
@@ -102,9 +107,9 @@ static int __run_task(struct task_node *task) {
     }
     
     /*
-     * 代码走到此处，只能有两种情况
-     * 1. 没有发生IO隔离
-     * 2. 发生了IO隔离，但是收到了来自 EPOLL 的 TxOrder, 可以正常响应
+     * There are only two scenarios when the code goes here            
+     * 1. No IO isolation occurred            
+     * 2. IO isolation occurred, but kTaskType_TxOrder from EPOLLOUT was received and could respond normally. 
      */
     assert (ncb->ncb_write);
     if (!ncb->ncb_write) {
@@ -112,35 +117,54 @@ static int __run_task(struct task_node *task) {
     }
     
     retval = ncb->ncb_write(ncb);
+
+    /* fatal error cause by syscall, close this link */
     if(retval < 0){
-        /* fatal error cause by syscall, close this link */
         nis_call_ecr("nshost.wpool.task:write fr:%d, link %lld will be close", retval, ncb->hld);
         objclos(ncb->hld);
     }
     
-    /* this node has been written to system kernel  */
+    /* the queue of pending data node is empty, not any send operations are need.
+        here can be consumed the task where allocated by kTaskType_TxOrder sucessful completed */
     else if (0 == retval) {
-        /* if complete write occurs during IO-isolation, the IO-isolation is cancelled and EPOLL is switched to focus on only read/EPOLLIN */
-        if (task->type == kTaskType_TxOrder && ncb_if_wblocked(ncb) ) {
-            ncb_cancel_wblock(ncb);
-            iomod(ncb, EPOLLIN);
-        }
+        ;
     }
     
     /* 
-     * 发生 EAGAIN， 并且已经设置了IO隔离，因为写操作对象总是在同一个线程上下文进行，因此不存在线程安全问题
-     * 设置IO隔离， 同时将EPOLL设置为关注写入缓冲区
-     * 被revert的数据，将通过EPOLLOUT的事件触发来获得写入任务
+     * if EAGAIN happened, bacause the write operation object always takes place in the same thread context, there is no thread security problem. 
+     * set write IO blocked. this ncb object willbe switch to focus on EPOLLOUT | EPOLLIN
+     * for the data which has been reverted, Write tasks will be obtained through event triggering of EPOLLOUT
      */
     else if (EAGAIN == retval ) {
-        nis_call_ecr("nshost.wpool.task:link %lld mark to write blocked.", ncb->hld);
-        ncb_mark_wblocked(ncb);
-        iomod(ncb, EPOLLIN | EPOLLOUT);
+        if (!ncb_if_wblocked(ncb)) {
+            ncb_mark_wblocked(ncb);
+            iomod(ncb, EPOLLIN | EPOLLOUT);
+            nis_call_ecr("nshost.wpool.task:link %lld mark to write blocked.", ncb->hld);
+        }
     }
     
-    /* nothing have been written, nop */
+    /* @retval bytes have been written to kernel */
     else {
-        ;
+        if (task->type == kTaskType_TxOrder) {
+
+            /* the IO-isolation is cancelled and EPOLL is switched to focus on only read/EPOLLIN */
+            if (ncb_if_wblocked(ncb)) {
+                ncb_cancel_wblock(ncb);
+                iomod(ncb, EPOLLIN);
+                nis_call_ecr("nshost.wpool.task:link %lld write block cancelled.", ncb->hld);
+            }
+            
+            /* if complete write occurs during IO-isolation.
+                Every task completed in this way which task type is kTaskType_TxOrder, it need to automatically trigger the next task check  */
+            next = (struct task_node *)malloc(sizeof(struct task_node));
+            if (next) {
+                next->hld = task->hld;
+                next->type = kTaskType_TxOrder;
+                next->thread = task->thread;
+                INIT_LIST_HEAD(&next->link);
+                __add_task(next);
+            }
+        }
     }
     
     objdefr(hld);
@@ -149,26 +173,26 @@ static int __run_task(struct task_node *task) {
 
 static void *__run(void *p) {
     struct task_node *task;
-    struct write_thread_node *thread;
+    struct wthread *thread;
     int retval;
     
-    thread = (struct write_thread_node *)p;
+    thread = (struct wthread *)p;
     nis_call_ecr("nshost.wpool.init: LWP:%u startup.", posix__gettid());
 
-    while (!write_pool.stop) {
-        retval = posix__waitfor_waitable_handle(&thread->task_signal, 10);
+    while (!__wpool.stop) {
+        retval = posix__waitfor_waitable_handle(&thread->signal, 10);
         if ( retval < 0) {
             break;
         }
 
         /* reset wait object to block status immediately when the wait object timeout */
         if ( 0 == retval ) {
-            posix__block_waitable_handle(&thread->task_signal);
+            posix__block_waitable_handle(&thread->signal);
         }
 
         /* complete all write task when once signal arrived,
             no matter which thread wake up this wait object */
-        while ((NULL != (task = __get_task(thread)) ) && !write_pool.stop) {
+        while ((NULL != (task = __get_task(thread)) ) && !__wpool.stop) {
             __run_task(task);
             free(task);
         }
@@ -179,22 +203,22 @@ static void *__run(void *p) {
     return NULL;
 }
 
-int __write_pool_init() {
+static int __wpool_init() {
     int i;
     
-    write_pool.stop = posix__false;
-    write_pool.write_thread_count = get_nprocs();
-    write_pool.write_threads = (struct write_thread_node *)malloc(sizeof(struct write_thread_node) * write_pool.write_thread_count);
-    if (!write_pool.write_threads) {
-        return RE_ERROR(ENOMEM);
+    __wpool.stop = posix__false;
+    __wpool.wthread_count = get_nprocs();
+    __wpool.write_threads = (struct wthread *)malloc(sizeof(struct wthread) * __wpool.wthread_count);
+    if (!__wpool.write_threads) {
+        return -ENOMEM;
     }
     
-    for (i = 0; i < write_pool.write_thread_count; i++){
-        INIT_LIST_HEAD(&write_pool.write_threads[i].task_list);
-        posix__init_notification_waitable_handle(&write_pool.write_threads[i].task_signal);
-        posix__pthread_mutex_init(&write_pool.write_threads[i].task_lock);
-        write_pool.write_threads[i].task_list_size = 0;
-        posix__pthread_create(&write_pool.write_threads[i].thread, &__run, (void *)&write_pool.write_threads[i]);
+    for (i = 0; i < __wpool.wthread_count; i++){
+        INIT_LIST_HEAD(&__wpool.write_threads[i].tasks);
+        posix__init_notification_waitable_handle(&__wpool.write_threads[i].signal);
+        posix__pthread_mutex_init(&__wpool.write_threads[i].mutex);
+        __wpool.write_threads[i].task_list_size = 0;
+        posix__pthread_create(&__wpool.write_threads[i].thread, &__run, (void *)&__wpool.write_threads[i]);
     }
     
     return 0;
@@ -204,7 +228,7 @@ posix__atomic_initial_declare_variable(__inited__);
 
 int write_pool_init() {
     if (posix__atomic_initial_try(&__inited__)) {
-        if (__write_pool_init() < 0) {
+        if (__wpool_init() < 0) {
             posix__atomic_initial_exception(&__inited__);
         } else {
             posix__atomic_initial_complete(&__inited__);
@@ -223,30 +247,29 @@ void write_pool_uninit(){
         return;
     }
     
-    write_pool.stop = posix__true;
-    for (i = 0; i < write_pool.write_thread_count; i++){
-        posix__sig_waitable_handle(&write_pool.write_threads[i].task_signal);
-        posix__pthread_join(&write_pool.write_threads[i].thread, &retval);
+    __wpool.stop = posix__true;
+    for (i = 0; i < __wpool.wthread_count; i++){
+        posix__sig_waitable_handle(&__wpool.write_threads[i].signal);
+        posix__pthread_join(&__wpool.write_threads[i].thread, &retval);
         
         /* 清理来不及处理的任务 */
-        posix__pthread_mutex_lock(&write_pool.write_threads[i].task_lock);
-        while (NULL != (task = __get_task(&write_pool.write_threads[i]))) {
+        posix__pthread_mutex_lock(&__wpool.write_threads[i].mutex);
+        while (NULL != (task = __get_task(&__wpool.write_threads[i]))) {
             free(task);
         }
-        posix__pthread_mutex_unlock(&write_pool.write_threads[i].task_lock);
+        posix__pthread_mutex_unlock(&__wpool.write_threads[i].mutex);
         
-        INIT_LIST_HEAD(&write_pool.write_threads[i].task_list);
-        posix__uninit_waitable_handle(&write_pool.write_threads[i].task_signal);
-        posix__pthread_mutex_uninit(&write_pool.write_threads[i].task_lock);
+        INIT_LIST_HEAD(&__wpool.write_threads[i].tasks);
+        posix__uninit_waitable_handle(&__wpool.write_threads[i].signal);
+        posix__pthread_mutex_uninit(&__wpool.write_threads[i].mutex);
     }
     
-    free(write_pool.write_threads);
-    write_pool.write_threads = NULL;
+    free(__wpool.write_threads);
+    __wpool.write_threads = NULL;
 }
 
 int post_write_task(objhld_t hld, enum task_type type) {
     struct task_node *task;
-    struct write_thread_node *thread;
 
     if (!posix__atomic_initial_passed(__inited__)) {
         return -1;
@@ -258,10 +281,9 @@ int post_write_task(objhld_t hld, enum task_type type) {
 
     task->hld = hld;
     task->type = type;
+    task->thread = &__wpool.write_threads[hld % __wpool.wthread_count];
     
-    thread = &write_pool.write_threads[hld % write_pool.write_thread_count];
-    
-    __add_task(thread, task);
-    posix__sig_waitable_handle(&thread->task_signal);
+    __add_task(task);
+    posix__sig_waitable_handle(&task->thread->signal);
     return 0;
 }

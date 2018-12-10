@@ -23,7 +23,7 @@
 #include "nis.h"
 #include "ncb.h"
 #include "io.h"
-#include "worker.h"
+#include "wpool.h"
 #include "fque.h"
 #include "clist.h"
 #include "object.h"

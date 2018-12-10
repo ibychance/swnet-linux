@@ -226,7 +226,7 @@ int __tcp_tx(ncb_t *ncb, struct tx_node *node) {
         node->offset += wcb;
     }
 
-    return 0;
+    return node->wcb;
 }
 
 /* TCP sender proc */
@@ -259,6 +259,7 @@ int tcp_tx(ncb_t *ncb) {
             }
         }
         fque_free_node(node);
+        return retval;
     }
 
     return 0;
