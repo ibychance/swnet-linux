@@ -156,7 +156,7 @@ int __tcp_rx(ncb_t *ncb) {
 
     /* a stream socket peer has performed an orderly shutdown */
     if (0 == recvcb) {
-        nis_call_ecr("nshost.tcpio.__tcp_rx: link %lld zero bytes return by syscall recv", ncb->hld);
+        nis_call_ecr("nshost.tcpio.__tcp_rx: link %ld zero bytes return by syscall recv", ncb->hld);
         return -1;
     }
 
@@ -173,7 +173,7 @@ int __tcp_rx(ncb_t *ncb) {
             return EAGAIN;
         }
 
-        nis_call_ecr("nshost.tcpio.__tcp_rx: link %lld syscall recvfrom error, code:%d", ncb->hld, errcode);
+        nis_call_ecr("nshost.tcpio.__tcp_rx: link %d syscall recvfrom error, code:%d", ncb->hld, errcode);
         return -1;
     }
     return 0;
