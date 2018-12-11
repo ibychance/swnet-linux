@@ -100,6 +100,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt) {
 		 *		TCP 写缓冲区 cat /proc/sys/net/ipv4/tcp_wmem 
          *   2.同时监听EPOLLOUT和EPOLLIN事件 时，当有IN 事件发生，都会顺带一个OUT事件；
          *   3.一个客户端connect过来，accept成功后会触发一次OUT事件。
+         *   4.通过 EPOLL_CTL_MOD 增加 EPOLLOUT 的关注， 立即得到一个OUT事件, 已经关注EPOLLOUT重复调用epoll_ctl则不会立即得到事件
 		 *
          * 注意事项:
          * 1. (EPOLLIN | EPOLLOUT) 一旦被关注， 则每个写入缓冲区不满 EPOLLIN 都会携带触发一次, 损耗性能， 且不容易操作 oneshot
@@ -110,7 +111,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt) {
          * 已验证：当发生发送EAGAIN后再关注EPOLLOUT，可以在缓冲区成功空出后得到通知
          */
         if (evts[i].events & EPOLLOUT) {
-            post_write_task(ncb->hld, kTaskType_TxOrder);
+            wp_queued(ncb->hld);
         }
         
         objdefr(hld);

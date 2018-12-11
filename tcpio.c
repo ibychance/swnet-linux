@@ -189,7 +189,7 @@ int tcp_rx(ncb_t *ncb) {
     return retval;
 }
 
-int tcp_node_tx(ncb_t *ncb, void *p) {
+int tcp_txn(ncb_t *ncb, void *p) {
     int wcb;
     int errcode;
     struct tx_node *node;
@@ -201,7 +201,7 @@ int tcp_node_tx(ncb_t *ncb, void *p) {
 
         /* fatal-error/connection-terminated  */
         if (0 == wcb) {
-            nis_call_ecr("nshost.tcpio.tcp_node_tx: link %lld zero bytes return by syscall send", ncb->hld);
+            nis_call_ecr("nshost.tcpio.tcp_txn: link %lld zero bytes return by syscall send", ncb->hld);
             return -1;
         }
 
@@ -222,6 +222,7 @@ int tcp_node_tx(ncb_t *ncb, void *p) {
             }
 
             /* other error, these errors should cause link close */
+            nis_call_ecr("nshost.tcpio.tcp_txn: link %lld error %d on syscall send",ncb->hld, errcode);
             return -1;
         }
 
@@ -251,7 +252,7 @@ int tcp_tx(ncb_t *ncb) {
 
     /* try to write front package into system kernel send-buffer */
     if (NULL != (node = fque_get(&ncb->tx_fifo))) {
-        retval = tcp_node_tx(ncb, node);
+        retval = tcp_txn(ncb, node);
         if (retval < 0) {
             if (-EAGAIN == retval ) {
                 fque_revert(&ncb->tx_fifo, node);

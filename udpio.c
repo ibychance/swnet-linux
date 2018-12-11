@@ -60,7 +60,7 @@ int udp_rx(ncb_t *ncb) {
     return retval;
 }
 
-int udp_node_tx(ncb_t *ncb, void *p) {
+int udp_txn(ncb_t *ncb, void *p) {
     int wcb;
     int errcode;
     struct tx_node *node = (struct tx_node *)p;
@@ -72,7 +72,7 @@ int udp_node_tx(ncb_t *ncb, void *p) {
 
         /* fatal-error/connection-terminated  */
         if (0 == wcb) {
-            nis_call_ecr("nshost.udpio.udp_node_tx: link %lld zero bytes return by syscall sendto", ncb->hld);
+            nis_call_ecr("nshost.udpio.udp_txn: link %lld zero bytes return by syscall sendto", ncb->hld);
             return -1;
         }
 
@@ -83,7 +83,7 @@ int udp_node_tx(ncb_t *ncb, void *p) {
              * at this point, we need to deal with the queue header node and restore the unprocessed node back to the queue header.
              * the way 'oneshot' focus on the write operation completion point */
             if (EAGAIN == errcode) {
-                nis_call_ecr("nshost.udpio.udp_node_tx: link %lld requested operation sendto would block.kernel memory overload", ncb->hld);
+                nis_call_ecr("nshost.udpio.udp_txn: link %lld requested operation sendto would block.kernel memory overload", ncb->hld);
                 return -EAGAIN;
             }
 
@@ -94,7 +94,7 @@ int udp_node_tx(ncb_t *ncb, void *p) {
             }
             
              /* other error, these errors should cause link close */
-            nis_call_ecr("nshost.udpio.udp_node_tx: link %lld syscall sendto error, code:%d", ncb->hld, errcode);
+            nis_call_ecr("nshost.udpio.udp_txn: link %lld syscall sendto error, code:%d", ncb->hld, errcode);
             return -1;
         }
 
@@ -114,7 +114,7 @@ int udp_tx(ncb_t *ncb) {
     
     /* try to write front package into system kernel send-buffer */
     if (NULL != (node = fque_get(&ncb->tx_fifo))) {
-        retval = udp_node_tx(ncb, node);
+        retval = udp_txn(ncb, node);
         if (retval < 0) {
             if (-EAGAIN == retval) {
                 fque_revert(&ncb->tx_fifo, node);

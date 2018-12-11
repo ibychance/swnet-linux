@@ -31,7 +31,7 @@ int tcp_syn(ncb_t *ncb_server);
 extern
 int tcp_rx(ncb_t *ncb);
 extern
-int tcp_node_tx(ncb_t *ncb, void *node/*struct tx_node*/);
+int tcp_txn(ncb_t *ncb, void *node/*struct tx_node*/);
 extern
 int tcp_tx(ncb_t *ncb);
 extern

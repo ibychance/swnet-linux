@@ -45,7 +45,6 @@ struct wthread {
 
 struct task_node {
     objhld_t hld;
-    enum task_type type;
     struct wthread *thread;
     struct list_head link;
 };
@@ -83,94 +82,53 @@ static struct task_node *__get_task(struct wthread *thread){
     return task;
 }
 
-static int __run_task(struct task_node *task) {
-    objhld_t hld;
+static int __wp_exec(struct task_node *task) {
     int retval;
     ncb_t *ncb;
-    struct task_node *next;
 
     assert(NULL != task);
+
+    retval = -1;
     
-    hld = task->hld;
-    
-    ncb = objrefr(hld);
+    ncb = objrefr(task->hld);
     if (!ncb) {
         return -1;
     }
     
-    /* when the status is io blocked, Not responding to any task which type is kTaskType_TxTest */
-    if (ncb_if_wblocked(ncb)) {
-        if (task->type == kTaskType_TxTest) {
-            objdefr(hld);
-            return EAGAIN;
+    if (ncb->ncb_write) {
+        /* 
+         * if the return value of @ncb_write equal to -1, that means system call maybe error, this link will be close 
+         *
+         * if the return value of @ncb_write equal to -EAGAIN, set write IO blocked. this ncb object willbe switch to focus on EPOLLOUT | EPOLLIN
+         * bacause the write operation object always takes place in the same thread context, there is no thread security problem. 
+         * for the data which has been reverted, write tasks will be obtained through event triggering of EPOLLOUT
+         *
+         * if the return value of @ncb_write equal to zero, it means the queue of pending data node is empty, not any send operations are need.
+         * here can be consumed the task where allocated by kTaskType_TxOrder sucessful completed
+         *
+         * if the return value of @ncb_write greater than zero, it means the data segment have been written to system kernel
+         * @retval is the total bytes that have been written
+         */
+        retval = ncb->ncb_write(ncb);
+
+        /* fatal error cause by syscall, close this link */
+        if(-1 == retval) {
+            objclos(ncb->hld);
+        } else if (-EAGAIN == retval ) {
+            ncb_set_blocking(ncb);
+        } else if (0 == retval) {
+            ncb_cancel_blocking(ncb); /* If any frame of data is delivered to the kernel, the IO blocking state can be cancel.  */
+        } else {
+            __add_task(task); /* on success, we need to append task to the tail of @fque again, until all pending data have been sent
+                                    in this case, @__wp_run should not free the memory of this task  */
         }
     }
     
-    /*
-     * There are only two scenarios when the code goes here            
-     * 1. No IO isolation occurred            
-     * 2. IO isolation occurred, but kTaskType_TxOrder from EPOLLOUT was received and could respond normally. 
-     */
-    assert (ncb->ncb_write);
-    if (!ncb->ncb_write) {
-        return -1;
-    }
-
-    /* 
-     * if the return value of @ncb_write equal to -1, that means system call maybe error, this link will be close 
-     *
-     * if the return value of @ncb_write equal to -EAGAIN, set write IO blocked. this ncb object willbe switch to focus on EPOLLOUT | EPOLLIN
-     * bacause the write operation object always takes place in the same thread context, there is no thread security problem. 
-     * for the data which has been reverted, write tasks will be obtained through event triggering of EPOLLOUT
-     *
-     * if the return value of @ncb_write equal to zero, it means the queue of pending data node is empty, not any send operations are need.
-     * here can be consumed the task where allocated by kTaskType_TxOrder sucessful completed
-     *
-     * if the return value of @ncb_write greater than zero, it means the data segment have been written to system kernel
-     * @retval is the total bytes that have been written
-     */
-    retval = ncb->ncb_write(ncb);
-
-    /* fatal error cause by syscall, close this link */
-    if(-1 == retval){
-        nis_call_ecr("nshost.wpool.task:write fr:%d, link %lld will be close", retval, ncb->hld);
-        objclos(ncb->hld);
-    } else if (-EAGAIN == retval ) {
-        if (!ncb_if_wblocked(ncb)) {
-            ncb_mark_wblocked(ncb);
-            iomod(ncb, EPOLLIN | EPOLLOUT);
-            nis_call_ecr("nshost.wpool.task:link %lld mark to write blocked.", ncb->hld);
-        }
-    }else if (0 == retval) {
-        ;
-    } else {
-        if (task->type == kTaskType_TxOrder) {
-
-            /* the IO-isolation is cancelled and EPOLL is switched to focus on only read/EPOLLIN */
-            if (ncb_if_wblocked(ncb)) {
-                ncb_cancel_wblock(ncb);
-                iomod(ncb, EPOLLIN);
-                nis_call_ecr("nshost.wpool.task:link %lld write block cancelled.", ncb->hld);
-            }
-            
-            /* if complete write occurs during IO-isolation.
-                Every task completed in this way which task type is kTaskType_TxOrder, it need to automatically trigger the next task check  */
-            next = (struct task_node *)malloc(sizeof(struct task_node));
-            if (next) {
-                next->hld = task->hld;
-                next->type = kTaskType_TxOrder;
-                next->thread = task->thread;
-                INIT_LIST_HEAD(&next->link);
-                __add_task(next);
-            }
-        }
-    }
-    
-    objdefr(hld);
+    objdefr(ncb->hld);
     return retval;
 }
 
-static void *__run(void *p) {
+static void *__wp_run(void *p) {
     struct task_node *task;
     struct wthread *thread;
     int retval;
@@ -192,8 +150,9 @@ static void *__run(void *p) {
         /* complete all write task when once signal arrived,
             no matter which thread wake up this wait object */
         while ((NULL != (task = __get_task(thread)) ) && !__wpool.stop) {
-            __run_task(task);
-            free(task);
+            if (__wp_exec(task) <= 0) {
+                free(task);
+            }
         }
     }
 
@@ -202,7 +161,7 @@ static void *__run(void *p) {
     return NULL;
 }
 
-static int __wpool_init() {
+static int __wp_init() {
     int i;
     
     __wpool.stop = posix__false;
@@ -217,7 +176,7 @@ static int __wpool_init() {
         posix__init_notification_waitable_handle(&__wpool.write_threads[i].signal);
         posix__pthread_mutex_init(&__wpool.write_threads[i].mutex);
         __wpool.write_threads[i].task_list_size = 0;
-        posix__pthread_create(&__wpool.write_threads[i].thread, &__run, (void *)&__wpool.write_threads[i]);
+        posix__pthread_create(&__wpool.write_threads[i].thread, &__wp_run, (void *)&__wpool.write_threads[i]);
     }
     
     return 0;
@@ -225,9 +184,9 @@ static int __wpool_init() {
 
 posix__atomic_initial_declare_variable(__inited__);
 
-int write_pool_init() {
+int wp_init() {
     if (posix__atomic_initial_try(&__inited__)) {
-        if (__wpool_init() < 0) {
+        if (__wp_init() < 0) {
             posix__atomic_initial_exception(&__inited__);
         } else {
             posix__atomic_initial_complete(&__inited__);
@@ -237,7 +196,7 @@ int write_pool_init() {
     return __inited__;
 }
 
-void write_pool_uninit(){
+void wp_uninit(){
     int i;
     void *retval;
     struct task_node *task;
@@ -267,7 +226,7 @@ void write_pool_uninit(){
     __wpool.write_threads = NULL;
 }
 
-int post_write_task(objhld_t hld, enum task_type type) {
+int wp_queued(objhld_t hld) {
     struct task_node *task;
 
     if (!posix__atomic_initial_passed(__inited__)) {
@@ -275,11 +234,10 @@ int post_write_task(objhld_t hld, enum task_type type) {
     }
     
     if (NULL == (task = (struct task_node *)malloc(sizeof(struct task_node)))){
-        return RE_ERROR(ENOMEM);
+        return -ENOMEM;
     }
 
     task->hld = hld;
-    task->type = type;
     task->thread = &__wpool.write_threads[hld % __wpool.wthread_count];
     
     __add_task(task);

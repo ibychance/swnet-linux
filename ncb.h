@@ -70,8 +70,10 @@ typedef struct _ncb {
      * 注意:
      * 1. 一旦发生逻辑阻挡， 则任务无法继续, 该次任务请求将被丢弃
      * 2. 此项IO阻塞和读线程无关, 必须保证读写互不影响， 否则可能导致因为 io blocked 而无法继续收包
+     *
+     * this is a boolean value
      */
-    posix__boolean_t write_io_blocked;
+    int write_io_blocked;
     
     /* 接收超时和发送超时 */
     struct timeval rcvtimeo;
@@ -114,22 +116,18 @@ typedef struct _ncb {
     } u;
 } ncb_t;
 
-/* 布尔状态表达， 非0则IO阻止， 否则 IO 可行 */
-#define ncb_if_wblocked(ncb)    (ncb->write_io_blocked)
-
-/* 对这个 NCB 执行 IO 阻塞 */
-#define ncb_mark_wblocked(ncb)   \
-        do { if (!ncb->write_io_blocked) posix__atomic_xchange(&ncb->write_io_blocked, posix__true); } while (0);
-
-/* 对这个 NCB 取消 IO 阻塞 */
-#define ncb_cancel_wblock(ncb) posix__atomic_xchange(&ncb->write_io_blocked, posix__false);
-
-#define ncb_lb_marked(ncb) ((ncb) ? ((NULL != ncb->u.tcp.lbdata) && (ncb->u.tcp.lbsize > 0)) : (posix__false))
+#define ncb_lb_marked(ncb) ((ncb) ? ((NULL != ncb->u.tcp.lbdata) && (ncb->u.tcp.lbsize > 0)) : (0))
 
 extern
 int ncb_init(ncb_t *ncb);
 extern
 void ncb_uninit(objhld_t ignore, void */*ncb_t * */ncb);
+
+extern
+void ncb_set_blocking(ncb_t *ncb);
+extern
+void ncb_cancel_blocking(ncb_t *ncb);
+#define ncb_is_blocking(ncb)    (1 == ncb->write_io_blocked)
 
 extern
 int ncb_set_rcvtimeo(ncb_t *ncb, struct timeval *timeo);

@@ -5,11 +5,7 @@ int ncb_init(ncb_t *ncb) {
 
     if (ncb) {
         memset(ncb, 0, sizeof (ncb_t));
-        
         fque_init(&ncb->tx_fifo);
-
-        /* flag of write IO block, initialize status is not blocking */
-        ncb->write_io_blocked = posix__false;
         return 0;
     }
 
@@ -63,6 +59,20 @@ void ncb_uninit(objhld_t ignore, void *p) {
     /* set callback function to ineffectiveness */
     ncb->nis_callback = NULL;
     nis_call_ecr("nshost.ncb.uninit: object %lld finalization freed",ncb->hld);
+}
+
+void ncb_set_blocking(ncb_t *ncb) {
+    if (0 == posix__atomic_compare_xchange(&ncb->write_io_blocked, 0, 1)) {
+        iomod(ncb, EPOLLIN | EPOLLOUT);
+        nis_call_ecr("nshost.ncb:link %lld set to IO blocking.", ncb->hld);
+    }
+}
+
+void ncb_cancel_blocking(ncb_t *ncb) {
+    if (1 == posix__atomic_compare_xchange(&ncb->write_io_blocked, 1, 0)) {
+        iomod(ncb, EPOLLIN);
+        nis_call_ecr("nshost.ncb:link %lld IO blocking cancelled.", ncb->hld);
+    }
 }
 
 int ncb_set_rcvtimeo(ncb_t *ncb, struct timeval *timeo){

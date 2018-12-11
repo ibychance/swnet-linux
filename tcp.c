@@ -47,14 +47,14 @@ void tcp_update_opts(ncb_t *ncb) {
 /* tcp impls */
 int tcp_init() {
     if (ioinit() >= 0) {
-        write_pool_init();
+        wp_init();
     }
     return 0;
 }
 
 void tcp_uninit() {
     iouninit();
-    write_pool_uninit();
+    wp_uninit();
 }
 
 HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16_t l_port) {
@@ -477,6 +477,16 @@ int tcp_maker(void *data, int cb, const void *context) {
     return -1;
 }
 
+static void tcp_queued(ncb_t *ncb,  struct tx_node *node) {
+
+    /* to large length of current queue,no more message can be post */
+    if (fque_size(&ncb->tx_fifo) >= TCP_MAXIMUM_SENDER_CACHED_CNT) {
+        nis_call_ecr("nshost.tcp.write:link %lld pending queue size achive maximum.", ncb->hld);
+    } else {
+        fque_push(&ncb->tx_fifo, node);
+    }
+}
+
 int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
     ncb_t *ncb;
     objhld_t hld;
@@ -488,18 +498,19 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
     int retval;
 
     if ( lnk < 0 || cb <= 0 || cb > TCP_MAXIMUM_PACKET_SIZE || tcp_init() < 0 ) {
-        return -1;
+        return -EINVAL;
     }
 
     hld = (objhld_t) lnk;
     buffer = NULL;
+    node = NULL;
+    retval = -1;
 
     ncb = (ncb_t *) objrefr(hld);
     if (!ncb) {
-        return -1;
+        return -ENOENT;
     }
-
-    retval = -1;
+    
     do {
         /* the calling thread is likely to occur as follows:
          * immediately call @tcp_write after creation, but no connection established and no listening has yet been taken
@@ -562,28 +573,33 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
         node->data = buffer;
         node->wcb = cb + ncb->u.tcp.template.cb_;
         node->offset = 0;
-        retval = tcp_node_tx(ncb, node);
 
-        /* direct send success */
-        if (retval > 0) {
-            break;
-        }
+        if (!ncb_is_blocking(ncb)) {
+            retval = tcp_txn(ncb, node);
 
-        /* return value less than or equal to zero, there maybe some errors except -EAGAIN 
-         * in case -EAGAIN, the write operation cannot be complete right now,
-         * push message to the tail of the queue, awaken write thread and the package maybe delay to send
-         * becareful, in this case, @buffer and @node cannot be free util asynchronous completed
-         */
-        if (-EAGAIN == retval) {
-            /* to large length of current queue,no more message can be post */
-            if (fque_size(&ncb->tx_fifo) >= TCP_MAXIMUM_SENDER_CACHED_CNT) {
-                nis_call_ecr("nshost.tcp.write:link %lld pending queue size achive maximum.", lnk);
-                break;
+            /* 
+             * the return value means direct failed when it equal to -1 or success when it greater than zero.
+             * in these case, destroy memory resource outside loop, no matter what the actually result it is.
+             */
+            if (-EAGAIN != retval) {
+                break; 
             }
-
-            fque_push(&ncb->tx_fifo, node);
-            post_write_task(hld, kTaskType_TxTest);
         }
+
+        /* 
+         * when the IO blocking is existed, we can't send data immediately,
+         * only way to handler this situation is queued data into @wpool.
+         * otherwise, the wrong operation may broken the output sequence 
+         *
+         * in case of -EAGAIN return by @tcp_txn, means the write operation cannot be complete right now,
+         * insert @node into the tail of @fque queue, be careful, in this case, memory of @buffer and @node cannot be destroy until asynchronous completed
+         *
+         * just insert @node into tail of @fque queue,  awaken write thread is not necessary.
+         * don't worry about the task thread notify, when success calling to @ncb_set_blocking, ensure that the @EPOLLOUT event can being captured by IO thread 
+         */
+        tcp_queued(ncb, node);
+        ncb_set_blocking(ncb);
+
         objdefr(hld);
         return 0;
     } while (0);
