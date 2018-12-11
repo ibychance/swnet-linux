@@ -34,7 +34,9 @@ int fque_priority_push(struct tx_fifo *fque, unsigned char *data, int cb, int of
  * no deepcopy for @data, only heap memory can be used.
  */
 extern
-int fque_push(struct tx_fifo *fque, unsigned char *data, int cb, const struct sockaddr_in *target);
+int fque_alloc(struct tx_fifo *fque, unsigned char *data, int cb, const struct sockaddr_in *target);
+extern
+int fque_push(struct tx_fifo *fque, struct tx_node *node);
 
 /* 
  * (未完成操作的节点)归还给 FIFO, 并且放置于队列头

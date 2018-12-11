@@ -115,36 +115,35 @@ static int __run_task(struct task_node *task) {
     if (!ncb->ncb_write) {
         return -1;
     }
-    
+
+    /* 
+     * if the return value of @ncb_write equal to -1, that means system call maybe error, this link will be close 
+     *
+     * if the return value of @ncb_write equal to -EAGAIN, set write IO blocked. this ncb object willbe switch to focus on EPOLLOUT | EPOLLIN
+     * bacause the write operation object always takes place in the same thread context, there is no thread security problem. 
+     * for the data which has been reverted, write tasks will be obtained through event triggering of EPOLLOUT
+     *
+     * if the return value of @ncb_write equal to zero, it means the queue of pending data node is empty, not any send operations are need.
+     * here can be consumed the task where allocated by kTaskType_TxOrder sucessful completed
+     *
+     * if the return value of @ncb_write greater than zero, it means the data segment have been written to system kernel
+     * @retval is the total bytes that have been written
+     */
     retval = ncb->ncb_write(ncb);
 
     /* fatal error cause by syscall, close this link */
-    if(retval < 0){
+    if(-1 == retval){
         nis_call_ecr("nshost.wpool.task:write fr:%d, link %lld will be close", retval, ncb->hld);
         objclos(ncb->hld);
-    }
-    
-    /* the queue of pending data node is empty, not any send operations are need.
-        here can be consumed the task where allocated by kTaskType_TxOrder sucessful completed */
-    else if (0 == retval) {
-        ;
-    }
-    
-    /* 
-     * if EAGAIN happened, bacause the write operation object always takes place in the same thread context, there is no thread security problem. 
-     * set write IO blocked. this ncb object willbe switch to focus on EPOLLOUT | EPOLLIN
-     * for the data which has been reverted, Write tasks will be obtained through event triggering of EPOLLOUT
-     */
-    else if (EAGAIN == retval ) {
+    } else if (-EAGAIN == retval ) {
         if (!ncb_if_wblocked(ncb)) {
             ncb_mark_wblocked(ncb);
             iomod(ncb, EPOLLIN | EPOLLOUT);
             nis_call_ecr("nshost.wpool.task:link %lld mark to write blocked.", ncb->hld);
         }
-    }
-    
-    /* @retval bytes have been written to kernel */
-    else {
+    }else if (0 == retval) {
+        ;
+    } else {
         if (task->type == kTaskType_TxOrder) {
 
             /* the IO-isolation is cancelled and EPOLL is switched to focus on only read/EPOLLIN */

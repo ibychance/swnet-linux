@@ -484,6 +484,8 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
     nis_sender_maker_t amaker;
     int packet_length;
     struct tcp_info ktcp;
+    struct tx_node *node;
+    int retval;
 
     if ( lnk < 0 || cb <= 0 || cb > TCP_MAXIMUM_PACKET_SIZE || tcp_init() < 0 ) {
         return -1;
@@ -497,6 +499,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
         return -1;
     }
 
+    retval = -1;
     do {
         /* the calling thread is likely to occur as follows:
          * immediately call @tcp_write after creation, but no connection established and no listening has yet been taken
@@ -513,11 +516,6 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
                 nis_call_ecr("nshost.tcp.write:state illegal,link:%lld, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
                 break;
             }
-        }
-
-        /* to large length of current queue,no more message can be post */
-        if (fque_size(&ncb->tx_fifo) >= TCP_MAXIMUM_SENDER_CACHED_CNT) {
-            break;
         }
 
         /* user data filler */
@@ -556,12 +554,36 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
             }
         }
 
-        /* push message to the tail of the queue, awaken write thread */
-        if (fque_push(&ncb->tx_fifo, buffer, cb + ncb->u.tcp.template.cb_, NULL) < 0) {
+        node = (struct tx_node *) malloc(sizeof (struct tx_node));
+        if (!node) {
             break;
         }
-        post_write_task(hld, kTaskType_TxTest);
+        memset(node, 0, sizeof(struct tx_node));
+        node->data = buffer;
+        node->wcb = cb + ncb->u.tcp.template.cb_;
+        node->offset = 0;
+        retval = tcp_node_tx(ncb, node);
 
+        /* direct send success */
+        if (retval > 0) {
+            break;
+        }
+
+        /* return value less than or equal to zero, there maybe some errors except -EAGAIN 
+         * in case -EAGAIN, the write operation cannot be complete right now,
+         * push message to the tail of the queue, awaken write thread and the package maybe delay to send
+         * becareful, in this case, @buffer and @node cannot be free util asynchronous completed
+         */
+        if (-EAGAIN == retval) {
+            /* to large length of current queue,no more message can be post */
+            if (fque_size(&ncb->tx_fifo) >= TCP_MAXIMUM_SENDER_CACHED_CNT) {
+                nis_call_ecr("nshost.tcp.write:link %lld pending queue size achive maximum.", lnk);
+                break;
+            }
+
+            fque_push(&ncb->tx_fifo, node);
+            post_write_task(hld, kTaskType_TxTest);
+        }
         objdefr(hld);
         return 0;
     } while (0);
@@ -569,8 +591,13 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
     if (buffer) {
         free(buffer);
     }
+
+    if (node) {
+        free(node);
+    }
+
     objdefr(hld);
-    return -1;
+    return retval;
 }
 
 int tcp_getaddr(HTCPLINK lnk, int type, uint32_t* ipv4, uint16_t* port) {
@@ -604,7 +631,7 @@ int tcp_setopt(HTCPLINK lnk, int level, int opt, const char *val, int len) {
     ncb_t *ncb;
     objhld_t hld = (objhld_t) lnk;
     int retval;
-
+ 
     ncb = objrefr(hld);
     if (!ncb) {
         return -1;

@@ -67,9 +67,8 @@ int fque_priority_push(struct tx_fifo *fque, unsigned char *data, int cb, int of
 
 /* be careful! no deepcopy in this method
     save your own pointer */
-int fque_push(struct tx_fifo *fque, unsigned char *data, int cb, const struct sockaddr_in *target) {
+int fque_alloc(struct tx_fifo *fque, unsigned char *data, int cb, const struct sockaddr_in *target) {
     struct tx_node *node;
-    int retval;
 
     if (!fque || !data || cb <= 0) {
         return -1;
@@ -88,12 +87,17 @@ int fque_push(struct tx_fifo *fque, unsigned char *data, int cb, const struct so
         memcpy(&node->udp_target, target, sizeof (node->udp_target));
     }
 
+    return fque_push(fque, node);
+}
+
+int fque_push(struct tx_fifo *fque, struct tx_node *node) {
+    int n;
+
     posix__pthread_mutex_lock(&fque->lock);
     list_add_tail(&node->link, &fque->head);
-    retval = ++fque->size;
+    n = ++fque->size;
     posix__pthread_mutex_unlock(&fque->lock);
-
-    return retval;
+    return n;
 }
 
 int fque_revert(struct tx_fifo *fque, struct tx_node *node) {

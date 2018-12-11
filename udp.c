@@ -183,6 +183,7 @@ int udp_sendto(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, 
     do {
        /* to large length of current queue,no more message can be post */
         if ((fque_size(&ncb->tx_fifo) >= UDP_MAXIMUM_SENDER_CACHED_CNT)) {
+            nis_call_ecr("nshost.udp.sendto:link %lld pending queue size achive maximum.", lnk);
             break;
         }
 
@@ -207,7 +208,7 @@ int udp_sendto(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, 
         addr.sin_family = AF_INET;
         addr.sin_addr.s_addr = inet_addr(r_ipstr);
         addr.sin_port = htons(r_port);
-        if (fque_push(&ncb->tx_fifo, buffer, cb, &addr) < 0) {
+        if (fque_alloc(&ncb->tx_fifo, buffer, cb, &addr) < 0) {
             break;
         }
         post_write_task(hld, kTaskType_TxTest);
@@ -223,45 +224,12 @@ int udp_sendto(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, 
     return retval;
 }
 
-static
-int __udp_tx(ncb_t *ncb, const unsigned char *data, int cb, const char* r_ipstr, uint16_t r_port)  {
-    int wcb;
-    int offset;
-    struct sockaddr_in addr;
-
-    offset = 0;
-
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = inet_addr(r_ipstr);
-    addr.sin_port = htons(r_port);
-    
-    while (offset < cb) {
-        wcb = sendto(ncb->sockfd, data + offset, cb - offset, 0, (__CONST_SOCKADDR_ARG)&addr, sizeof(struct sockaddr) );
-        if (wcb <= 0) {
-            if (EINTR == errno) {
-                continue;
-            }
-
-            if (EAGAIN == errno) {
-                nis_call_ecr("nshost.udp.__udp_tx: link %lld requested operation sendto would block.kernel memory overload", ncb->hld);
-                return EAGAIN;
-            }
-            
-            nis_call_ecr("nshost.udp.__udp_tx: link %lld syscall sendto error, code:%d", ncb->hld, errno);
-            return RE_ERROR(errno);
-        }
-
-        offset += wcb;
-    }
-    
-    return 0;
-}
-
 int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, const char* r_ipstr, uint16_t r_port) {
     int retval;
     ncb_t *ncb;
     objhld_t hld = (objhld_t) lnk;
     unsigned char *buffer;
+    struct tx_node *node;
 
     if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > MAX_UDP_SIZE)) {
         return RE_ERROR(EINVAL);
@@ -291,11 +259,49 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, c
             }
         }
 
-        retval = __udp_tx(ncb, buffer, cb, r_ipstr, r_port);
+        node = (struct tx_node *) malloc(sizeof (struct tx_node));
+        if (!node) {
+            break;
+        }
+        memset(node, 0, sizeof(struct tx_node));
+        node->data = buffer;
+        node->wcb = cb;
+        node->offset = 0;
+        node->udp_target.sin_family = AF_INET;
+        node->udp_target.sin_addr.s_addr = inet_addr(r_ipstr);
+        node->udp_target.sin_port = htons(r_port);
+        retval = udp_node_tx(ncb, node);
+
+        /* direct send success */
+        if (retval > 0) {
+            break;
+        }
+
+        /* return value less than or equal to zero, there maybe some errors except -EAGAIN 
+         * in case -EAGAIN, the write operation cannot be complete right now,
+         * push message to the tail of the queue, awaken write thread and the package maybe delay to send
+         * becareful, in this case, @buffer and @node cannot be free util asynchronous completed
+         */
+        if (-EAGAIN == retval) {
+            /* to large length of current queue,no more message can be post */
+            if (fque_size(&ncb->tx_fifo) >= UDP_MAXIMUM_SENDER_CACHED_CNT) {
+                nis_call_ecr("nshost.udp.write:link %lld pending queue size achive maximum.", lnk);
+                break;
+            }
+
+            fque_push(&ncb->tx_fifo, node);
+            post_write_task(hld, kTaskType_TxTest);
+        }
+        objdefr(hld);
+        return 0;
     } while (0);
 
     if (buffer) {
         free(buffer);
+    }
+
+    if (node) {
+        free(node);
     }
 
     objdefr(hld);

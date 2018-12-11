@@ -189,17 +189,19 @@ int tcp_rx(ncb_t *ncb) {
     return retval;
 }
 
-static
-int __tcp_tx(ncb_t *ncb, struct tx_node *node) {
+int tcp_node_tx(ncb_t *ncb, void *p) {
     int wcb;
     int errcode;
+    struct tx_node *node;
+
+    node = (struct tx_node *)p;
 
     while (node->offset < node->wcb) {
         wcb = send(ncb->sockfd, node->data + node->offset, node->wcb - node->offset, 0);
 
         /* fatal-error/connection-terminated  */
         if (0 == wcb) {
-            nis_call_ecr("nshost.tcpio.__tcp_tx: link %lld zero bytes return by syscall send", ncb->hld);
+            nis_call_ecr("nshost.tcpio.tcp_node_tx: link %lld zero bytes return by syscall send", ncb->hld);
             return -1;
         }
 
@@ -210,7 +212,7 @@ int __tcp_tx(ncb_t *ncb, struct tx_node *node) {
              * at this point, we need to deal with the queue header node and restore the unprocessed node back to the queue header.
              * the way 'oneshot' focus on the write operation completion point */
             if (EAGAIN == errcode) {
-                return EAGAIN;
+                return -EAGAIN;
             }
 
             /* A signal occurred before any data  was  transmitted
@@ -220,7 +222,7 @@ int __tcp_tx(ncb_t *ncb, struct tx_node *node) {
             }
 
             /* other error, these errors should cause link close */
-            return RE_ERROR(errcode);
+            return -1;
         }
 
         node->offset += wcb;
@@ -249,14 +251,12 @@ int tcp_tx(ncb_t *ncb) {
 
     /* try to write front package into system kernel send-buffer */
     if (NULL != (node = fque_get(&ncb->tx_fifo))) {
-        retval = __tcp_tx(ncb, node);
+        retval = tcp_node_tx(ncb, node);
         if (retval < 0) {
-            return retval;
-        } else {
-            if (EAGAIN == retval) {
+            if (-EAGAIN == retval ) {
                 fque_revert(&ncb->tx_fifo, node);
-                return EAGAIN;
             }
+            return retval;
         }
         fque_free_node(node);
         return retval;

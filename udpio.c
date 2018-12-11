@@ -60,71 +60,68 @@ int udp_rx(ncb_t *ncb) {
     return retval;
 }
 
-static
-int __udp_tx(ncb_t *ncb, struct tx_node *packet) {
+int udp_node_tx(ncb_t *ncb, void *p) {
     int wcb;
     int errcode;
+    struct tx_node *node = (struct tx_node *)p;
     socklen_t len = sizeof(struct sockaddr);
     
-    /* 仅对头节点执行操作 */
-    while (packet->offset < packet->wcb) {
-        wcb = sendto(ncb->sockfd, packet->data + packet->offset, packet->wcb - packet->offset, 0,
-                (__CONST_SOCKADDR_ARG)&packet->udp_target, len );
+    while (node->offset < node->wcb) {
+        wcb = sendto(ncb->sockfd, node->data + node->offset, node->wcb - node->offset, 0,
+                (__CONST_SOCKADDR_ARG)&node->udp_target, len );
 
-        /* 对端断开， 或， 其他不可容忍的错误 */
+        /* fatal-error/connection-terminated  */
         if (0 == wcb) {
-            nis_call_ecr("nshost.udpio.__udp_tx: link %lld zero bytes return by syscall sendto", ncb->hld);
+            nis_call_ecr("nshost.udpio.udp_node_tx: link %lld zero bytes return by syscall sendto", ncb->hld);
             return -1;
         }
 
         if (wcb < 0) {
              errcode = errno;
              
-            /* 写入缓冲区已满， 激活并等待 EPOLLOUT 才能继续执行下一片写入
-             * 此时需要处理队列头节点， 将未处理完的节点还原回队列头
-             * oneshot 方式强制关注写入操作完成点 */
+            /* the write buffer is full, active EPOLLOUT and waitting for epoll event trigger
+             * at this point, we need to deal with the queue header node and restore the unprocessed node back to the queue header.
+             * the way 'oneshot' focus on the write operation completion point */
             if (EAGAIN == errcode) {
-                nis_call_ecr("nshost.udpio.__udp_tx: link %lld requested operation sendto would block.kernel memory overload", ncb->hld);
-                return EAGAIN;
+                nis_call_ecr("nshost.udpio.udp_node_tx: link %lld requested operation sendto would block.kernel memory overload", ncb->hld);
+                return -EAGAIN;
             }
 
-            /* 中断信号导致的写操作中止，而且没有任何一个字节完成写入，可以就地恢复 */
+            /* A signal occurred before any data  was  transmitted
+                continue and send again */
             if (EINTR == errcode) {
                 continue;
             }
             
-             /* 发生其他无法容忍且无法处理的错误, 这个错误返回会导致断开链接 */
-            nis_call_ecr("nshost.udpio.__udp_tx: link %lld syscall sendto error, code:%d", ncb->hld, errcode);
-            return RE_ERROR(errcode);
+             /* other error, these errors should cause link close */
+            nis_call_ecr("nshost.udpio.udp_node_tx: link %lld syscall sendto error, code:%d", ncb->hld, errcode);
+            return -1;
         }
 
-        packet->offset += wcb;
+        node->offset += wcb;
     }
     
-    return packet->wcb;
+    return node->wcb;
 }
 
 int udp_tx(ncb_t *ncb) {
-    struct tx_node *packet;
+    struct tx_node *node;
     int retval;
     
     if (!ncb) {
         return -1;
     }
     
-    /* 若无特殊情况， 需要把所有发送缓冲包全部写入内核 */
-    if (NULL != (packet = fque_get(&ncb->tx_fifo))) {
-        retval = __udp_tx(ncb, packet);
+    /* try to write front package into system kernel send-buffer */
+    if (NULL != (node = fque_get(&ncb->tx_fifo))) {
+        retval = udp_node_tx(ncb, node);
         if (retval < 0) {
-            return retval;
-        }  else {
-            if (EAGAIN == retval) {
-                fque_revert(&ncb->tx_fifo, packet);
-                return EAGAIN;
+            if (-EAGAIN == retval) {
+                fque_revert(&ncb->tx_fifo, node);
             }
+            return retval;
         }
-
-        fque_free_node(packet);
+        fque_free_node(node);
         return retval;
     }
     

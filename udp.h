@@ -22,6 +22,8 @@
 extern
 int udp_rx(ncb_t *ncb);
 extern
+int udp_node_tx(ncb_t *ncb, void *p);
+extern
 int udp_tx(ncb_t *ncb);
 extern
 int udp_atx(ncb_t *ncb, struct tx_node *packet);
