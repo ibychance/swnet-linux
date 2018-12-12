@@ -1,25 +1,13 @@
-#include <errno.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <unistd.h>
+#include "io.h"
 
 #include <sys/signal.h>
-#include <sys/sysinfo.h>
 
-#include <linux/unistd.h>
-#include <linux/types.h>
-
-#include "compiler.h"
 #include "posix_thread.h"
 #include "posix_atomic.h"
-#include "posix_wait.h"
 #include "posix_ifos.h"
 
-#include "io.h"
 #include "ncb.h"
-#include "object.h"
 #include "wpool.h"
-#include "clist.h"
 #include "mxx.h"
 
 /* 1024 is just a hint for the kernel */
@@ -162,7 +150,7 @@ int __ioinit() {
     /* 对一个已经关闭的链接执行 write, 返回 EPIPE 的同时会 raise 一个SIGPIPE 信号，需要忽略处理 */
     signal(SIGPIPE, SIG_IGN);
     
-    epmgr.divisions = get_nprocs();
+    epmgr.divisions = posix__getnprocs();
     if ( NULL == (epmgr.epos = (struct epoll_object *)malloc(sizeof(struct epoll_object) * epmgr.divisions))) {
         return -1;
     }

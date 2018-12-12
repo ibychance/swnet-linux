@@ -1,9 +1,7 @@
 #include "fifo.h"
 
-#include <stdlib.h>
-#include <errno.h>
-
 #include "mxx.h"
+#include "io.h"
 
 void fifo_init(ncb_t *ncb) {
     struct tx_fifo *fifo;
@@ -103,6 +101,7 @@ int fifo_pop(ncb_t *ncb, struct tx_node **node) {
 
     posix__pthread_mutex_lock(&fifo->lock);
     if (NULL != (front = list_first_entry_or_null(&fifo->head, struct tx_node, link))) {
+        assert(fifo->size > 0);
         list_del(&front->link);
         INIT_LIST_HEAD(&front->link);
         remain = --fifo->size;

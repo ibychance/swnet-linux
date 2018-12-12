@@ -1,8 +1,6 @@
 #ifndef FQUE_H_20170118
 #define FQUE_H_20170118
 
-#include <netinet/in.h>
-
 #include "ncb.h"
 
 struct tx_node {

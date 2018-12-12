@@ -1,9 +1,8 @@
-#include <stdio.h>
-
 #include "tcp.h"
+
 #include "mxx.h"
-#include "posix_ifos.h"
 #include "fifo.h"
+#include "io.h"
 
 static
 int __tcp_syn(ncb_t *ncb_server) {

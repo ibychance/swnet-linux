@@ -15,8 +15,6 @@
 #define TCP_MAXIMUM_TEMPLATE_SIZE   (32)
 #endif
 
-#define TCP_MAXIMUM_SENDER_CACHED_CNT ( 100 ) /* the maximum count of pre-send packages that can be cached in @nshost memory */
-
 #define NS_TCP_NODELAY_UNSET  (0)
 #define NS_TCP_NODELAY_SET  (1)
 

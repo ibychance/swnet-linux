@@ -1,24 +1,13 @@
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <fcntl.h>
-#include <assert.h>
-#include <sys/sysinfo.h>
-
-#include "compiler.h"
-
-#include "object.h"
-#include "clist.h"
-#include "ncb.h"
 #include "wpool.h"
-#include "tcp.h"
-#include "mxx.h"
-#include "fifo.h"
 
-#include "posix_thread.h"
 #include "posix_wait.h"
 #include "posix_atomic.h"
 #include "posix_ifos.h"
+
+#include "ncb.h"
+#include "tcp.h"
+#include "mxx.h"
+#include "fifo.h"
 
 /*
  * 写入(发送)操作，从接口处无条件压入队列的弊端
@@ -169,7 +158,7 @@ static int __wp_init() {
     int i;
     
     __wpool.stop = posix__false;
-    __wpool.wthread_count = get_nprocs();
+    __wpool.wthread_count = posix__getnprocs();
     __wpool.write_threads = (struct wthread *)malloc(sizeof(struct wthread) * __wpool.wthread_count);
     if (!__wpool.write_threads) {
         return -ENOMEM;

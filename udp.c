@@ -1,8 +1,9 @@
-#include <stdio.h>
-
 #include "udp.h"
+
 #include "mxx.h"
 #include "fifo.h"
+#include "io.h"
+#include "wpool.h"
 
 static int __udp_update_opts(ncb_t *ncb) {
     static const int RECV_BUFFER_SIZE = 0xFFFF;

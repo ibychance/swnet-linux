@@ -5,14 +5,10 @@
  */
 #include "mxx.h"
 
-#include <string.h>
-#include <stdlib.h>
 #include <ctype.h>
 #include <stdarg.h>
-#include <arpa/inet.h> 
 
 #include "ncb.h"
-#include "object.h"
 
 int nis_setctx(HLNK lnk, const void * user_context, int user_context_size) {
     ncb_t *ncb;

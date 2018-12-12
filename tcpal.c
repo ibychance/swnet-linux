@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include "tcp.h"
 #include "mxx.h"
 
@@ -56,7 +54,8 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
     overplus = cpcb;
     used = 0;
 
-    /*当前包中的数据不足以构建协议头，但是加上本次数据，足以构造协议头*/
+    /* The data in the current package is not enough to construct the protocol header, 
+        but with these data, it is enough to construct the protocol header. */
     if (ncb->u.tcp.rx_parse_offset < ncb->u.tcp.template.cb_) {
         used += (ncb->u.tcp.template.cb_ - ncb->u.tcp.rx_parse_offset);
         overplus = cpcb - used;
@@ -97,32 +96,33 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
         /* total large-block length, include the low-level protocol head length */
         ncb->u.tcp.lbsize = total_packet_length;
 
-        /* 本次全部数据拷贝到大包缓冲区 */
+        /* copy all data to buffer */
         memcpy(ncb->u.tcp.lbdata, data, cpcb);
         ncb->u.tcp.lboffset = cpcb;
 
-        /* 清理普通包缓冲区的描述信息 */
+        /* clear the describe information of buffer */
         ncb->u.tcp.rx_parse_offset = 0;
 
-        /* 大包构建阶段，单次接收缓冲区的数据肯定会一次用尽 */
+        /* while building large-block,  the data from a single receive buffer is bound to be exhausted at one time. */
         return 0;
     }
 
-    /*剩余的字节数，足以构造整个包*/
+    /* the remain data it's enough to build package */
     if ((ncb->u.tcp.rx_parse_offset + overplus) >= total_packet_length) {
         memcpy(ncb->packet + ncb->u.tcp.rx_parse_offset, cpbuff, total_packet_length - ncb->u.tcp.rx_parse_offset);
 
-        /*返回给上级调用的字节数=本次的剩余字节数-构建本包总共消耗的字节数*/
+        /*The number of bytes returned to the calling thread = 
+            (The number of bytes remaining this time) -
+            (The total number of bytes consumed to build this package) */
         retcb = (overplus - (total_packet_length - ncb->u.tcp.rx_parse_offset));
-
-        /*完成组包, 回调给上层模块*/
         ncb_post_recvdata(ncb, user_data_size, ncb->packet + ncb->u.tcp.template.cb_);
 
         ncb->u.tcp.rx_parse_offset = 0;
         return retcb;
     }
 
-    /*剩余字节数不足以构造一个完整包， 则把剩余字节数都放入缓冲区，并调整包解析偏移*/
+    /*If the number of bytes remaining is not enough to construct a complete package, 
+        the number of bytes remaining is put into the buffer and the packet resolution offset is adjusted. */
     memmove(ncb->packet + ncb->u.tcp.rx_parse_offset, cpbuff, overplus);
     ncb->u.tcp.rx_parse_offset += overplus;
     return 0;

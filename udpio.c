@@ -1,6 +1,5 @@
-#include <errno.h>
-
 #include "udp.h"
+
 #include "mxx.h"
 #include "fifo.h"
 

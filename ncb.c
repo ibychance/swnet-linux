@@ -1,6 +1,7 @@
 #include "ncb.h"
 #include "mxx.h"
 #include "fifo.h"
+#include "io.h"
 
 int ncb_init(ncb_t *ncb) {
 
