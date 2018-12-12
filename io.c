@@ -90,7 +90,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt) {
 		 *		TCP 写缓冲区 cat /proc/sys/net/ipv4/tcp_wmem 
          *   2.同时监听EPOLLOUT和EPOLLIN事件 时，当有IN 事件发生，都会顺带一个OUT事件；
          *   3.一个客户端connect过来，accept成功后会触发一次OUT事件。
-         *   4.通过 EPOLL_CTL_MOD 增加 EPOLLOUT 的关注， 立即得到一个OUT事件, 已经关注EPOLLOUT重复调用epoll_ctl则不会立即得到事件
+         *   4.通过 EPOLL_CTL_MOD 增加 EPOLLOUT 的关注， 立即得到一个OUT事件(不管缓冲区状态), 已经关注EPOLLOUT重复调用epoll_ctl则不会立即得到事件
 		 *
          * 注意事项:
          * 1. (EPOLLIN | EPOLLOUT) 一旦被关注， 则每个写入缓冲区不满 EPOLLIN 都会携带触发一次, 损耗性能， 且不容易操作 oneshot
@@ -149,7 +149,7 @@ static void *__epoll_proc(void *argv) {
 int __ioinit() {
     int i;
 
-    /* 对一个已经关闭的链接执行 write, 返回 EPIPE 的同时会 raise 一个SIGPIPE 信号，需要忽略处理 */
+    /* write a closed socket, return EPIPE and raise a SIGPIPE signal. ignore it */
     signal(SIGPIPE, SIG_IGN);
     
     epmgr.divisions = posix__getnprocs();
@@ -162,14 +162,14 @@ int __ioinit() {
         epmgr.epos[i].epfd = epoll_create(EPOLL_SIZE);
         if (epmgr.epos[i].epfd < 0) {
             nis_call_ecr("nshost.io.epoll:file descriptor creat failed. error:%u\n", errno);
-            epmgr.epos[i].actived = posix__false;
+            epmgr.epos[i].actived = 0;
             continue;
         }
         
-        /* active 字段既作为运行有效性的判断符，也作为运行的控制符号 */
-        epmgr.epos[i].actived = posix__true;
+        /* active field as a judge of operational effectiveness, as well as a control symbol of operation  */
+        epmgr.epos[i].actived = 1;
         if (posix__pthread_create(&epmgr.epos[i].thread, &__epoll_proc, &epmgr.epos[i]) < 0) {
-            epmgr.epos[i].actived = posix__false;
+            epmgr.epos[i].actived = 0;
             close(epmgr.epos[i].epfd);
             epmgr.epos[i].epfd = -1;
         }
@@ -210,7 +210,7 @@ void iouninit() {
         }
         
         if (epmgr.epos[i].actived){
-           posix__atomic_xchange(&epmgr.epos[i].actived, posix__false);
+           posix__atomic_xchange(&epmgr.epos[i].actived, 0);
            posix__pthread_join(&epmgr.epos[i].thread, NULL);
         }
     }
@@ -229,7 +229,7 @@ int ioatth(const void *ncbptr, int mask) {
     
     ncb = (ncb_t *)ncbptr;
     if (!ncb) {
-        return RE_ERROR(EINVAL);
+        return -EINVAL;
     }
     
     memset(&e_evt, 0, sizeof(e_evt));
@@ -257,7 +257,7 @@ int iomod(const void *ncbptr, int mask ) {
     
     ncb = (ncb_t *)ncbptr;
     if (!ncb) {
-        return RE_ERROR(EINVAL);
+        return -EINVAL;
     }
 
     e_evt.data.u64 = (uint64_t)ncb->hld;
@@ -307,7 +307,7 @@ void ioclose(void *ncbptr) {
             ncb->epfd = -1;
         }
          
-        shutdown(ncb->sockfd, 2);
+        shutdown(ncb->sockfd, SHUT_RDWR);
         close(ncb->sockfd);
         ncb->sockfd = -1;
     }
@@ -330,26 +330,18 @@ int setasio(int fd) {
         nis_call_ecr("nshost.io.setasio: fcntl F_SETFL failed.error:%u\n", errno);
         return -1;
     }
-    return 0;
-}
 
-int setsyio(int fd){
-    int opt;
-
-    if (fd < 0) {
-        return -1;
-    }
-
-    opt = fcntl(fd, F_GETFL);
+    opt = fcntl(fd, F_GETFD);
     if (opt < 0) {
-        nis_call_ecr("nshost.io.setsyio: fcntl F_GETFL failed.error:%u\n", errno);
+        nis_call_ecr("nshost.io.setasio: fcntl F_GETFD failed.error:%u\n", errno);
         return -1;
     }
 
-    opt &= ~O_NONBLOCK;
-    if (fcntl(fd, F_SETFL, opt) < 0) {
-        nis_call_ecr("nshost.io.setsyio: fcntl F_SETFL failed.error:%u\n", errno);
+    /* to disable the port inherit when fork/exec */
+    if (fcntl(fd, F_SETFD, opt | FD_CLOEXEC) < 0) {
+        nis_call_ecr("nshost.io.setasio: fcntl F_SETFD failed.error:%u\n", errno);
         return -1;
     }
+
     return 0;
 }

@@ -9,22 +9,6 @@
 #include "mxx.h"
 #include "fifo.h"
 
-/*
- * 写入(发送)操作，从接口处无条件压入队列的弊端
- * 1. 如果多线程调用 tcp_write, 在应用层不控制顺序的前提下， nshost无法保障先后顺序按照调用线程的先后来执行
- * 2. 每个请求都入队且要锁，增加了线程切换开销， 尤其在发送缓冲区充裕的情况下， 完全没有必要
- * 
- * 在接口层进行 if_blocked 判断的策略:
- * 1, tcp_write 将直接调用 send, udp_write 将直接调用 sendto, 都直接使用调用线程的线程空间
- * 2, 如果系统调用发生 EAGAIN, 则置位该ncb的标记， 同时将未完成的发送数据缓冲区入队
- *     2.1 发生 EAGAIN 后， 在 blocked 标记清除前，tcp_write/udp_write 行为变更为直接入队
- *     2.2 EPOLL_OUT 事件响应后， 从缓冲队列先进先出取出待发送数据包，进行send/sendto 尝试， 直到全部缓冲包发送完毕或者再次 EAGAIN
- *     2.3 如果全部缓冲包发送完毕， 则重置 blocked 标记， 允许调用线程直接 send/sendto
- * 
- * 需要进行的测试项:
- * 1. 发生EAGAIN 后再关注 EPOLL_OUT 事件， 是否能确保事件被抓获
- */
-
 struct wthread {
     posix__pthread_t thread;
     posix__pthread_mutex_t mutex;

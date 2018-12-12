@@ -38,66 +38,64 @@ struct tx_fifo {
 typedef struct _ncb {
     objhld_t hld;
     int sockfd;
-    int epfd;  /* 绑定的EPOLL描述符 */
+    int epfd;  /* the file-descriptor of epoll */
     enum ncb__protocol_type proto_type;
 
-    /* 应用层数据包的收包实际缓冲区 */
+    /* the actually buffer for receive */
     char *packet;
     
-    /* 发送操作的顺序队列 */
+    /* fifo queue of pending packet for send */
     struct tx_fifo fifo;
 
-    /* 地址结构信息 */
+    /* local/remote address information */
     struct sockaddr_in remot_addr;
     struct sockaddr_in local_addr;
 
-    /* 回调例程 */
+    /* the user-specified nshost event handler */
     nis_callback_t nis_callback;
     
-    /* 用户上下文 */
+    /* user-context */
     char *context;
     int context_size;
 
-    /* IO 响应例程 */
+    /* IO response routine */
     int (*ncb_read)(struct _ncb *);
     int (*ncb_write)(struct _ncb *);
     
-    /* 接收超时和发送超时 */
+    /* save the timeout information/options */
     struct timeval rcvtimeo;
     struct timeval sndtimeo;
     
-    /* IP头的 tos 项
-     * Differentiated Services Field: Dirrerentiated Services Codepoint/Explicit Congestion Not fication 指定TOS段
+    /* tos item in IP-head
+     * Differentiated Services Field: Dirrerentiated Services Codepoint/Explicit Congestion Not fication
      *  */
     int iptos;
     
     union {
-        /* TCP 独占属性 */
         struct {
-            /* TCP 数据包应用层解析偏移 */
+            /* TCP packet user-parse offset */
             int rx_parse_offset;
             
-            /* 因为 TCP 应用层解包将占据 packet 字段， 因此需要一个字段用于 recv */
+            /* the actually buffer give to syscall @recv */
             char *rx_buffer;
     
-            /* 大包解读(大于 0x11000 但是不足 50MB 的TCP数据包) */
-            char* lbdata; /* large block data */
-            int lboffset; /* 当前已经赋值的大包数据段偏移 */
-            int lbsize; /* 含包头的大包总长度 */
+            /* the large-block information(TCP packets larger than 0x11000B but less than 50MB) */
+            char* lbdata;   /* large-block data buffer */
+            int lboffset;   /* save offset in @lbdata */
+            int lbsize;     /* the total length include protocol-head */
     
-             /* 下层解包模板 */
+             /* template for make/build package */
             tst_t template;
 
             /* MSS of tcp link */
             int mss;
         } tcp;
         
-        /* UDP 独占属性 */
         struct {
-            /* （目前只用于 UDP 的）对象标记：广播属性 */
+            /* object attribute */
             int flag;
             
-            /* 适用于 IP 组播的 mreq 对象 */
+            /* mreq object for IP multicast */
             struct ip_mreq *mreq;
         } udp;
     } u;

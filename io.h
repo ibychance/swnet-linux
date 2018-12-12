@@ -21,7 +21,5 @@ extern
 void ioclose(void *ncbptr);
 extern
 int setasio(int fd);
-extern
-int setsyio(int fd);
 
 #endif /* IO_H */
