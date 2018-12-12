@@ -1,5 +1,7 @@
 #include "tcp.h"
 
+#include <poll.h>
+
 #include "mxx.h"
 #include "fifo.h"
 #include "io.h"

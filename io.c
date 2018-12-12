@@ -1,5 +1,7 @@
 #include "io.h"
 
+#include <fcntl.h>
+
 #include <sys/signal.h>
 
 #include "posix_thread.h"

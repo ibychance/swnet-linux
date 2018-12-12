@@ -7,6 +7,7 @@
 
 #include <ctype.h>
 #include <stdarg.h>
+#include <netdb.h>
 
 #include "ncb.h"
 
