@@ -23,7 +23,7 @@
 extern const char *TCP_KERNEL_STATE_NAME[];
 
 extern
-void tcp_update_opts(ncb_t *ncb);
+void tcp_update_opts(const ncb_t *ncb);
 
 /* tcp io */
 extern
@@ -92,27 +92,27 @@ struct tcp_info {
  
  /* getsockopt(TCP_INFO) for Linux, {Free,Net}BSD */
 extern
-int tcp_save_info(ncb_t *ncb, struct tcp_info *ktcp);
+int tcp_save_info(const ncb_t *ncb, struct tcp_info *ktcp);
 extern
-int tcp_setmss(ncb_t *ncb, int mss);
+int tcp_setmss(const ncb_t *ncb, int mss);
 extern
-int tcp_getmss(ncb_t *ncb);
+int tcp_getmss(const ncb_t *ncb);
 extern
-int tcp_set_nodelay(ncb_t *ncb, int set);
+int tcp_set_nodelay(const ncb_t *ncb, int set);
 extern
-int tcp_get_nodelay(ncb_t *ncb, int *set);
+int tcp_get_nodelay(const ncb_t *ncb, int *set);
 extern
-int tcp_set_cork(ncb_t *ncb, int set);
+int tcp_set_cork(const ncb_t *ncb, int set);
 extern
-int tcp_get_cork(ncb_t *ncb, int *set);
+int tcp_get_cork(const ncb_t *ncb, int *set);
 
 extern
-int tcp_set_keepalive(ncb_t *ncb, int enable);
+int tcp_set_keepalive(const ncb_t *ncb, int enable);
 extern
-int tcp_get_keepalive(ncb_t *ncb, int *enabled);
+int tcp_get_keepalive(const ncb_t *ncb, int *enabled);
 extern
-int tcp_set_keepalive_value(ncb_t *ncb, int idle, int interval, int probes);
+int tcp_set_keepalive_value(const ncb_t *ncb, int idle, int interval, int probes);
 extern
-int tcp_get_keepalive_value(ncb_t *ncb, int *idle, int *interval, int *probes);
+int tcp_get_keepalive_value(const ncb_t *ncb, int *idle, int *interval, int *probes);
 
 #endif

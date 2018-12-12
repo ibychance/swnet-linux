@@ -31,7 +31,7 @@ const char *TCP_KERNEL_STATE_NAME[] = {
     "TCP_TIME_WAIT", "TCP_CLOSE", "TCP_CLOSE_WAIT", "TCP_LAST_ACK", "TCP_LISTEN", "TCP_CLOSING"
 };
 
-void tcp_update_opts(ncb_t *ncb) {
+void tcp_update_opts(const ncb_t *ncb) {
     if (ncb) {
         ncb_set_window_size(ncb, SO_RCVBUF, TCP_BUFFER_SIZE);
         ncb_set_window_size(ncb, SO_SNDBUF, TCP_BUFFER_SIZE);
@@ -583,9 +583,9 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
          * otherwise, the wrong operation may broken the output sequence 
          *
          * in case of -EAGAIN return by @tcp_txn, means the write operation cannot be complete right now,
-         * insert @node into the tail of @fque queue, be careful, in this case, memory of @buffer and @node cannot be destroy until asynchronous completed
+         * insert @node into the tail of @fifo queue, be careful, in this case, memory of @buffer and @node cannot be destroy until asynchronous completed
          *
-         * just insert @node into tail of @fque queue,  awaken write thread is not necessary.
+         * just insert @node into tail of @fifo queue,  awaken write thread is not necessary.
          * don't worry about the task thread notify, when success calling to @ncb_set_blocking, ensure that the @EPOLLOUT event can being captured by IO thread 
          */
         fifo_queue(ncb, node);
@@ -664,7 +664,7 @@ int tcp_getopt(HTCPLINK lnk, int level, int opt, char *__restrict val, int *len)
     return retval;
 }
 
-int tcp_save_info(ncb_t *ncb, struct tcp_info *ktcp) {
+int tcp_save_info(const ncb_t *ncb, struct tcp_info *ktcp) {
     socklen_t len = sizeof (struct tcp_info);
 
     if (!ktcp) {
@@ -674,7 +674,7 @@ int tcp_save_info(ncb_t *ncb, struct tcp_info *ktcp) {
     return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_INFO, (void * __restrict)ktcp, &len);
 }
 
-int tcp_setmss(ncb_t *ncb, int mss) {
+int tcp_setmss(const ncb_t *ncb, int mss) {
     if (ncb && mss > 0) {
         return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_MAXSEG, (const void *) &mss, sizeof (mss));
     }
@@ -682,7 +682,7 @@ int tcp_setmss(ncb_t *ncb, int mss) {
     return RE_ERROR(EINVAL);
 }
 
-int tcp_getmss(ncb_t *ncb) {
+int tcp_getmss(const ncb_t *ncb) {
     if (ncb) {
         socklen_t lenmss = sizeof (ncb->u.tcp.mss);
         return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_MAXSEG, (void *__restrict) & ncb->u.tcp.mss, &lenmss);
@@ -690,7 +690,7 @@ int tcp_getmss(ncb_t *ncb) {
     return RE_ERROR(EINVAL);
 }
 
-int tcp_set_nodelay(ncb_t *ncb, int set) {
+int tcp_set_nodelay(const ncb_t *ncb, int set) {
     if (ncb) {
         return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (const void *) &set, sizeof ( set));
     }
@@ -698,7 +698,7 @@ int tcp_set_nodelay(ncb_t *ncb, int set) {
     return RE_ERROR(EINVAL);
 }
 
-int tcp_get_nodelay(ncb_t *ncb, int *set) {
+int tcp_get_nodelay(const ncb_t *ncb, int *set) {
     if (ncb && set) {
         socklen_t optlen = sizeof (int);
         return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (void *__restrict)set, &optlen);
@@ -706,7 +706,7 @@ int tcp_get_nodelay(ncb_t *ncb, int *set) {
     return RE_ERROR(EINVAL);
 }
 
-int tcp_set_cork(ncb_t *ncb, int set) {
+int tcp_set_cork(const ncb_t *ncb, int set) {
     if (ncb) {
         return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_CORK, (const void *) &set, sizeof ( set));
     }
@@ -714,7 +714,7 @@ int tcp_set_cork(ncb_t *ncb, int set) {
     return RE_ERROR(EINVAL);
 }
 
-int tcp_get_cork(ncb_t *ncb, int *set) {
+int tcp_get_cork(const ncb_t *ncb, int *set) {
     if (ncb && set) {
         socklen_t optlen = sizeof (int);
         return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_CORK, (void *__restrict)set, &optlen);
@@ -722,14 +722,14 @@ int tcp_get_cork(ncb_t *ncb, int *set) {
     return RE_ERROR(EINVAL);
 }
 
-int tcp_set_keepalive(ncb_t *ncb, int enable) {
+int tcp_set_keepalive(const ncb_t *ncb, int enable) {
     if (ncb) {
         return setsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (const char *) &enable, sizeof ( enable));
     }
     return RE_ERROR(EINVAL);
 }
 
-int tcp_get_keepalive(ncb_t *ncb, int *enabled){
+int tcp_get_keepalive(const ncb_t *ncb, int *enabled){
     if (ncb && enabled) {
         socklen_t optlen = sizeof(int);
         return getsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (void *__restrict)enabled, &optlen);
@@ -737,7 +737,7 @@ int tcp_get_keepalive(ncb_t *ncb, int *enabled){
     return RE_ERROR(EINVAL);
 }
 
-int tcp_set_keepalive_value(ncb_t *ncb, int idle, int interval, int probes) {
+int tcp_set_keepalive_value(const ncb_t *ncb, int idle, int interval, int probes) {
     int enabled;
     if (tcp_get_keepalive(ncb, &enabled) < 0) {
         return -1;
@@ -769,7 +769,7 @@ int tcp_set_keepalive_value(ncb_t *ncb, int idle, int interval, int probes) {
     return -1;
 }
 
-int tcp_get_keepalive_value(ncb_t *ncb,int *idle, int *interval, int *probes) {
+int tcp_get_keepalive_value(const ncb_t *ncb,int *idle, int *interval, int *probes) {
     int enabled;
     socklen_t optlen;
 

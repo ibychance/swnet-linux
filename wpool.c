@@ -120,7 +120,7 @@ static int __wp_exec(struct task_node *task) {
         } else if (0 == retval) {
             ;/* nop, no item in fifo now */
         } else {
-            /* on success, we need to append task to the tail of @fque again, until all pending data have been sent
+            /* on success, we need to append task to the tail of @fifo again, until all pending data have been sent
                 in this case, @__wp_run should not free the memory of this task  */
             if (fifo_pop(ncb, NULL) > 0) {
                 __add_task(task);

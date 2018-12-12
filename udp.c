@@ -227,10 +227,10 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, c
          * only way to handler this situation is queued data into @wpool.
          * otherwise, the wrong operation may broken the output sequence 
          *
-         * in case of -EAGAIN return by @tcp_txn, means the write operation cannot be complete right now,
-         * insert @node into the tail of @fque queue, be careful, in this case, memory of @buffer and @node cannot be destroy until asynchronous completed
+         * in case of -EAGAIN return by @udp_txn, means the write operation cannot be complete right now,
+         * insert @node into the tail of @fifo queue, be careful, in this case, memory of @buffer and @node cannot be destroy until asynchronous completed
          *
-         * just insert @node into tail of @fque queue,  awaken write thread is not necessary.
+         * just insert @node into tail of @fifo queue,  awaken write thread is not necessary.
          * don't worry about the task thread notify, when success calling to @ncb_set_blocking, ensure that the @EPOLLOUT event can being captured by IO thread 
          */
         fifo_queue(ncb, node);
