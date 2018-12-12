@@ -13,6 +13,7 @@
 #include "wpool.h"
 #include "tcp.h"
 #include "mxx.h"
+#include "fifo.h"
 
 #include "posix_thread.h"
 #include "posix_wait.h"
@@ -115,12 +116,15 @@ static int __wp_exec(struct task_node *task) {
         if(-1 == retval) {
             objclos(ncb->hld);
         } else if (-EAGAIN == retval ) {
-            ncb_set_blocking(ncb);
+            ; /* when EAGAIN occurred, wait for next EPOLLOUT event, just ok */
         } else if (0 == retval) {
-            ncb_cancel_blocking(ncb); /* If any frame of data is delivered to the kernel, the IO blocking state can be cancel.  */
+            ;/* nop, no item in fifo now */
         } else {
-            __add_task(task); /* on success, we need to append task to the tail of @fque again, until all pending data have been sent
-                                    in this case, @__wp_run should not free the memory of this task  */
+            /* on success, we need to append task to the tail of @fque again, until all pending data have been sent
+                in this case, @__wp_run should not free the memory of this task  */
+            if (fifo_pop(ncb, NULL) > 0) {
+                __add_task(task);
+            }
         }
     }
     

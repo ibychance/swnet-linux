@@ -24,7 +24,6 @@
 #include "ncb.h"
 #include "io.h"
 #include "wpool.h"
-#include "fque.h"
 #include "clist.h"
 #include "object.h"
 
@@ -33,6 +32,15 @@ enum ncb__protocol_type {
     kProtocolType_TCP,
     kProtocolType_UDP,
 };
+
+struct tx_fifo {
+    int blocking;
+    int size;
+    posix__pthread_mutex_t lock;
+    struct list_head head;
+} ;
+
+#define MAXIMUM_NCB_FIFO_SIZE       (100)
 
 typedef struct _ncb {
     objhld_t hld;
@@ -44,7 +52,7 @@ typedef struct _ncb {
     char *packet;
     
     /* 发送操作的顺序队列 */
-    struct tx_fifo tx_fifo;
+    struct tx_fifo fifo;
 
     /* 地址结构信息 */
     struct sockaddr_in remot_addr;
@@ -60,20 +68,6 @@ typedef struct _ncb {
     /* IO 响应例程 */
     int (*ncb_read)(struct _ncb *);
     int (*ncb_write)(struct _ncb *);
-    
-    /* 重要:
-     * 用于 write 操作发生 EAGAIN 后
-     * 一旦发生 EAGAIN, 后续操作只能通过 EPOLLOUT 触发，具体处理措施为
-     * 1. 发生 EAGAIN, 则激活该 FD 的 EPOLLOUT事件，同时将 shield_ 置 1
-     * 2. 在 shield_ > 0 的情况下，任何写任务， 均不会真正调用 write
-     * 3. EPOLLOUT 事件到达时，将 shield_ 置0， 同时取消 EPOLLOUT 的关注
-     * 注意:
-     * 1. 一旦发生逻辑阻挡， 则任务无法继续, 该次任务请求将被丢弃
-     * 2. 此项IO阻塞和读线程无关, 必须保证读写互不影响， 否则可能导致因为 io blocked 而无法继续收包
-     *
-     * this is a boolean value
-     */
-    int write_io_blocked;
     
     /* 接收超时和发送超时 */
     struct timeval rcvtimeo;
@@ -124,46 +118,40 @@ extern
 void ncb_uninit(objhld_t ignore, void */*ncb_t * */ncb);
 
 extern
-void ncb_set_blocking(ncb_t *ncb);
+int ncb_set_rcvtimeo(const ncb_t *ncb, const struct timeval *timeo);
 extern
-void ncb_cancel_blocking(ncb_t *ncb);
-#define ncb_is_blocking(ncb)    (1 == ncb->write_io_blocked)
+int ncb_get_rcvtimeo(const ncb_t *ncb);
+extern
+int ncb_set_sndtimeo(const ncb_t *ncb, const struct timeval *timeo);
+extern
+int ncb_get_sndtimeo(const ncb_t *ncb);
 
 extern
-int ncb_set_rcvtimeo(ncb_t *ncb, struct timeval *timeo);
+int ncb_set_iptos(const ncb_t *ncb, int tos);
 extern
-int ncb_get_rcvtimeo(ncb_t *ncb);
-extern
-int ncb_set_sndtimeo(ncb_t *ncb, struct timeval *timeo);
-extern
-int ncb_get_sndtimeo(ncb_t *ncb);
+int ncb_get_iptos(const ncb_t *ncb);
 
 extern
-int ncb_set_iptos(ncb_t *ncb, int tos);
+int ncb_set_window_size(const ncb_t *ncb, int dir, int size);
 extern
-int ncb_get_iptos(ncb_t *ncb);
+int ncb_get_window_size(const ncb_t *ncb, int dir, int *size);
 
 extern
-int ncb_set_window_size(ncb_t *ncb, int dir, int size);
+int ncb_set_linger(const ncb_t *ncb, int onoff, int lin);
 extern
-int ncb_get_window_size(ncb_t *ncb, int dir, int *size);
+int ncb_get_linger(const ncb_t *ncb, int *onoff, int *lin);
 
 extern
-int ncb_set_linger(ncb_t *ncb, int onoff, int lin);
+void ncb_post_preclose(const ncb_t *ncb);
 extern
-int ncb_get_linger(ncb_t *ncb, int *onoff, int *lin);
-
+void ncb_post_close(const ncb_t *ncb);
 extern
-void ncb_post_preclose(ncb_t *ncb);
+void ncb_post_recvdata(const ncb_t *ncb,  int cb, const char *data);
 extern
-void ncb_post_close(ncb_t *ncb);
+void ncb_post_accepted(const ncb_t *ncb, HTCPLINK link);
 extern
-void ncb_post_recvdata(ncb_t *ncb,  int cb, const char *data);
+void ncb_post_senddata(const ncb_t *ncb,  int cb, const char *data);
 extern
-void ncb_post_accepted(ncb_t *ncb, HTCPLINK link);
-extern
-void ncb_post_senddata(ncb_t *ncb,  int cb, const char *data);
-extern
-void ncb_post_connected(ncb_t *ncb);
+void ncb_post_connected(const ncb_t *ncb);
 
 #endif

@@ -1,11 +1,12 @@
 #include "ncb.h"
 #include "mxx.h"
+#include "fifo.h"
 
 int ncb_init(ncb_t *ncb) {
 
     if (ncb) {
         memset(ncb, 0, sizeof (ncb_t));
-        fque_init(&ncb->tx_fifo);
+        fifo_init(ncb);
         return 0;
     }
 
@@ -49,7 +50,7 @@ void ncb_uninit(objhld_t ignore, void *p) {
     }
 
     /* clear all packages pending in send queue */
-    fque_uninit(&ncb->tx_fifo);
+    fifo_uninit(ncb);
     
     /* post close event to calling thread */
     if (ncb->hld >= 0) {
@@ -58,31 +59,17 @@ void ncb_uninit(objhld_t ignore, void *p) {
 
     /* set callback function to ineffectiveness */
     ncb->nis_callback = NULL;
-    nis_call_ecr("nshost.ncb.uninit: object %lld finalization freed",ncb->hld);
+    nis_call_ecr("nshost.ncb.uninit: object %lld finalization released",ncb->hld);
 }
 
-void ncb_set_blocking(ncb_t *ncb) {
-    if (0 == posix__atomic_compare_xchange(&ncb->write_io_blocked, 0, 1)) {
-        iomod(ncb, EPOLLIN | EPOLLOUT);
-        nis_call_ecr("nshost.ncb:link %lld set to IO blocking.", ncb->hld);
-    }
-}
-
-void ncb_cancel_blocking(ncb_t *ncb) {
-    if (1 == posix__atomic_compare_xchange(&ncb->write_io_blocked, 1, 0)) {
-        iomod(ncb, EPOLLIN);
-        nis_call_ecr("nshost.ncb:link %lld IO blocking cancelled.", ncb->hld);
-    }
-}
-
-int ncb_set_rcvtimeo(ncb_t *ncb, struct timeval *timeo){
+int ncb_set_rcvtimeo(const ncb_t *ncb, const struct timeval *timeo){
     if (ncb && timeo){
         return setsockopt(ncb->sockfd, SOL_SOCKET, SO_RCVTIMEO, (const void *)timeo, sizeof(struct timeval));
     }
     return RE_ERROR(EINVAL);
 }
 
-int ncb_get_rcvtimeo(ncb_t *ncb){
+int ncb_get_rcvtimeo(const ncb_t *ncb){
     if (ncb){
          socklen_t optlen =sizeof(ncb->rcvtimeo);
         return getsockopt(ncb->sockfd, SOL_SOCKET, SO_RCVTIMEO, (void *__restrict)&ncb->rcvtimeo, &optlen);
@@ -90,14 +77,14 @@ int ncb_get_rcvtimeo(ncb_t *ncb){
     return RE_ERROR(EINVAL);
 }
 
-int ncb_set_sndtimeo(ncb_t *ncb, struct timeval *timeo){
+int ncb_set_sndtimeo(const ncb_t *ncb, const struct timeval *timeo){
     if (ncb && timeo) {
         return setsockopt(ncb->sockfd, SOL_SOCKET, SO_SNDTIMEO, (const void *)timeo, sizeof(struct timeval));
     }
     return RE_ERROR(EINVAL);
 }
 
-int ncb_get_sndtimeo(ncb_t *ncb){
+int ncb_get_sndtimeo(const ncb_t *ncb){
     if (ncb){
         socklen_t optlen =sizeof(ncb->sndtimeo);
         return getsockopt(ncb->sockfd, SOL_SOCKET, SO_SNDTIMEO, (void *__restrict)&ncb->sndtimeo, &optlen);
@@ -105,7 +92,7 @@ int ncb_get_sndtimeo(ncb_t *ncb){
     return RE_ERROR(EINVAL);
 }
 
-int ncb_set_iptos(ncb_t *ncb, int tos){
+int ncb_set_iptos(const ncb_t *ncb, int tos){
     unsigned char type_of_service = (unsigned char )tos;
     if (ncb && type_of_service){
         return setsockopt(ncb->sockfd, SOL_IP, IP_TOS, (const void *)&type_of_service, sizeof(type_of_service));
@@ -113,7 +100,7 @@ int ncb_set_iptos(ncb_t *ncb, int tos){
     return RE_ERROR(EINVAL);
 }
 
-int ncb_get_iptos(ncb_t *ncb){
+int ncb_get_iptos(const ncb_t *ncb){
     if (ncb){
         socklen_t optlen =sizeof(ncb->iptos);
         return getsockopt(ncb->sockfd, SOL_IP, IP_TOS, (void *__restrict)&ncb->iptos, &optlen);
@@ -121,7 +108,7 @@ int ncb_get_iptos(ncb_t *ncb){
     return RE_ERROR(EINVAL);
 }
 
-int ncb_set_window_size(ncb_t *ncb, int dir, int size){
+int ncb_set_window_size(const ncb_t *ncb, int dir, int size){
     if (ncb){
         return setsockopt(ncb->sockfd, SOL_SOCKET, dir, (const void *)&size, sizeof(size));
     }
@@ -129,7 +116,7 @@ int ncb_set_window_size(ncb_t *ncb, int dir, int size){
      return RE_ERROR(EINVAL);
 }
 
-int ncb_get_window_size(ncb_t *ncb, int dir, int *size){
+int ncb_get_window_size(const ncb_t *ncb, int dir, int *size){
     if (ncb && size){
         socklen_t optlen = sizeof(int);
         if (getsockopt(ncb->sockfd, SOL_SOCKET, dir, (void *__restrict)size, &optlen) < 0){
@@ -140,7 +127,7 @@ int ncb_get_window_size(ncb_t *ncb, int dir, int *size){
      return RE_ERROR(EINVAL);
 }
 
-int ncb_set_linger(ncb_t *ncb, int onoff, int lin){
+int ncb_set_linger(const ncb_t *ncb, int onoff, int lin){
     struct linger lgr;
     
     if (!ncb){
@@ -152,7 +139,7 @@ int ncb_set_linger(ncb_t *ncb, int onoff, int lin){
     return setsockopt(ncb->sockfd, SOL_SOCKET, SO_LINGER, (char *) &lgr, sizeof ( struct linger));
 }
 
-int ncb_get_linger(ncb_t *ncb, int *onoff, int *lin) {
+int ncb_get_linger(const ncb_t *ncb, int *onoff, int *lin) {
     struct linger lgr;
     socklen_t optlen = sizeof (lgr);
 
@@ -175,7 +162,7 @@ int ncb_get_linger(ncb_t *ncb, int *onoff, int *lin) {
     return 0;
 }
 
-void ncb_post_preclose(ncb_t *ncb) {
+void ncb_post_preclose(const ncb_t *ncb) {
     nis_event_t c_event;
     tcp_data_t c_data;
 
@@ -189,7 +176,7 @@ void ncb_post_preclose(ncb_t *ncb) {
     }
 }
 
-void ncb_post_close(ncb_t *ncb) {
+void ncb_post_close(const ncb_t *ncb) {
     nis_event_t c_event;
     tcp_data_t c_data;
 
@@ -203,7 +190,7 @@ void ncb_post_close(ncb_t *ncb) {
     }
 }
 
-void ncb_post_recvdata(ncb_t *ncb,  int cb, const char *data) {
+void ncb_post_recvdata(const ncb_t *ncb,  int cb, const char *data) {
     nis_event_t c_event;
     tcp_data_t c_data;
 
@@ -218,7 +205,7 @@ void ncb_post_recvdata(ncb_t *ncb,  int cb, const char *data) {
     }
 }
 
-void ncb_post_accepted(ncb_t *ncb, HTCPLINK link) {
+void ncb_post_accepted(const ncb_t *ncb, HTCPLINK link) {
     nis_event_t c_event;
     tcp_data_t c_data;
 
@@ -232,7 +219,7 @@ void ncb_post_accepted(ncb_t *ncb, HTCPLINK link) {
     }
 }
 
-void ncb_post_senddata(ncb_t *ncb,  int cb, const char *data) {
+void ncb_post_senddata(const ncb_t *ncb,  int cb, const char *data) {
     nis_event_t c_event;
     tcp_data_t c_data;
 
@@ -247,7 +234,7 @@ void ncb_post_senddata(ncb_t *ncb,  int cb, const char *data) {
     }
 }
 
-void ncb_post_connected(ncb_t *ncb) {
+void ncb_post_connected(const ncb_t *ncb) {
     nis_event_t c_event;
     tcp_data_t c_data;
 

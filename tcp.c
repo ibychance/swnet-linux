@@ -6,6 +6,7 @@
 
 #include "tcp.h"
 #include "mxx.h"
+#include "fifo.h"
 
 /*
  *  kernel status of tcpi_state
@@ -477,16 +478,6 @@ int tcp_maker(void *data, int cb, const void *context) {
     return -1;
 }
 
-static void tcp_queued(ncb_t *ncb,  struct tx_node *node) {
-
-    /* to large length of current queue,no more message can be post */
-    if (fque_size(&ncb->tx_fifo) >= TCP_MAXIMUM_SENDER_CACHED_CNT) {
-        nis_call_ecr("nshost.tcp.write:link %lld pending queue size achive maximum.", ncb->hld);
-    } else {
-        fque_push(&ncb->tx_fifo, node);
-    }
-}
-
 int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
     ncb_t *ncb;
     objhld_t hld;
@@ -574,7 +565,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
         node->wcb = cb + ncb->u.tcp.template.cb_;
         node->offset = 0;
 
-        if (!ncb_is_blocking(ncb)) {
+        if (!fifo_is_blocking(ncb)) {
             retval = tcp_txn(ncb, node);
 
             /* 
@@ -597,9 +588,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
          * just insert @node into tail of @fque queue,  awaken write thread is not necessary.
          * don't worry about the task thread notify, when success calling to @ncb_set_blocking, ensure that the @EPOLLOUT event can being captured by IO thread 
          */
-        tcp_queued(ncb, node);
-        ncb_set_blocking(ncb);
-
+        fifo_queue(ncb, node);
         objdefr(hld);
         return 0;
     } while (0);

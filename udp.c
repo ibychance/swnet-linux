@@ -2,7 +2,7 @@
 
 #include "udp.h"
 #include "mxx.h"
-#include "fque.h"
+#include "fifo.h"
 
 static int __udp_update_opts(ncb_t *ncb) {
     static const int RECV_BUFFER_SIZE = 0xFFFF;
@@ -153,91 +153,11 @@ void udp_destroy(HUDPLINK lnk) {
     }
 }
 
-static 
-int udp_maker(void *data, int cb, const void *context) {
+static int udp_maker(void *data, int cb, const void *context) {
     if (data && cb > 0 && context) {
         memcpy(data, context, cb);
         return 0;
     }
-    return -1;
-}
-
-static void udp_queued(ncb_t *ncb,  struct tx_node *node) {
-    /* to large length of current queue,no more message can be post */
-    if (fque_size(&ncb->tx_fifo) >= UDP_MAXIMUM_SENDER_CACHED_CNT) {
-        nis_call_ecr("nshost.udp.write:link %lld pending queue size achive maximum.", ncb->hld);
-    } else {
-        fque_push(&ncb->tx_fifo, node);
-    }
-}
-
-int udp_sendto(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, const char* r_ipstr, uint16_t r_port) {
-    ncb_t *ncb;
-    objhld_t hld;
-    unsigned char *buffer;
-    struct tx_node *node;
-
-    if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > MAX_UDP_SIZE) || udp_init() < 0) {
-        return -EINVAL;
-    }
-
-    hld = (objhld_t) lnk;
-    buffer = NULL;
-    node = NULL;
-
-    ncb = (ncb_t *) objrefr(hld);
-    if (!ncb) {
-        return -ENOENT;
-    }
-
-    do {
-       /* to large length of current queue,no more message can be post */
-        if ((fque_size(&ncb->tx_fifo) >= UDP_MAXIMUM_SENDER_CACHED_CNT)) {
-            nis_call_ecr("nshost.udp.sendto:link %lld pending queue size achive maximum.", lnk);
-            break;
-        }
-
-        buffer = (unsigned char *) malloc(cb);
-        if (!buffer) {
-            break;
-        }
-
-        /* fill user data seg */
-        if (maker) {
-            if ((*maker)(buffer, cb, par) < 0) {
-                break;
-            }
-        }else{
-            if (udp_maker(buffer, cb, par) < 0){
-                break;
-            }
-        }
-
-        node = (struct tx_node *) malloc(sizeof (struct tx_node));
-        if (!node) {
-            break;
-        }
-        memset(node, 0, sizeof(struct tx_node));
-        node->data = buffer;
-        node->wcb = cb;
-        node->offset = 0;
-        node->udp_target.sin_family = AF_INET;
-        node->udp_target.sin_addr.s_addr = inet_addr(r_ipstr);
-        node->udp_target.sin_port = htons(r_port);
-        udp_queued(ncb, node);
-        objdefr(hld);
-        return 0;
-    } while (0);
-
-    if (buffer) {
-        free(buffer);
-    }
-
-    if (node) {
-        free(node);
-    }
-
-    objdefr(hld);
     return -1;
 }
 
@@ -290,7 +210,7 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, c
         node->udp_target.sin_addr.s_addr = inet_addr(r_ipstr);
         node->udp_target.sin_port = htons(r_port);
 
-        if (!ncb_is_blocking(ncb)) {
+        if (!fifo_is_blocking(ncb)) {
             retval = udp_txn(ncb, node);
 
             /* 
@@ -313,9 +233,7 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, c
          * just insert @node into tail of @fque queue,  awaken write thread is not necessary.
          * don't worry about the task thread notify, when success calling to @ncb_set_blocking, ensure that the @EPOLLOUT event can being captured by IO thread 
          */
-        udp_queued(ncb, node);
-        ncb_set_blocking(ncb);
-
+        fifo_queue(ncb, node);
         objdefr(hld);
         return 0;
     } while (0);

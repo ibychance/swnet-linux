@@ -2,6 +2,7 @@
 
 #include "udp.h"
 #include "mxx.h"
+#include "fifo.h"
 
 static
 int __udp_rx(ncb_t *ncb) {
@@ -113,17 +114,13 @@ int udp_tx(ncb_t *ncb) {
     }
     
     /* try to write front package into system kernel send-buffer */
-    if (NULL != (node = fque_get(&ncb->tx_fifo))) {
+    if (fifo_top(ncb, &node) >= 0) {
         retval = udp_txn(ncb, node);
-        if (retval < 0) {
-            if (-EAGAIN == retval) {
-                fque_revert(&ncb->tx_fifo, node);
-            }
-            return retval;
+        if (retval > 0) {
+            fifo_pop(ncb, NULL);
         }
-        fque_free_node(node);
         return retval;
     }
-    
+
     return 0;
 }

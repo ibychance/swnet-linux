@@ -15,11 +15,11 @@ int ioinit();
 extern
 void iouninit();
 extern
-int ioatth(void *ncbptr, int mask);
+int ioatth(const void *ncbptr, int mask);
 extern
-int iomod(void *ncbptr, int mask );
+int iomod(const void *ncbptr, int mask );
 extern
-void iodeth(void *ncbptr);
+void iodeth(const void *ncbptr);
 extern
 void ioclose(void *ncbptr);
 extern

@@ -2,7 +2,6 @@
 #define UDP_H_20170121
 
 #include "ncb.h"
-#include "fque.h"
 
 #define UDP_MAXIMUM_SENDER_CACHED_CNT	( 44 ) /* 以每个包 1460 计, 最多可以接受 64KB 的发送堆积 */
 
@@ -25,9 +24,6 @@ extern
 int udp_txn(ncb_t *ncb, void *p);
 extern
 int udp_tx(ncb_t *ncb);
-extern
-int udp_atx(ncb_t *ncb, struct tx_node *packet);
-
 extern
 int udp_set_boardcast(ncb_t *ncb, int enable);
 extern

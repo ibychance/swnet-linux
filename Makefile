@@ -6,7 +6,7 @@ SRC_EXT=c
 SYS_WIDTH=$(shell getconf LONG_BIT)
 
 #SRCS=$(wildcard *.$(SRC_EXT))
-SRCS=./fque.c \
+SRCS=./fifo.c \
 		./io.c \
 		./mxx.c \
 		./ncb.c \

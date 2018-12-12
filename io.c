@@ -229,7 +229,7 @@ void iouninit() {
     epmgr.epos = NULL;
 }
 
-int ioatth(void *ncbptr, int mask) {
+int ioatth(const void *ncbptr, int mask) {
     struct epoll_event e_evt;
     ncb_t *ncb;
 
@@ -257,7 +257,7 @@ int ioatth(void *ncbptr, int mask) {
 	return 0;
 }
 
-int iomod(void *ncbptr, int mask ) {
+int iomod(const void *ncbptr, int mask ) {
     struct epoll_event e_evt;
     ncb_t *ncb;
 
@@ -277,7 +277,7 @@ int iomod(void *ncbptr, int mask ) {
     return epoll_ctl(ncb->epfd, EPOLL_CTL_MOD, ncb->sockfd, &e_evt);
 }
 
-void iodeth(void *ncbptr) {
+void iodeth(const void *ncbptr) {
     struct epoll_event evt;
     ncb_t *ncb;
 

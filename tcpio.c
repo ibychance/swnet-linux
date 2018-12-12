@@ -3,6 +3,7 @@
 #include "tcp.h"
 #include "mxx.h"
 #include "posix_ifos.h"
+#include "fifo.h"
 
 static
 int __tcp_syn(ncb_t *ncb_server) {
@@ -235,7 +236,6 @@ int tcp_txn(ncb_t *ncb, void *p) {
 /* TCP sender proc */
 int tcp_tx(ncb_t *ncb) {
     struct tx_node *node;
-    int retval;
     struct tcp_info ktcp;
 
     if (!ncb) {
@@ -251,16 +251,8 @@ int tcp_tx(ncb_t *ncb) {
     }
 
     /* try to write front package into system kernel send-buffer */
-    if (NULL != (node = fque_get(&ncb->tx_fifo))) {
-        retval = tcp_txn(ncb, node);
-        if (retval < 0) {
-            if (-EAGAIN == retval ) {
-                fque_revert(&ncb->tx_fifo, node);
-            }
-            return retval;
-        }
-        fque_free_node(node);
-        return retval;
+    if (fifo_top(ncb, &node) >= 0) {
+        return tcp_txn(ncb, node);
     }
 
     return 0;
