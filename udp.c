@@ -40,10 +40,6 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
     socklen_t addrlen;
     ncb_t *ncb;
 
-    if (udp_init() < 0) {
-        return INVALID_HUDPLINK;
-    }
-
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
         if (l_ipstr) {
