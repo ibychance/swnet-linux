@@ -1,4 +1,4 @@
-TARGET=nshost.so.9.7.4
+TARGET=nshost.so.9.7.5
 build=automatic
 arch=x86_64
 INSTALL_DIR=

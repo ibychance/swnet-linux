@@ -5,6 +5,9 @@
 #include "io.h"
 #include "wpool.h"
 
+#include "posix_ifos.h"
+#include "posix_atomic.h"
+
 /*
  *  kernel status of tcpi_state
  *  defined in /usr/include/netinet/tcp.h
@@ -191,14 +194,10 @@ int tcp_gettst(HTCPLINK lnk, tst_t *tst) {
 void tcp_destroy(HTCPLINK lnk) {
     ncb_t *ncb;
 
-    if (tcp_init() < 0) {
-        return;
-    }
-
     /* it should be the last reference operation of this object, no matter how many ref-count now. */
     ncb = objreff((objhld_t) lnk);
     if (ncb) {
-        nis_call_ecr("nshost.tcp.destroy: link %lld order to destroy", ncb->hld);
+        nis_call_ecr("nshost.tcp.destroy: link:%lld order to destroy", ncb->hld);
         ioclose(ncb);
         objdefr((objhld_t) lnk);
     }
@@ -282,7 +281,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
     int optval;
     struct tcp_info ktcp;
 
-    if (lnk < 0 || !r_ipstr || 0 == r_port || tcp_init() < 0) {
+    if (lnk < 0 || !r_ipstr || 0 == r_port ) {
         return -1;
     }
 
@@ -318,7 +317,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
 
         if (retval < 0) {
             /* if this socket is already connected, or it is in listening states, sys-call failed with error EISCONN  */
-            nis_call_ecr("nshost.tcp.connect:fatal syscall, link:%lld, %s:%u, err=%d", lnk, r_ipstr, r_port, e);
+            nis_call_ecr("nshost.tcp.connect:fatal syscall, link:%lld, %s:%u, error:%d", lnk, r_ipstr, r_port, e);
             break;
         }
 
@@ -356,7 +355,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
     int optval;
     struct tcp_info ktcp;
 
-    if (lnk < 0 || !r_ipstr || 0 == r_port || tcp_init() < 0) {
+    if (lnk < 0 || !r_ipstr || 0 == r_port ) {
         return -1;
     }
 
@@ -380,7 +379,12 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         optval = 3;
         setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
 
-        ncb->ncb_write = &tcp_tx_syn;
+        if ((NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_write, NULL, &tcp_tx_syn)) ||
+            (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_read, NULL, &tcp_rx_syn)) ||
+            (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_error, NULL, &tcp_rx_syn))) {
+            nis_call_ecr("nshost.tcp.connect2:link:%lld multithreading double call is not allowed.", lnk);
+            return -1;
+        }
         
         /* queue object into epoll manage befor syscall @connect,
            epoll_wait will get a EPOLLOUT signal when syn success.
@@ -388,26 +392,39 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         if (setasio(ncb->sockfd) < 0) {
             break;
         }
-        if (ioatth(ncb, EPOLLOUT) < 0) {
-            break;
-        }
 
         ncb->remot_addr.sin_family = PF_INET;
         ncb->remot_addr.sin_port = htons(r_port);
         ncb->remot_addr.sin_addr.s_addr = inet_addr(r_ipstr);
 
-        retval = connect(ncb->sockfd, (const struct sockaddr *) &ncb->remot_addr, sizeof (struct sockaddr));
-        if (retval < 0) {
+        do {
+            retval = connect(ncb->sockfd, (const struct sockaddr *) &ncb->remot_addr, sizeof (struct sockaddr));
             e = errno;
-            if (e != EINPROGRESS) {
+        }while((EINTR == e) && (retval < 0));
+
+        /* immediate success */
+        if ( 0 == retval) {
+            break;
+        }
+            
+        if (e == EINPROGRESS) {
+            if (ioatth(ncb, EPOLLOUT | EPOLLIN) < 0) {
                 break;
             }
+            retval = 0;
+            break;
         }
 
-        retval = 0;
+        if (EAGAIN == e) {
+            nis_call_ecr("nshost.tcp.connect2:Insufficient entries in the routing cache, link:%lld", link);
+        } else {
+            nis_call_ecr("nshost.tcp.connect2:fatal syscall, link:%lld, %s:%u, error:%d", lnk, r_ipstr, r_port, e);
+        }
+        
     } while (0);
 
     objdefr((objhld_t) lnk);
+
     return retval;
 }
 
@@ -416,7 +433,7 @@ int tcp_listen(HTCPLINK lnk, int block) {
     int retval;
     struct tcp_info ktcp;
 
-    if (lnk < 0 || tcp_init() < 0) {
+    if (lnk < 0) {
         return -1;
     }
 
@@ -442,7 +459,7 @@ int tcp_listen(HTCPLINK lnk, int block) {
          */
         retval = listen(ncb->sockfd, ((0 == block) || (block > SOMAXCONN)) ? SOMAXCONN : block);
         if (retval < 0) {
-            nis_call_ecr("nshost.tcp.listen:fatal syscall,err=%d", errno);
+            nis_call_ecr("nshost.tcp.listen:fatal syscall,error:%d", errno);
             break;
         }
 
@@ -453,7 +470,9 @@ int tcp_listen(HTCPLINK lnk, int block) {
         }
 
         /* this NCB object is readonly， and it must be used for accept */
-        ncb->ncb_read = &tcp_syn;
+        if (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_read, NULL, &tcp_syn)) {
+            nis_call_ecr("nshost.tcp.tcp_listen:link:%lld multithreading double call is not allowed.", lnk);
+        }
         ncb->ncb_write = NULL;
         
         if (ioatth(ncb, EPOLLIN) < 0) {
@@ -485,7 +504,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
     struct tx_node *node;
     int retval;
 
-    if ( lnk < 0 || cb <= 0 || cb > TCP_MAXIMUM_PACKET_SIZE || tcp_init() < 0 ) {
+    if ( lnk < 0 || cb <= 0 || cb > TCP_MAXIMUM_PACKET_SIZE ) {
         return -EINVAL;
     }
 

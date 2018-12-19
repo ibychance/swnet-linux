@@ -38,9 +38,23 @@ static void __iorun(struct epoll_event *evts, int sigcnt) {
         hld = (objhld_t)evts[i].data.u64;
 
         /* disconnect/error happend */
-        if ((evts[i].events & EPOLLRDHUP) || (evts[i].events & EPOLLERR) ) {
-            nis_call_ecr("nshost.io.__iorun: close event: %d, associated link: %lld", evts[i].events, hld);
+        if (evts[i].events & EPOLLRDHUP) {
+            nis_call_ecr("nshost.io.__iorun: link:%lld get event RDHUP", hld, evts[i].events);
 	        objclos(hld);
+            continue;
+        }
+
+        ncb = (ncb_t *)objrefr(hld);
+        if (!ncb) {
+            continue;
+        }
+
+        if (evts[i].events & EPOLLERR) {
+            if (ncb->ncb_error) {
+                ncb->ncb_error(ncb);
+            }
+            nis_call_ecr("nshost.io.__iorun: link %lld get event ERR", hld, evts[i].events);
+            objclos(hld);
             continue;
         }
 
@@ -49,11 +63,6 @@ static void __iorun(struct epoll_event *evts, int sigcnt) {
     	if ( evts[i].events & EPOLLHUP ) {
     	    ;
     	}
-
-        ncb = (ncb_t *)objrefr(hld);
-        if (!ncb) {
-            continue;
-        }
 
         /*
          * 触发条件:
@@ -76,11 +85,11 @@ static void __iorun(struct epoll_event *evts, int sigcnt) {
         if (evts[i].events & EPOLLIN) {
             if (ncb->ncb_read) {
                 if (ncb->ncb_read(ncb) < 0) {
-                    nis_call_ecr("nshost.io.__iorun:link %lld ncb read function return fatal error, this will cause link close.", hld);
+                    nis_call_ecr("nshost.io.__iorun:link:%lld ncb read function return fatal error, this will cause link close.", hld);
                     objclos(ncb->hld);
                 }
             }else{
-                nis_call_ecr("nshost.io.__iorun:ncb read function address is NULL");
+                nis_call_ecr("nshost.io.__iorun:link:%lld ncb read function address is NULL", hld);
             }
         }
 
@@ -219,7 +228,7 @@ void iouninit() {
     epmgr.epos = NULL;
 }
 
-int ioatth(const void *ncbptr, int mask) {
+int ioatth(void *ncbptr, int mask) {
     struct epoll_event e_evt;
     ncb_t *ncb;
 
@@ -247,7 +256,7 @@ int ioatth(const void *ncbptr, int mask) {
 	return 0;
 }
 
-int iomod(const void *ncbptr, int mask ) {
+int iomod(void *ncbptr, int mask ) {
     struct epoll_event e_evt;
     ncb_t *ncb;
 
@@ -267,7 +276,7 @@ int iomod(const void *ncbptr, int mask ) {
     return epoll_ctl(ncb->epfd, EPOLL_CTL_MOD, ncb->sockfd, &e_evt);
 }
 
-void iodeth(const void *ncbptr) {
+void iodeth(void *ncbptr) {
     struct epoll_event evt;
     ncb_t *ncb;
 

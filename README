@@ -1,3 +1,12 @@
 1. Recv-Q 大于 0， 表示有数据堆积， recv 不够及时，这种情况下的下一个收帧行为:UDP收取sendto的指定长度， TCP尽可能收取recv指定的长度， 需要应用层解包
 2. Send-Q 大于 0， 只存在于异步描述符的情况， 同步描述符一定会等到缓冲区刷出后才返回
 3. UDP的Recv-Q大于0， 甚至满了, 也不会导致发送端的Send-Q堆积， 这个情况下的后果就是：丢帧
+
+使用非阻塞 connect 需要注意的问题是：
+1. 很可能 调用 connect 时会立即建立连接（比如，客户端和服务端在同一台机子上），必须处理这种情况。
+2. Posix 定义了两条与 select 和 非阻塞 connect 相关的规定：
+1）连接成功建立时，socket 描述字变为可写。（连接建立时，写缓冲区空闲，所以可写）
+2）连接建立失败时，socket 描述字既可读又可写。 （由于有未决的错误，从而可读又可写）
+不过我同时用epoll也做了实验(connect一个无效端口，errno=110, errmsg=connect refused)，当连接失败的时候，会触发epoll的EPOLLERR与EPOLLIN，不会触发EPOLLOUT。
+当用select检测连接时，socket既可读又可写，只能在可读的集合通过getsockopt获取错误码。
+当用epoll检测连接时，socket既可读又可写，只能在EPOLLERR中通过getsockopt获取错误码。

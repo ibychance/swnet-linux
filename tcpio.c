@@ -20,7 +20,7 @@ int __tcp_syn(ncb_t *ncb_server) {
         it must be listen states when accept syscall */
     if (tcp_save_info(ncb_server, &ktcp) >= 0) {
         if (ktcp.tcpi_state != TCP_LISTEN) {
-            nis_call_ecr("nshost.tcpio.__tcp_syn:state illegal,link:%d, kernel states %s.",
+            nis_call_ecr("nshost.tcpio.__tcp_syn:state illegal,link:%lld, kernel states %s.",
                 ncb_server->hld, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
             return 0;
         }
@@ -51,7 +51,7 @@ int __tcp_syn(ncb_t *ncb_server) {
             EMFILE(24)  means there are too many file-descriptor opened/check user's own open file limit by ulimit -n(1024 by default)
             EBADFD(77)  the server sock fd has been closed before accept syscall but after epoll notify
             */
-        nis_call_ecr("nshost.tcpio.__tcp_syn:accept syscall fatal with err:%d, link:%lld", errcode, ncb_server->hld);
+        nis_call_ecr("nshost.tcpio.__tcp_syn:accept syscall fatal with error:%d, link:%lld", errcode, ncb_server->hld);
         return -1;
     }
 
@@ -175,7 +175,7 @@ int __tcp_rx(ncb_t *ncb) {
             return EAGAIN;
         }
 
-        nis_call_ecr("nshost.tcpio.__tcp_rx: link %lld syscall recvfrom error, code:%d", ncb->hld, errcode);
+        nis_call_ecr("nshost.tcpio.__tcp_rx: link %lld syscall recv error, code:%d", ncb->hld, errcode);
         return -1;
     }
     return 0;
@@ -246,7 +246,7 @@ int tcp_tx(ncb_t *ncb) {
     /* get the socket status of tcp_info to check the socket tcp statues */
     if (tcp_save_info(ncb, &ktcp) >= 0) {
         if (ktcp.tcpi_state != TCP_ESTABLISHED) {
-            nis_call_ecr("nshost.tcpio.tx:state illegal,link:%lld, kernel states %s.", ncb->hld, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+            nis_call_ecr("nshost.tcpio.tcp_tx:state illegal,link:%lld, kernel states %s.", ncb->hld, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
             return -1;
         }
     }
@@ -259,7 +259,7 @@ int tcp_tx(ncb_t *ncb) {
     return 0;
 }
 
-static int __tcp_check_connection_bypoll(int sockfd, int *err) {
+static int __tcp_poll_syn(int sockfd, int *err) {
     struct pollfd pofd;
     socklen_t errlen;
     int error;
@@ -296,13 +296,11 @@ static int __tcp_check_connection_bypoll(int sockfd, int *err) {
  * tcp connect request asynchronous completed handler
  */
 int tcp_tx_syn(ncb_t *ncb) {
-    int retval;
     int e;
     socklen_t addrlen;
 
     while (1) {
-        retval = __tcp_check_connection_bypoll(ncb->sockfd, &e);
-        if (retval >= 0) {
+        if( 0 == __tcp_poll_syn(ncb->sockfd, &e)) {
             /* set other options */
             tcp_update_opts(ncb);
 
@@ -313,11 +311,12 @@ int tcp_tx_syn(ncb_t *ncb) {
             /* follow tcp rx/tx event */
             ncb->ncb_read = &tcp_rx;
             ncb->ncb_write = &tcp_tx;
-            retval = iomod(ncb, EPOLLIN);
-            if (retval < 0) {
+            ncb->ncb_error = NULL;
+            if (iomod(ncb, EPOLLIN) < 0) {
                 objclos(ncb->hld);
                 return -1;
             }
+
             ncb_post_connected(ncb);
             return 0;
         }
@@ -329,19 +328,47 @@ int tcp_tx_syn(ncb_t *ncb) {
                 return 0;
 
             /* other interrupted or full cached,try again 
-             * Only a few linux version likely to happen. */
+                Only a few linux version likely to happen. */
             case EINTR:
-            case EAGAIN:
-                nis_call_ecr("nshost.tcpio.syn:tcp syn retry.e=%d.", e);
                 break;
+            
+            case EAGAIN:
+                nis_call_ecr("nshost.tcpio.tcp_tx_syn:link %lld connect request EAGAIN", ncb->hld);
+                return -EAGAIN;
 
             /* Connection refused
              * ulimit -n overflow(open file cout lg then 1024 in default) */
             case ECONNREFUSED:
             default:
-                nis_call_ecr("nshost.tcpio.syn: fatal syscall, e=%d.", e);
+                nis_call_ecr("nshost.tcpio.tcp_tx_syn: fatal syscall, error:%d.", e);
                 return -1;
         }
+    }
+    
+    return 0;
+}
+
+/*
+ * tcp connect request asynchronous error handler
+ */
+int tcp_rx_syn(ncb_t *ncb) {
+    int error;
+    socklen_t errlen;
+    int retval;
+
+    if (!ncb) {
+        return -1;
+    }
+
+    error = 0;
+    errlen = sizeof(error);
+    if (0 == (retval = getsockopt(ncb->sockfd, SOL_SOCKET, SO_ERROR, &error, &errlen))) {
+        if (0 == error) {
+            return 0;
+        }
+        nis_call_ecr("nshost.tcpio.tcp_rx_syn:link %lld error %d", ncb->hld, error);
+    } else {
+        nis_call_ecr("nshost.tcpio.tcp_rx_syn:link %lld getsockopt error %d", ncb->hld, retval);
     }
     
     return -1;

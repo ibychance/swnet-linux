@@ -61,6 +61,7 @@ typedef struct _ncb {
     /* IO response routine */
     int (*ncb_read)(struct _ncb *);
     int (*ncb_write)(struct _ncb *);
+    int (*ncb_error)(struct _ncb *);
     
     /* save the timeout information/options */
     struct timeval rcvtimeo;
