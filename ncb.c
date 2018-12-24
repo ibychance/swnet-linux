@@ -43,13 +43,6 @@ void ncb_uninit(objhld_t ignore, void *p) {
         ncb->u.tcp.rx_buffer = NULL;
     }
 
-    /* free context of user data */
-    if (ncb->context && ncb->context_size > 0) {
-        free(ncb->context);
-        ncb->context = NULL;
-        ncb->context_size = 0;
-    }
-
     /* clear all packages pending in send queue */
     fifo_uninit(ncb);
     

@@ -33,7 +33,11 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
         overplus = ncb->u.tcp.lbsize - ncb->u.tcp.lboffset;
         memcpy(ncb->u.tcp.lbdata + ncb->u.tcp.lboffset, cpbuff, overplus);
 
-        ncb_post_recvdata(ncb, ncb->u.tcp.lbsize - ncb->u.tcp.template.cb_, ncb->u.tcp.lbdata + ncb->u.tcp.template.cb_);
+        if (ncb->flag & LINKATTR_TCP_FULLY_CALLBACK) {
+            ncb_post_recvdata(ncb, ncb->u.tcp.lbsize, ncb->u.tcp.lbdata);
+        } else {
+            ncb_post_recvdata(ncb, ncb->u.tcp.lbsize - ncb->u.tcp.template.cb_, ncb->u.tcp.lbdata + ncb->u.tcp.template.cb_);
+        }
 
         /* fre the large-block buffer */
         free(ncb->u.tcp.lbdata);
@@ -115,7 +119,13 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
             (The number of bytes remaining this time) -
             (The total number of bytes consumed to build this package) */
         retcb = (overplus - (total_packet_length - ncb->u.tcp.rx_parse_offset));
-        ncb_post_recvdata(ncb, user_data_size, ncb->packet + ncb->u.tcp.template.cb_);
+
+        if (ncb->flag & LINKATTR_TCP_FULLY_CALLBACK) {
+            ncb_post_recvdata(ncb, user_data_size + ncb->u.tcp.template.cb_, ncb->packet);
+        } else {
+            ncb_post_recvdata(ncb, user_data_size, ncb->packet + ncb->u.tcp.template.cb_);
+        }
+        
 
         ncb->u.tcp.rx_parse_offset = 0;
         return retcb;

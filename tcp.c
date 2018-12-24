@@ -543,7 +543,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
         }
 
         /* if template.builder is specified then use it, otherwise, indicate the packet size by input parameter @cb */
-        if (!(*ncb->u.tcp.template.builder_)) {
+        if (!(*ncb->u.tcp.template.builder_) || (ncb->flag & LINKATTR_TCP_NO_BUILD_ON_SEND)) {
             packet_length = cb;
             buffer = (unsigned char *) malloc(packet_length);
             if (!buffer) {
@@ -822,4 +822,48 @@ int tcp_get_keepalive_value(const ncb_t *ncb,int *idle, int *interval, int *prob
     }while( 0 );
     
     return -1;
+}
+
+int tcp_setattr(HTCPLINK lnk, int attr, int enable) {
+    ncb_t *ncb;
+    int retval;
+
+    retval = -EINVAL;
+
+    ncb = objrefr(lnk);
+    if (!ncb) {
+        return -1;
+    }
+
+    switch(attr) {
+        case LINKATTR_TCP_FULLY_CALLBACK:
+        case LINKATTR_TCP_NO_BUILD_ON_SEND:
+        case LINKATTR_TCP_UPDATE_ON_ACCEPTED:
+            (enable > 0) ? (ncb->flag |= attr) : (ncb->flag &= ~attr);
+            retval = 0;
+            break;
+        default:
+            break;
+    }
+
+    objdefr(lnk);
+    return retval;
+}
+
+int tcp_getattr(HTCPLINK lnk, int attr, int *enabled) {
+    ncb_t *ncb;
+
+    ncb = objrefr(lnk);
+    if (!ncb) {
+        return -1;
+    }
+
+    if (ncb->flag & attr) {
+        *enabled = 1;
+    } else {
+        *enabled = 0;
+    }
+
+    objdefr(lnk);
+    return 0;
 }

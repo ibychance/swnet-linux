@@ -104,10 +104,10 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
             if (udp_set_boardcast(ncb, 1) < 0) {
                 break;
             }
-            ncb->u.udp.flag |= UDP_FLAG_BROADCAST;
+            ncb->flag |= UDP_FLAG_BROADCAST;
         } else {
             if (flag & UDP_FLAG_MULTICAST) {
-                ncb->u.udp.flag |= UDP_FLAG_MULTICAST;
+                ncb->flag |= UDP_FLAG_MULTICAST;
             }
         }
 
@@ -340,7 +340,7 @@ int udp_joingrp(HUDPLINK lnk, const char *g_ipstr, uint16_t g_port) {
     do {
         retval = -1;
 
-        if (!(ncb->u.udp.flag & UDP_FLAG_MULTICAST)) {
+        if (!(ncb->flag & UDP_FLAG_MULTICAST)) {
             break;
         }
 
@@ -383,7 +383,7 @@ int udp_dropgrp(HUDPLINK lnk){
     do{
         retval = -1;
         
-        if (!(ncb->u.udp.flag & UDP_FLAG_MULTICAST) || !ncb->u.udp.mreq) {
+        if (!(ncb->flag & UDP_FLAG_MULTICAST) || !ncb->u.udp.mreq) {
             break;
         }
         

@@ -54,10 +54,6 @@ typedef struct _ncb {
     /* the user-specified nshost event handler */
     nis_callback_t nis_callback;
     
-    /* user-context */
-    char *context;
-    int context_size;
-
     /* IO response routine */
     int (*ncb_read)(struct _ncb *);
     int (*ncb_write)(struct _ncb *);
@@ -71,6 +67,9 @@ typedef struct _ncb {
      * Differentiated Services Field: Dirrerentiated Services Codepoint/Explicit Congestion Not fication
      *  */
     int iptos;
+
+    /* object attribute */
+    int flag;
     
     union {
         struct {
@@ -93,9 +92,6 @@ typedef struct _ncb {
         } tcp;
         
         struct {
-            /* object attribute */
-            int flag;
-            
             /* mreq object for IP multicast */
             struct ip_mreq *mreq;
         } udp;
