@@ -33,8 +33,6 @@ struct tx_fifo {
     struct list_head head;
 } ;
 
-#define MAXIMUM_NCB_FIFO_SIZE       (100)
-
 typedef struct _ncb {
     objhld_t hld;
     int sockfd;
@@ -68,9 +66,6 @@ typedef struct _ncb {
      *  */
     int iptos;
 
-    /* object attribute */
-    int flag;
-    
     union {
         struct {
             /* TCP packet user-parse offset */
@@ -89,11 +84,17 @@ typedef struct _ncb {
 
             /* MSS of tcp link */
             int mss;
+
+            /* the attributes of TCP link */
+            int attr;
         } tcp;
         
         struct {
             /* mreq object for IP multicast */
             struct ip_mreq *mreq;
+
+            /* object flags for UDP link */
+            int flag;
         } udp;
     } u;
 } ncb_t;
@@ -137,8 +138,6 @@ extern
 void ncb_post_recvdata(const ncb_t *ncb,  int cb, const char *data);
 extern
 void ncb_post_accepted(const ncb_t *ncb, HTCPLINK link);
-extern
-void ncb_post_senddata(const ncb_t *ncb,  int cb, const char *data);
 extern
 void ncb_post_connected(const ncb_t *ncb);
 

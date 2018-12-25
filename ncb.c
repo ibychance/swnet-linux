@@ -213,21 +213,6 @@ void ncb_post_accepted(const ncb_t *ncb, HTCPLINK link) {
     }
 }
 
-void ncb_post_senddata(const ncb_t *ncb,  int cb, const char *data) {
-    nis_event_t c_event;
-    tcp_data_t c_data;
-
-    if (ncb) {
-        if (ncb->nis_callback) {
-            c_event.Ln.Tcp.Link = (HTCPLINK) ncb->hld;
-            c_event.Event = EVT_SENDDATA;
-            c_data.e.Packet.Size = cb;
-            c_data.e.Packet.Data = data;
-            ncb->nis_callback(&c_event, &c_data);
-        }
-    }
-}
-
 void ncb_post_connected(const ncb_t *ncb) {
     nis_event_t c_event;
     tcp_data_t c_data;

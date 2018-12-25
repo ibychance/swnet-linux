@@ -3,6 +3,8 @@
 #include "mxx.h"
 #include "io.h"
 
+#define MAXIMUM_FIFO_SIZE       (100)
+
 void fifo_init(ncb_t *ncb) {
     struct tx_fifo *fifo;
 
@@ -47,7 +49,7 @@ int fifo_queue(ncb_t *ncb, struct tx_node *node) {
 
     posix__pthread_mutex_lock(&fifo->lock);
     do {
-        if (fifo->size >= MAXIMUM_NCB_FIFO_SIZE) {
+        if (fifo->size >= MAXIMUM_FIFO_SIZE) {
             break;
         }
         list_add_tail(&node->link, &fifo->head);

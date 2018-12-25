@@ -105,7 +105,14 @@ int __tcp_syn(ncb_t *ncb_server) {
         ncb_client->ncb_read = &tcp_rx;
         ncb_client->ncb_write = &tcp_tx;
 
-        /* tell calling thread, link has been accepted*/
+        /* copy the context from listen fd to accepted one in needed */
+        if (ncb_server->u.tcp.attr & LINKATTR_TCP_UPDATE_ACCEPT_CONTEXT) {
+            ncb_client->u.tcp.attr = ncb_server->u.tcp.attr;
+            memcpy(&ncb_client->u.tcp.template, &ncb_server->u.tcp.template, sizeof(tst_t));
+        }
+
+        /* tell calling thread, link has been accepted. 
+            user can rewrite some context in callback even if LINKATTR_TCP_UPDATE_ACCEPT_CONTEXT is set */
         ncb_post_accepted(ncb_server, hld_client);
         
         if (ioatth(ncb_client, EPOLLIN) < 0) {

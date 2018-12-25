@@ -104,10 +104,10 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
             if (udp_set_boardcast(ncb, 1) < 0) {
                 break;
             }
-            ncb->flag |= UDP_FLAG_BROADCAST;
+            ncb->u.udp.flag |= UDP_FLAG_BROADCAST;
         } else {
             if (flag & UDP_FLAG_MULTICAST) {
-                ncb->flag |= UDP_FLAG_MULTICAST;
+                ncb->u.udp.flag |= UDP_FLAG_MULTICAST;
             }
         }
 
@@ -340,18 +340,18 @@ int udp_joingrp(HUDPLINK lnk, const char *g_ipstr, uint16_t g_port) {
     do {
         retval = -1;
 
-        if (!(ncb->flag & UDP_FLAG_MULTICAST)) {
+        if (!(ncb->u.udp.flag & UDP_FLAG_MULTICAST)) {
             break;
         }
 
-        /*设置回环许可*/
+        /* set permit for loopback */
         int loop = 1;
         retval = setsockopt(ncb->sockfd, IPPROTO_IP, IP_MULTICAST_LOOP, (const void *)&loop, sizeof (loop));
         if (retval < 0) {
             break;
         }
         
-        /*加入多播组*/
+        /* insert into multicast group */
         if (!ncb->u.udp.mreq){
             ncb->u.udp.mreq = (struct ip_mreq *)malloc(sizeof(struct ip_mreq));
         }
@@ -383,18 +383,18 @@ int udp_dropgrp(HUDPLINK lnk){
     do{
         retval = -1;
         
-        if (!(ncb->flag & UDP_FLAG_MULTICAST) || !ncb->u.udp.mreq) {
+        if (!(ncb->u.udp.flag & UDP_FLAG_MULTICAST) || !ncb->u.udp.mreq) {
             break;
         }
         
-        /*还原回环许可*/
+        /* reduction permit for loopback */
         int loop = 0;
         retval = setsockopt(ncb->sockfd, IPPROTO_IP, IP_MULTICAST_LOOP, (const void *)&loop, sizeof (loop));
         if (retval < 0) {
             break;
         }
         
-        /*离开多播组*/
+        /* leave multicast group */
         retval = setsockopt(ncb->sockfd, IPPROTO_IP, IP_DROP_MEMBERSHIP, (const void *)ncb->u.udp.mreq, sizeof(struct ip_mreq));
         
     }while(0);
