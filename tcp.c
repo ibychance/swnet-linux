@@ -64,7 +64,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
     int retval;
     int optval;
     ncb_t *ncb;
-    objhld_t hld = -1;
+    objhld_t hld;
 
     if (!user_callback) {
         return INVALID_HTCPLINK;
@@ -91,7 +91,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
     addrlocal.sin_port = htons(l_port);
     retval = bind(fd, (struct sockaddr *) &addrlocal, sizeof ( struct sockaddr));
     if (retval < 0) {
-        nis_call_ecr("nshost.tcp.create: bind sockaddr failed, %s:%u, errno:%d.\n", l_ipstr, l_port, errno);
+        nis_call_ecr("nshost.tcp.create: bind sockaddr failed, %s:%u, errno:%u.\n", l_ipstr, l_port, errno);
         close(fd);
         return -1;
     }
@@ -333,7 +333,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
 
         if (retval < 0) {
             /* if this socket is already connected, or it is in listening states, sys-call failed with error EISCONN  */
-            nis_call_ecr("nshost.tcp.connect:fatal syscall, link:%lld, %s:%u, error:%d", lnk, r_ipstr, r_port, e);
+            nis_call_ecr("nshost.tcp.connect:fatal syscall, link:%lld, %s:%u, error:%u", lnk, r_ipstr, r_port, e);
             break;
         }
 
@@ -437,7 +437,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         if (EAGAIN == e) {
             nis_call_ecr("nshost.tcp.connect2:Insufficient entries in the routing cache, link:%lld", link);
         } else {
-            nis_call_ecr("nshost.tcp.connect2:fatal syscall, link:%lld, %s:%u, error:%d", lnk, r_ipstr, r_port, e);
+            nis_call_ecr("nshost.tcp.connect2:fatal syscall, link:%lld, %s:%u, error:%u", lnk, r_ipstr, r_port, e);
         }
         
     } while (0);
@@ -490,7 +490,7 @@ int tcp_listen(HTCPLINK lnk, int block) {
          */
         retval = listen(ncb->sockfd, ((0 == block) || (block > SOMAXCONN)) ? SOMAXCONN : block);
         if (retval < 0) {
-            nis_call_ecr("nshost.tcp.listen:fatal syscall,error:%d", errno);
+            nis_call_ecr("nshost.tcp.listen:fatal syscall,error:%u", errno);
             break;
         }
 

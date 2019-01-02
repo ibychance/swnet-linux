@@ -48,7 +48,7 @@ int __tcp_syn(ncb_t *ncb_server) {
             Firewall rules forbid connection.
             in these cases, this round of operation can fail, but the service link must be retain */
         if ((ENFILE == errcode) || (ENOBUFS == errcode) || (ENOMEM == errcode) || (EPERM == errcode)) {
-            nis_call_ecr("nshost.tcpio.__tcp_syn:accept syscall throw warning code:%d, link:%lld", errcode, ncb_server->hld);
+            nis_call_ecr("nshost.tcpio.__tcp_syn:accept syscall throw warning code:%u, link:%lld", errcode, ncb_server->hld);
             return errcode;
         }
 
@@ -59,7 +59,7 @@ int __tcp_syn(ncb_t *ncb_server) {
             ENOTSOCK    The file descriptor sockfd does not refer to a socket
             EOPNOTSUPP  The referenced socket is not of type SOCK_STREAM.
             EPROTO      Protocol error. */
-        nis_call_ecr("nshost.tcpio.__tcp_syn:accept syscall throw fatal error:%d, link:%lld", errcode, ncb_server->hld);
+        nis_call_ecr("nshost.tcpio.__tcp_syn:accept syscall throw fatal error:%u, link:%lld", errcode, ncb_server->hld);
         return -1;
     }
 
