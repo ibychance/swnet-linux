@@ -98,14 +98,12 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
 
     hld = objallo(sizeof(ncb_t), NULL, &ncb_uninit, NULL, 0);
     if (hld < 0) {
+        nis_call_ecr("nshost.tcp.create: failed allocate inner object");
         close(fd);
         return -1;
     }
     ncb = objrefr(hld);
-    if (!ncb) {
-        close(fd);
-        return -1;
-    }
+    assert(ncb);
 
     do {
         ncb_init(ncb);
@@ -121,6 +119,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
         /* allocate normal TCP package */
         ncb->packet = (char *) malloc(TCP_BUFFER_SIZE);
         if (!ncb->packet) {
+            retval = -ENOMEM;
             break;
         }
 
@@ -128,6 +127,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
         ncb->u.tcp.rx_parse_offset = 0;
         ncb->u.tcp.rx_buffer = (char *) malloc(TCP_BUFFER_SIZE);
         if (!ncb->u.tcp.rx_buffer) {
+            retval = -ENOMEM;
             break;
         }
 
@@ -144,10 +144,8 @@ int tcp_settst(HTCPLINK lnk, const tst_t *tst) {
     ncb_t *ncb;
     int retval;
 
-    retval = -1;
-
-    if (lnk < 0 || !tst) {
-        return -1;
+    if (!tst) {
+        return -EINVAL;
     }
 
      /* size of tcp template must be less or equal to 32 bytes */
@@ -155,10 +153,12 @@ int tcp_settst(HTCPLINK lnk, const tst_t *tst) {
         return -EINVAL;
     }
     
-    ncb = (ncb_t *) objrefr((objhld_t) lnk);
+    ncb = (ncb_t *) objrefr(lnk);
     if (!ncb) {
-        return -1;
+        return -ENOENT;
     }
+
+    retval = -EPROTOTYPE;
    
     /* allows change the tst info that is already existed.  */
     if (ncb->proto_type == kProtocolType_TCP) {
@@ -168,30 +168,34 @@ int tcp_settst(HTCPLINK lnk, const tst_t *tst) {
         retval = 0;
     }
 
-    objdefr((objhld_t) lnk);
+    objdefr(lnk);
     return retval;
 }
 
 int tcp_gettst(HTCPLINK lnk, tst_t *tst) {
     ncb_t *ncb;
+    int retval;
 
-    if (lnk < 0 || !tst) {
-        return -1;
+    if (!tst) {
+        return -ENOENT;
     }
 
-    ncb = (ncb_t *) objrefr((objhld_t) lnk);
+    ncb = (ncb_t *) objrefr(lnk);
     if (!ncb) {
-        return -1;
+        return -ENOENT;
     }
+
+    retval = -EPROTOTYPE;
 
     if (ncb->proto_type == kProtocolType_TCP) {
         tst->cb_ = ncb->u.tcp.template.cb_;
         tst->builder_ = ncb->u.tcp.template.builder_;
         tst->parser_ = ncb->u.tcp.template.parser_;
+        retval = 0;
     }
 
-    objdefr((objhld_t) lnk);
-    return 0;
+    objdefr(lnk);
+    return retval;
 }
 
 /*
@@ -202,11 +206,11 @@ void tcp_destroy(HTCPLINK lnk) {
     ncb_t *ncb;
 
     /* it should be the last reference operation of this object, no matter how many ref-count now. */
-    ncb = objreff((objhld_t) lnk);
+    ncb = objreff(lnk);
     if (ncb) {
         nis_call_ecr("nshost.tcp.destroy: link:%lld order to destroy", ncb->hld);
         ioclose(ncb);
-        objdefr((objhld_t) lnk);
+        objdefr(lnk);
     }
 }
 
@@ -289,10 +293,10 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
     struct tcp_info ktcp;
 
     if (lnk < 0 || !r_ipstr || 0 == r_port ) {
-        return -1;
+        return -ENOENT;
     }
 
-    ncb = (ncb_t *) objrefr((objhld_t) lnk);
+    ncb = (ncb_t *) objrefr(lnk);
     if (!ncb) {
         return -1;
     }
@@ -301,7 +305,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         retval = -1;
 
         if (kProtocolType_TCP != ncb->proto_type) {
-            nis_call_ecr("nshost.tcp.connect:illegal link:%lld, not a TCP socket.", lnk);
+            retval = -EPROTOTYPE;
             break;
         }
 
@@ -356,7 +360,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         }
     }while( 0 );
 
-    objdefr((objhld_t) lnk);
+    objdefr(lnk);
     return retval;
 }
 
@@ -367,20 +371,20 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
     int optval;
     struct tcp_info ktcp;
 
-    if (lnk < 0 || !r_ipstr || 0 == r_port ) {
-        return -1;
+    if (!r_ipstr || 0 == r_port ) {
+        return -EINVAL;
     }
 
     ncb = (ncb_t *) objrefr(lnk);
     if (!ncb) {
-        return -1;
+        return -ENOENT;
     }
     
     do {
         retval = -1;
 
         if (kProtocolType_TCP != ncb->proto_type) {
-            nis_call_ecr("nshost.tcp.connect2:illegal link:%lld, not a TCP socket.", lnk);
+            retval = -EPROTOTYPE;
             break;
         }
 
@@ -392,16 +396,17 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
             }
         }
 
-        /* try no more than 3 times of tcp::syn */
-        optval = 3;
-        setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
-
         if ((NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_write, NULL, &tcp_tx_syn)) ||
             (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_read, NULL, &tcp_rx_syn)) ||
             (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_error, NULL, &tcp_rx_syn))) {
             nis_call_ecr("nshost.tcp.connect2:link:%lld multithreading double call is not allowed.", lnk);
-            return -1;
+            retval = -1;
+            break;
         }
+
+        /* try no more than 3 times of tcp::syn */
+        optval = 3;
+        setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
         
         /* queue object into epoll manage befor syscall @connect,
            epoll_wait will get a EPOLLOUT signal when syn success.
@@ -425,10 +430,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         }
             
         if (e == EINPROGRESS) {
-            if (ioatth(ncb, EPOLLOUT | EPOLLIN) < 0) {
-                break;
-            }
-            retval = 0;
+            retval = ioatth(ncb, EPOLLOUT | EPOLLIN);
             break;
         }
 
@@ -440,8 +442,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         
     } while (0);
 
-    objdefr((objhld_t) lnk);
-
+    objdefr(lnk);
     return retval;
 }
 
@@ -450,20 +451,20 @@ int tcp_listen(HTCPLINK lnk, int block) {
     int retval;
     struct tcp_info ktcp;
 
-    if (lnk < 0) {
-        return -1;
+    if (block <= 0 || block >= 0x7FFF) {
+        return -EINVAL;
     }
 
     ncb = (ncb_t *) objrefr(lnk);
     if (!ncb) {
-        return -1;
+        return -ENOENT;
     }
 
     do {
         retval = -1;
 
         if (kProtocolType_TCP != ncb->proto_type) {
-            nis_call_ecr("nshost.tcp.listen:illegal link:%lld, not a TCP socket.", lnk);
+            retval = -EPROTOTYPE;
             break;
         }
 
@@ -474,6 +475,14 @@ int tcp_listen(HTCPLINK lnk, int block) {
                 break;
             }
         }
+
+        /* this NCB object is readonly， and it must be used for accept */
+        if (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_read, NULL, &tcp_syn)) {
+            nis_call_ecr("nshost.tcp.tcp_listen:link:%lld multithreading double call is not allowed.", lnk);
+            retval = -1;
+            break;
+        }
+        ncb->ncb_write = NULL;
 
         /* '/proc/sys/net/core/somaxconn' in POSIX.1 this value default to 128
            so,for ensure high concurrency performance in the establishment phase of the TCP connection,
@@ -490,12 +499,6 @@ int tcp_listen(HTCPLINK lnk, int block) {
         if (retval < 0){
             break;
         }
-
-        /* this NCB object is readonly， and it must be used for accept */
-        if (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_read, NULL, &tcp_syn)) {
-            nis_call_ecr("nshost.tcp.tcp_listen:link:%lld multithreading double call is not allowed.", lnk);
-        }
-        ncb->ncb_write = NULL;
         
         if (ioatth(ncb, EPOLLIN) < 0) {
             break;
@@ -513,12 +516,11 @@ int tcp_maker(void *data, int cb, const void *context) {
         memcpy(data, context, cb);
         return 0;
     }
-    return -1;
+    return -EINVAL;
 }
 
 int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
     ncb_t *ncb;
-    objhld_t hld;
     unsigned char *buffer;
     nis_sender_maker_t amaker;
     int packet_length;
@@ -526,23 +528,22 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
     struct tx_node *node;
     int retval;
 
-    if ( lnk < 0 || cb <= 0 || cb > TCP_MAXIMUM_PACKET_SIZE ) {
+    if ( lnk < 0 || cb <= 0 || cb > TCP_MAXIMUM_PACKET_SIZE || !par ) {
         return -EINVAL;
     }
 
-    hld = (objhld_t) lnk;
     buffer = NULL;
     node = NULL;
     retval = -1;
 
-    ncb = (ncb_t *) objrefr(hld);
+    ncb = (ncb_t *) objrefr(lnk);
     if (!ncb) {
         return -ENOENT;
     }
     
     do {
         if (kProtocolType_TCP != ncb->proto_type) {
-            nis_call_ecr("nshost.tcp.write:illegal link:%lld, not a TCP socket.", lnk);
+            retval = -EPROTOTYPE;
             break;
         }
 
@@ -552,6 +553,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
          * Judging these two parameters to ensure their effectiveness
          */
         if (!ncb->ncb_write || !ncb->ncb_read) {
+            retval = -EINVAL;
             break;
         }
 
@@ -574,33 +576,39 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
             packet_length = cb;
             buffer = (unsigned char *) malloc(packet_length);
             if (!buffer) {
+                retval = -ENOMEM;
                 break;
             }
 
              /* fill user data seg */
-            if ((*amaker)(buffer, cb, par) < 0){
+            if ((*amaker)(buffer, cb, par) < 0) {
+                nis_call_ecr("nshost.tcp.write:fatal call amaker");
                 break;
             }
         } else {
             packet_length = cb + ncb->u.tcp.template.cb_;
             buffer = (unsigned char *) malloc(packet_length);
             if (!buffer) {
+                retval = -ENOMEM;
                 break;
             }
 
             /* build protocol head */
             if ((*ncb->u.tcp.template.builder_)(buffer, cb) < 0) {
+                nis_call_ecr("nshost.tcp.write:fatal call tcp.template.builder_");
                 break;
             }
 
             /* fill user data seg */
             if ((*amaker)(buffer + ncb->u.tcp.template.cb_, cb, par) < 0) {
+                nis_call_ecr("nshost.tcp.write:fatal call amaker");
                 break;
             }
         }
 
         node = (struct tx_node *) malloc(sizeof (struct tx_node));
         if (!node) {
+            retval = -ENOMEM;
             break;
         }
         memset(node, 0, sizeof(struct tx_node));
@@ -632,7 +640,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
          * don't worry about the task thread notify, when success calling to @ncb_set_blocking, ensure that the @EPOLLOUT event can being captured by IO thread 
          */
         fifo_queue(ncb, node);
-        objdefr(hld);
+        objdefr(lnk);
         return 0;
     } while (0);
 
@@ -644,90 +652,93 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
         free(node);
     }
 
-    objdefr(hld);
+    objdefr(lnk);
     return retval;
 }
 
 int tcp_getaddr(HTCPLINK lnk, int type, uint32_t* ipv4, uint16_t* port) {
     ncb_t *ncb;
-    objhld_t hld = (objhld_t) lnk;
     int retval;
+    struct sockaddr_in *addr;
 
-    ncb = objrefr(hld);
+    ncb = objrefr(lnk);
     if (!ncb) {
-        return -1;
+        return -ENOENT;
     }
 
-    retval = -1;
+    retval = 0;
 
     if (kProtocolType_TCP != ncb->proto_type) {
-        nis_call_ecr("nshost.tcp.write:illegal link:%lld, not a TCP socket.", lnk);
+        retval = -EPROTOTYPE;
     } else {
-        retval = 0;
-        switch (type) {
-            case LINK_ADDR_LOCAL:
-                *ipv4 = htonl(ncb->local_addr.sin_addr.s_addr);
-                *port = htons(ncb->local_addr.sin_port);
-                break;
-            case LINK_ADDR_REMOTE:
-                *ipv4 = htonl(ncb->remot_addr.sin_addr.s_addr);
-                *port = htons(ncb->remot_addr.sin_port);
-                break;
-            default:
-                retval = -1;
-                break;
+        addr = NULL;
+        if (LINK_ADDR_LOCAL == type) {
+            addr = &ncb->local_addr;
+        }
+        if (LINK_ADDR_REMOTE == type) {
+            addr = &ncb->remot_addr;
+        }
+
+        if (addr) {
+            if (ipv4) {
+                *ipv4 = htonl(addr->sin_addr.s_addr);
+            }
+            if (port) {
+                *port = htons(addr->sin_port);
+            }
+        } else {
+            retval = -EINVAL;
         }
     }
 
-    objdefr(hld);
+    objdefr(lnk);
     return retval;
 }
 
 int tcp_setopt(HTCPLINK lnk, int level, int opt, const char *val, int len) {
     ncb_t *ncb;
-    objhld_t hld = (objhld_t) lnk;
     int retval;
  
-    ncb = objrefr(hld);
+    ncb = objrefr(lnk);
     if (!ncb) {
-        return -1;
+        return -ENOENT;
     }
 
-    retval = -1;
+    retval = -EPROTOTYPE;
     if (kProtocolType_TCP == ncb->proto_type) {
         retval = setsockopt(ncb->sockfd, level, opt, (const void *) val, (socklen_t) len);
     }
 
-    objdefr(hld);
+    objdefr(lnk);
     return retval;
 }
 
 int tcp_getopt(HTCPLINK lnk, int level, int opt, char *__restrict val, int *len) {
     ncb_t *ncb;
-    objhld_t hld = (objhld_t) lnk;
     int retval;
 
-    ncb = objrefr(hld);
+    ncb = objrefr(lnk);
     if (!ncb) {
-        return -1;
+        return -ENOENT;
     }
 
-    retval = -1;
+    retval = -EPROTOTYPE;
     if (kProtocolType_TCP == ncb->proto_type) {
         retval = getsockopt(ncb->sockfd, level, opt, (void * __restrict)val, (socklen_t *) len);
     }
 
-    objdefr(hld);
+    objdefr(lnk);
     return retval;
 }
 
 int tcp_save_info(const ncb_t *ncb, struct tcp_info *ktcp) {
-    socklen_t len = sizeof (struct tcp_info);
+    socklen_t len;
 
-    if (!ktcp) {
-        return -1;
+    if (!ncb || !ktcp) {
+        return -EINVAL;
     }
 
+    len = sizeof (struct tcp_info);
     return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_INFO, (void * __restrict)ktcp, &len);
 }
 
@@ -736,7 +747,7 @@ int tcp_setmss(const ncb_t *ncb, int mss) {
         return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_MAXSEG, (const void *) &mss, sizeof (mss));
     }
 
-    return RE_ERROR(EINVAL);
+    return -EINVAL;
 }
 
 int tcp_getmss(const ncb_t *ncb) {
@@ -744,7 +755,7 @@ int tcp_getmss(const ncb_t *ncb) {
         socklen_t lenmss = sizeof (ncb->u.tcp.mss);
         return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_MAXSEG, (void *__restrict) & ncb->u.tcp.mss, &lenmss);
     }
-    return RE_ERROR(EINVAL);
+    return -EINVAL;
 }
 
 int tcp_set_nodelay(const ncb_t *ncb, int set) {
@@ -752,7 +763,7 @@ int tcp_set_nodelay(const ncb_t *ncb, int set) {
         return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (const void *) &set, sizeof ( set));
     }
 
-    return RE_ERROR(EINVAL);
+    return -EINVAL;
 }
 
 int tcp_get_nodelay(const ncb_t *ncb, int *set) {
@@ -760,7 +771,7 @@ int tcp_get_nodelay(const ncb_t *ncb, int *set) {
         socklen_t optlen = sizeof (int);
         return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (void *__restrict)set, &optlen);
     }
-    return RE_ERROR(EINVAL);
+    return -EINVAL;
 }
 
 int tcp_set_cork(const ncb_t *ncb, int set) {
@@ -768,7 +779,7 @@ int tcp_set_cork(const ncb_t *ncb, int set) {
         return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_CORK, (const void *) &set, sizeof ( set));
     }
 
-    return RE_ERROR(EINVAL);
+    return -EINVAL;
 }
 
 int tcp_get_cork(const ncb_t *ncb, int *set) {
@@ -776,14 +787,14 @@ int tcp_get_cork(const ncb_t *ncb, int *set) {
         socklen_t optlen = sizeof (int);
         return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_CORK, (void *__restrict)set, &optlen);
     }
-    return RE_ERROR(EINVAL);
+    return -EINVAL;
 }
 
 int tcp_set_keepalive(const ncb_t *ncb, int enable) {
     if (ncb) {
         return setsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (const char *) &enable, sizeof ( enable));
     }
-    return RE_ERROR(EINVAL);
+    return -EINVAL;
 }
 
 int tcp_get_keepalive(const ncb_t *ncb, int *enabled){
@@ -791,7 +802,7 @@ int tcp_get_keepalive(const ncb_t *ncb, int *enabled){
         socklen_t optlen = sizeof(int);
         return getsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (void *__restrict)enabled, &optlen);
     }
-    return RE_ERROR(EINVAL);
+    return -EINVAL;
 }
 
 int tcp_set_keepalive_value(const ncb_t *ncb, int idle, int interval, int probes) {
@@ -871,11 +882,16 @@ int tcp_setattr(HTCPLINK lnk, int attr, int enable) {
 
     ncb = objrefr(lnk);
     if (!ncb) {
-        return -1;
+        return -ENOENT;
     }
 
-    retval = -1;
-    if (kProtocolType_TCP == ncb->proto_type) {
+    retval = -EPROTOTYPE;
+
+    do{
+        if (kProtocolType_TCP != ncb->proto_type) {
+            break;
+        }
+
         switch(attr) {
             case LINKATTR_TCP_FULLY_RECEIVE:
             case LINKATTR_TCP_NO_BUILD:
@@ -884,9 +900,10 @@ int tcp_setattr(HTCPLINK lnk, int attr, int enable) {
                 retval = 0;
                 break;
             default:
+                retval = -EINVAL;
                 break;
         }
-    }
+    }while(0);
 
     objdefr(lnk);
     return retval;
@@ -894,20 +911,23 @@ int tcp_setattr(HTCPLINK lnk, int attr, int enable) {
 
 int tcp_getattr(HTCPLINK lnk, int attr, int *enabled) {
     ncb_t *ncb;
+    int retval;
 
     ncb = objrefr(lnk);
     if (!ncb) {
-        return -1;
+        return -ENOENT;
     }
 
+    retval = -EPROTOTYPE;
     if (kProtocolType_TCP == ncb->proto_type) {
         if (ncb->u.tcp.attr & attr) {
             *enabled = 1;
         } else {
             *enabled = 0;
         }
+        retval = 0;
     }
 
     objdefr(lnk);
-    return 0;
+    return retval;
 }

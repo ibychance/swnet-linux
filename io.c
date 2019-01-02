@@ -170,7 +170,7 @@ int __ioinit() {
         epmgr.epos[i].load = 0;
         epmgr.epos[i].epfd = epoll_create(EPOLL_SIZE);
         if (epmgr.epos[i].epfd < 0) {
-            nis_call_ecr("nshost.io.epoll:file descriptor creat failed. error:%u\n", errno);
+            nis_call_ecr("nshost.io.epoll:file descriptor creat failed. error:%u", errno);
             epmgr.epos[i].actived = 0;
             continue;
         }
@@ -249,7 +249,8 @@ int ioatth(void *ncbptr, int mask) {
 	ncb->epfd = epmgr.epos[ncb->hld % epmgr.divisions].epfd;
     if ( epoll_ctl(ncb->epfd, EPOLL_CTL_ADD, ncb->sockfd, &e_evt) < 0 &&
             errno != EEXIST ) {
-		ncb->epfd = -1;
+        nis_call_ecr("nshost.io.ctladd:fail to add sockfd:%d into epoll fd:%d with mask:%d, error:%u", ncb->sockfd, ncb->epfd, mask, errno);
+        ncb->epfd = -1;
         return -1;
 	}
 
@@ -273,7 +274,12 @@ int iomod(void *ncbptr, int mask ) {
     e_evt.events = (EPOLLET | EPOLLRDHUP | EPOLLHUP | EPOLLERR); 
 	e_evt.events |= mask;
 	
-    return epoll_ctl(ncb->epfd, EPOLL_CTL_MOD, ncb->sockfd, &e_evt);
+    if ( epoll_ctl(ncb->epfd, EPOLL_CTL_MOD, ncb->sockfd, &e_evt) < 0 ) {
+        nis_call_ecr("nshost.io.ctlmod:fail to modify sockfd:%d on epoll fd:%d with mask:%d, error:%u", ncb->sockfd, ncb->epfd, mask, errno);
+        return -1;
+    }
+
+    return 0;
 }
 
 void iodeth(void *ncbptr) {

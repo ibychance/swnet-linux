@@ -10,7 +10,7 @@ static int __udp_update_opts(ncb_t *ncb) {
     static const int SEND_BUFFER_SIZE = 0xFFFF;
 
     if (!ncb) {
-        return -1;
+        return -EINVAL;
     }
 
     ncb_set_window_size(ncb, SO_RCVBUF, RECV_BUFFER_SIZE);
@@ -65,14 +65,12 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
 
     hld = objallo(sizeof ( ncb_t), NULL, &ncb_uninit, NULL, 0);
     if (hld < 0) {
+        nis_call_ecr("nshost.udp.create: failed allocate inner object");
         close(fd);
         return -1;
     }
     ncb = (ncb_t *) objrefr(hld);
-    if (!ncb) {
-        close(fd);
-        return -1;
-    }
+    assert(ncb);
 
     do {
         ncb_init(ncb);
@@ -96,6 +94,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         /* allocate buffer for normal packet */
         ncb->packet = (char *) malloc(UDP_BUFFER_SIZE);
         if (!ncb->packet) {
+            retval = -ENOMEM;
             break;
         }
 
@@ -138,11 +137,11 @@ void udp_destroy(HUDPLINK lnk) {
     ncb_t *ncb;
 
     /* it should be the last reference operation of this object no matter how many ref-count now. */
-    ncb = objreff((objhld_t) lnk);
+    ncb = objreff(lnk);
     if (ncb) {
         nis_call_ecr("nshost.udp.destroy: link %lld order to destroy", ncb->hld);
         ioclose(ncb);
-        objdefr((objhld_t) lnk);
+        objdefr(lnk);
     }
 }
 
@@ -157,7 +156,6 @@ static int udp_maker(void *data, int cb, const void *context) {
 int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, const char* r_ipstr, uint16_t r_port) {
     int retval;
     ncb_t *ncb;
-    objhld_t hld;
     unsigned char *buffer;
     struct tx_node *node;
 
@@ -165,34 +163,42 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, c
         return -EINVAL;
     }
 
-    hld = (objhld_t) lnk;
     retval = -1;
     buffer = NULL;
     node = NULL;
 
-    ncb = (ncb_t *) objrefr(hld);
+    ncb = (ncb_t *) objrefr(lnk);
     if (!ncb) {
         return -ENOENT;
     }
 
     do {
+        if (ncb->proto_type != kProtocolType_UDP) {
+            retval = -EPROTOTYPE;
+            break;
+        }
+
         buffer = (unsigned char *) malloc(cb);
         if (!buffer) {
+            retval = -ENOMEM;
             break;
         }
 
         if (maker) {
             if ((*maker)(buffer, cb, par) < 0) {
+                nis_call_ecr("nshost.udp.write:fatal call amaker");
                 break;
             }
         }else{
             if (udp_maker(buffer, cb, par) < 0) {
+                nis_call_ecr("nshost.udp.write:fatal call amaker");
                 break;
             }
         }
 
         node = (struct tx_node *) malloc(sizeof (struct tx_node));
         if (!node) {
+            retval = -ENOMEM;
             break;
         }
         memset(node, 0, sizeof(struct tx_node));
@@ -227,7 +233,7 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, c
          * don't worry about the task thread notify, when success calling to @ncb_set_blocking, ensure that the @EPOLLOUT event can being captured by IO thread 
          */
         fifo_queue(ncb, node);
-        objdefr(hld);
+        objdefr(lnk);
         return 0;
     } while (0);
 
@@ -239,55 +245,68 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, c
         free(node);
     }
 
-    objdefr(hld);
+    objdefr(lnk);
     return retval;
 }
 
 int udp_getaddr(HUDPLINK lnk, uint32_t *ipv4, uint16_t *port) {
     ncb_t *ncb;
-    objhld_t hld = (objhld_t) lnk;
+    int retval;
 
-    ncb = objrefr(hld);
+    ncb = objrefr(lnk);
     if (!ncb) {
-        return -1;
+        return -ENOENT;
     }
 
-    *ipv4 = htonl(ncb->local_addr.sin_addr.s_addr);
-    *port = htons(ncb->local_addr.sin_port);
+    if (ncb->proto_type == kProtocolType_UDP) {
+        if (ipv4) {
+            *ipv4 = htonl(ncb->local_addr.sin_addr.s_addr);
+        }
+        if (port) {
+            *port = htons(ncb->local_addr.sin_port);
+        }
+        retval = 0;
+    } else {
+        retval = -EPROTOTYPE;
+    }
 
-    objdefr(hld);
-    return 0;
+    objdefr(lnk);
+    return retval;
 }
 
 int udp_setopt(HUDPLINK lnk, int level, int opt, const char *val, int len) {
     ncb_t *ncb;
-    objhld_t hld = (objhld_t) lnk;
     int retval;
 
-    ncb = objrefr(hld);
+    ncb = objrefr(lnk);
     if (!ncb) {
-        return -1;
+        return -ENOENT;
     }
 
-    retval = setsockopt(ncb->sockfd, level, opt, val, len);
+    retval = -EPROTOTYPE;
+    if (ncb->proto_type == kProtocolType_UDP) {
+        retval = setsockopt(ncb->sockfd, level, opt, val, len);
+    }
 
-    objdefr(hld);
+    objdefr(lnk);
     return retval;
 }
 
 int udp_getopt(HUDPLINK lnk, int level, int opt, char *val, int *len) {
     ncb_t *ncb;
-    objhld_t hld = (objhld_t) lnk;
     int retval;
 
-    ncb = objrefr(hld);
+    ncb = objrefr(lnk);
     if (!ncb) {
-        return -1;
+        return -ENOENT;
     }
-    
-    retval = getsockopt(ncb->sockfd, level, opt, val, (socklen_t *)len);
 
-    objdefr(hld);
+    retval = -EPROTOTYPE;
+    if (ncb->proto_type == kProtocolType_UDP) {
+        retval = getsockopt(ncb->sockfd, level, opt, val, (socklen_t *)len);
+    }
+
+    objdefr(lnk);
     return retval;
 }
 
@@ -295,7 +314,7 @@ int udp_set_boardcast(ncb_t *ncb, int enable) {
     if (ncb) {
         return setsockopt(ncb->sockfd, SOL_SOCKET, SO_BROADCAST, (const void *) &enable, sizeof (enable));
     }
-    return RE_ERROR(EINVAL);
+    return -EINVAL;
 }
 
 int udp_get_boardcast(ncb_t *ncb, int *enabled) {
@@ -303,7 +322,7 @@ int udp_get_boardcast(ncb_t *ncb, int *enabled) {
         socklen_t optlen = sizeof (int);
         return getsockopt(ncb->sockfd, SOL_SOCKET, SO_BROADCAST, (void * __restrict)enabled, &optlen);
     }
-    return RE_ERROR(EINVAL);
+    return -EINVAL;
 }
 
 /*
@@ -327,18 +346,24 @@ int udp_get_boardcast(ncb_t *ncb, int *enabled) {
  */
 int udp_joingrp(HUDPLINK lnk, const char *g_ipstr, uint16_t g_port) {
     ncb_t *ncb;
-    objhld_t hld = (objhld_t) lnk;
     int retval;
 
     if (lnk < 0 || !g_ipstr || 0 == g_port) {
-        return RE_ERROR(EINVAL);
+        return -EINVAL;
     }
 
-    ncb = objrefr(hld);
-    if (!ncb) return -1;
+    ncb = objrefr(lnk);
+    if (!ncb) {
+        return -ENOENT;
+    }
 
     do {
         retval = -1;
+
+        if (ncb->proto_type != kProtocolType_UDP) {
+            retval = -EPROTOTYPE;
+            break;
+        }
 
         if (!(ncb->u.udp.flag & UDP_FLAG_MULTICAST)) {
             break;
@@ -364,24 +389,26 @@ int udp_joingrp(HUDPLINK lnk, const char *g_ipstr, uint16_t g_port) {
         
     } while (0);
 
-    objdefr(hld);
+    objdefr(lnk);
     return retval;
 }
 
 int udp_dropgrp(HUDPLINK lnk){
     ncb_t *ncb;
-    objhld_t hld = (objhld_t) lnk;
     int retval;
     
-    if (lnk < 0){
-        return RE_ERROR(EINVAL);
+    ncb = objrefr(lnk);
+    if (!ncb) {
+        return -ENOENT;
     }
-    
-    ncb = objrefr(hld);
-    if (!ncb) return -1;
-    
+
     do{
         retval = -1;
+
+        if (ncb->proto_type != kProtocolType_UDP) {
+            retval = -EPROTOTYPE;
+            break;
+        }
         
         if (!(ncb->u.udp.flag & UDP_FLAG_MULTICAST) || !ncb->u.udp.mreq) {
             break;
@@ -399,6 +426,6 @@ int udp_dropgrp(HUDPLINK lnk){
         
     }while(0);
     
-    objdefr(hld);
+    objdefr(lnk);
     return retval;
 }

@@ -34,7 +34,7 @@ int __udp_rx(ncb_t *ncb) {
     
     /* ECONNRESET 104 Connection reset by peer */
     if (recvcb < 0){
-        if (EAGAIN == errcode){
+        if ((EAGAIN == errcode) || (EWOULDBLOCK == errcode)){
             return EAGAIN;
         }
         

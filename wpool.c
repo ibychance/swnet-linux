@@ -66,7 +66,7 @@ static int __wp_exec(struct task_node *task) {
     
     ncb = objrefr(task->hld);
     if (!ncb) {
-        return -1;
+        return -ENOENT;
     }
     
     if (ncb->ncb_write) {

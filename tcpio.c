@@ -31,8 +31,10 @@ int __tcp_syn(ncb_t *ncb_server) {
     errcode = errno;
     if (fd_client < 0) {
 
-        /* syscall again if system interrupted */
-        if (errcode == EINTR) {
+        /* The system call was interrupted by a signal that was caught before a valid connection arrived, or
+            this connection has been aborted.
+            in these case , this round of operation ignore, try next round accept notified by epoll */
+        if ((errcode == EINTR) || (ECONNABORTED == errcode) ){
             return 0;
         }
 
@@ -41,17 +43,23 @@ int __tcp_syn(ncb_t *ncb_server) {
             return EAGAIN;
         }
 
-        /* the connection has been terminated before accept syscall in kernel.
-            do NOT close the service link by this connection error. but nothing canbe continue for it */
-        if (ECONNABORTED == errcode) {
-            return 0;
+        /* The per-process/system-wide limit on the number of open file descriptors has been reached, or
+            Not enough free memory, or
+            Firewall rules forbid connection.
+            in these cases, this round of operation can fail, but the service link must be retain */
+        if ((ENFILE == errcode) || (ENOBUFS == errcode) || (ENOMEM == errcode) || (EPERM == errcode)) {
+            nis_call_ecr("nshost.tcpio.__tcp_syn:accept syscall throw warning code:%d, link:%lld", errcode, ncb_server->hld);
+            return errcode;
         }
 
-        /* for example: 
-            EMFILE(24)  means there are too many file-descriptor opened/check user's own open file limit by ulimit -n(1024 by default)
-            EBADFD(77)  the server sock fd has been closed before accept syscall but after epoll notify
-            */
-        nis_call_ecr("nshost.tcpio.__tcp_syn:accept syscall fatal with error:%d, link:%lld", errcode, ncb_server->hld);
+        /* ERRORs: (in the any of the following cases, the listening service link will be automatic destroy)
+            EBADFD      The sockfd is not an open file descriptor
+            EFAULT      The addr argument is not in a writable part of the user address space
+            EINVAL      Socket is not listening for connections, or addrlen is invalid (e.g., is negative), or invalid value in falgs
+            ENOTSOCK    The file descriptor sockfd does not refer to a socket
+            EOPNOTSUPP  The referenced socket is not of type SOCK_STREAM.
+            EPROTO      Protocol error. */
+        nis_call_ecr("nshost.tcpio.__tcp_syn:accept syscall throw fatal error:%d, link:%lld", errcode, ncb_server->hld);
         return -1;
     }
 
