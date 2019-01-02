@@ -18,8 +18,8 @@ int nis_getver(swnet_version_t *version) {
 
     version->major_ = 9;
     version->minor_ = 7;
-    version->revision_ = 1;
-    nis_call_ecr("nshost version %d.%d.%d", version->major_, version->minor_, version->revision_);
+    version->revision_ = 6;
+    nis_call_ecr("nshost.mxx:version %d.%d.%d", version->major_, version->minor_, version->revision_);
     return 0;
 }
 
@@ -27,6 +27,8 @@ char *nis_lgethost(char *name, int cb) {
     if (name && cb > 0) {
         if (0 == gethostname(name, cb)) {
             return name;
+        } else {
+            nis_call_ecr("nshost.mxx:fail syscall gethostname, error:%u", errno);
         }
     }
     return name;
@@ -35,9 +37,10 @@ char *nis_lgethost(char *name, int cb) {
 int nis_gethost(const char *name, uint32_t *ipv4) {
     struct hostent *remote;
     struct in_addr addr;
+    int n;
 
     if (!name || !ipv4) {
-        return -1;
+        return -EINVAL;
     }
     
     *ipv4 = 0;
@@ -45,8 +48,23 @@ int nis_gethost(const char *name, uint32_t *ipv4) {
     if (isalpha(name[0])) { /* host address is a name */
         remote = gethostbyname(name);
     } else {
-        addr.s_addr = inet_addr(name);
-        if (INADDR_NONE == addr.s_addr) {
+        /* 
+        inet_aton() converts the Internet host address cp from the IPv4 numbers-and-dots notation into binary form (in network byte order) 
+                    and stores it in the structure that inp points to.  
+        inet_aton() returns nonzero if the address is valid, zero if not.  The address supplied in cp can have one of the following forms:
+        a.b.c.d   Each of the four numeric parts specifies a byte of the address; the bytes are assigned in left-to-right order to produce the binary address.
+        a.b.c     Parts a and b specify the first two bytes of the binary address.  
+                 Part c is interpreted as a 16-bit value that defines the rightmost two bytes of the binary address.  
+                 This  notation  is  suitable  for  specifying  (outmoded)  Class  B  network addresses.
+        a.b       Part a specifies the first byte of the binary address.  Part b is interpreted as a 24-bit value that defines the rightmost three bytes of the binary address.  This notation is suitable for specifying (outmoded) Class A network addresses.
+        a         The value a is interpreted as a 32-bit value that is stored directly into the binary address without any byte rearrangement.
+        In  all  of  the  above forms, components of the dotted address can be specified in decimal, octal (with a leading 0), or hexadecimal, with a leading 0X).  
+        Addresses in any of these forms are collectively termed IPV4 numbers-and-dots notation.  
+        The form that uses exactly four decimal numbers is referred to as IPv4 dotted-decimal notation (or sometimes: IPv4 dotted-quad notation).
+        inet_aton() returns 1 if the supplied string was successfully interpreted, or 0 if the string is invalid (errno is not set on error).
+        */
+        n = inet_aton(name, &addr);
+        if (0 == n) {
             return -1;
         } else {
             remote = gethostbyaddr((char *) &addr, 4, AF_INET);
@@ -59,11 +77,11 @@ int nis_gethost(const char *name, uint32_t *ipv4) {
     
     /* only IPv4 protocol supported */
     if (AF_INET != remote->h_addrtype) {
-        return -1;
+        return -EPROTONOSUPPORT;
     }
 
     if (!remote->h_addr_list) {
-        return -1;
+        return -ENOENT;
     }
 
     if (remote->h_length < sizeof (uint32_t)) {

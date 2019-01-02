@@ -39,7 +39,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt) {
 
         /* disconnect/error happend */
         if (evts[i].events & EPOLLRDHUP) {
-            nis_call_ecr("nshost.io.__iorun: link:%lld get event RDHUP", hld, evts[i].events);
+            nis_call_ecr("nshost.io.__iorun: link:%lld get event RDHUP", hld);
 	        objclos(hld);
             continue;
         }
@@ -53,7 +53,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt) {
             if (ncb->ncb_error) {
                 ncb->ncb_error(ncb);
             }
-            nis_call_ecr("nshost.io.__iorun: link %lld get event ERR", hld, evts[i].events);
+            nis_call_ecr("nshost.io.__iorun: link %lld get event ERR", hld);
             objclos(hld);
             continue;
         }
@@ -125,7 +125,7 @@ static void *__epoll_proc(void *argv) {
     static const int EP_TIMEDOUT = -1;
 
     epo = (struct epoll_object *)argv;
-    nis_call_ecr("nshost.io.epoll: epfd:%u LWP:%u startup.", epo->epfd, posix__gettid());
+    nis_call_ecr("nshost.io.epoll: epfd:%d LWP:%u startup.", epo->epfd, posix__gettid());
 
     while (epo->actived) {
         sigcnt = epoll_wait(epo->epfd, evts, EPOLL_SIZE, EP_TIMEDOUT);
@@ -139,7 +139,7 @@ static void *__epoll_proc(void *argv) {
                 continue;
             }
 
-            nis_call_ecr("nshost.io.epoll:epfd:%u LWP:%u errno:%u", epo->epfd, posix__gettid(), errcode);
+            nis_call_ecr("nshost.io.epoll:epfd:%d LWP:%u errno:%u", epo->epfd, posix__gettid(), errcode);
             break;
         }
 
@@ -150,7 +150,7 @@ static void *__epoll_proc(void *argv) {
         }
     }
 
-    nis_call_ecr("nshost.io.epoll:epfd:%u LWP:%u terminated.", epo->epfd, posix__gettid());
+    nis_call_ecr("nshost.io.epoll:epfd:%d LWP:%u terminated.", epo->epfd, posix__gettid());
     posix__pthread_exit( (void *)0 );
     return NULL;
 }
@@ -249,7 +249,7 @@ int ioatth(void *ncbptr, int mask) {
 	ncb->epfd = epmgr.epos[ncb->hld % epmgr.divisions].epfd;
     if ( epoll_ctl(ncb->epfd, EPOLL_CTL_ADD, ncb->sockfd, &e_evt) < 0 &&
             errno != EEXIST ) {
-        nis_call_ecr("nshost.io.ctladd:fail to add sockfd:%d into epoll fd:%d with mask:%d, error:%u", ncb->sockfd, ncb->epfd, mask, errno);
+        nis_call_ecr("nshost.io.ctladd:fail to add sockfd:%d into epollfd:%d with mask:%d, error:%u", ncb->sockfd, ncb->epfd, mask, errno);
         ncb->epfd = -1;
         return -1;
 	}
@@ -275,7 +275,7 @@ int iomod(void *ncbptr, int mask ) {
 	e_evt.events |= mask;
 	
     if ( epoll_ctl(ncb->epfd, EPOLL_CTL_MOD, ncb->sockfd, &e_evt) < 0 ) {
-        nis_call_ecr("nshost.io.ctlmod:fail to modify sockfd:%d on epoll fd:%d with mask:%d, error:%u", ncb->sockfd, ncb->epfd, mask, errno);
+        nis_call_ecr("nshost.io.ctlmod:fail to modify sockfd:%d on epollfd:%d with mask:%d, error:%u", ncb->sockfd, ncb->epfd, mask, errno);
         return -1;
     }
 

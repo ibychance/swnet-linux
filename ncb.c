@@ -11,7 +11,7 @@ int ncb_init(ncb_t *ncb) {
         return 0;
     }
 
-    return RE_ERROR(EINVAL);
+    return -EINVAL;
 }
 
 void ncb_uninit(objhld_t ignore, void *p) {
@@ -60,7 +60,7 @@ int ncb_set_rcvtimeo(const ncb_t *ncb, const struct timeval *timeo){
     if (ncb && timeo){
         return setsockopt(ncb->sockfd, SOL_SOCKET, SO_RCVTIMEO, (const void *)timeo, sizeof(struct timeval));
     }
-    return RE_ERROR(EINVAL);
+    return -EINVAL;
 }
 
 int ncb_get_rcvtimeo(const ncb_t *ncb){
@@ -68,14 +68,14 @@ int ncb_get_rcvtimeo(const ncb_t *ncb){
          socklen_t optlen =sizeof(ncb->rcvtimeo);
         return getsockopt(ncb->sockfd, SOL_SOCKET, SO_RCVTIMEO, (void *__restrict)&ncb->rcvtimeo, &optlen);
     }
-    return RE_ERROR(EINVAL);
+    return -EINVAL;
 }
 
 int ncb_set_sndtimeo(const ncb_t *ncb, const struct timeval *timeo){
     if (ncb && timeo) {
         return setsockopt(ncb->sockfd, SOL_SOCKET, SO_SNDTIMEO, (const void *)timeo, sizeof(struct timeval));
     }
-    return RE_ERROR(EINVAL);
+    return -EINVAL;
 }
 
 int ncb_get_sndtimeo(const ncb_t *ncb){
@@ -83,7 +83,7 @@ int ncb_get_sndtimeo(const ncb_t *ncb){
         socklen_t optlen =sizeof(ncb->sndtimeo);
         return getsockopt(ncb->sockfd, SOL_SOCKET, SO_SNDTIMEO, (void *__restrict)&ncb->sndtimeo, &optlen);
     }
-    return RE_ERROR(EINVAL);
+    return -EINVAL;
 }
 
 int ncb_set_iptos(const ncb_t *ncb, int tos){
@@ -91,7 +91,7 @@ int ncb_set_iptos(const ncb_t *ncb, int tos){
     if (ncb && type_of_service){
         return setsockopt(ncb->sockfd, SOL_IP, IP_TOS, (const void *)&type_of_service, sizeof(type_of_service));
     }
-    return RE_ERROR(EINVAL);
+    return -EINVAL;
 }
 
 int ncb_get_iptos(const ncb_t *ncb){
@@ -99,7 +99,7 @@ int ncb_get_iptos(const ncb_t *ncb){
         socklen_t optlen =sizeof(ncb->iptos);
         return getsockopt(ncb->sockfd, SOL_IP, IP_TOS, (void *__restrict)&ncb->iptos, &optlen);
     }
-    return RE_ERROR(EINVAL);
+    return -EINVAL;
 }
 
 int ncb_set_window_size(const ncb_t *ncb, int dir, int size){
@@ -107,7 +107,7 @@ int ncb_set_window_size(const ncb_t *ncb, int dir, int size){
         return setsockopt(ncb->sockfd, SOL_SOCKET, dir, (const void *)&size, sizeof(size));
     }
     
-     return RE_ERROR(EINVAL);
+     return -EINVAL;
 }
 
 int ncb_get_window_size(const ncb_t *ncb, int dir, int *size){
@@ -118,14 +118,14 @@ int ncb_get_window_size(const ncb_t *ncb, int dir, int *size){
         }
     }
     
-     return RE_ERROR(EINVAL);
+     return -EINVAL;
 }
 
 int ncb_set_linger(const ncb_t *ncb, int onoff, int lin){
     struct linger lgr;
     
     if (!ncb){
-        return RE_ERROR(EINVAL);
+        return -EINVAL;
     }
     
     lgr.l_onoff = onoff;
@@ -138,7 +138,7 @@ int ncb_get_linger(const ncb_t *ncb, int *onoff, int *lin) {
     socklen_t optlen = sizeof (lgr);
 
     if (!ncb) {
-        return RE_ERROR(EINVAL);
+        return -EINVAL;
     }
 
     if (getsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (void *__restrict) & lgr, &optlen) < 0) {
