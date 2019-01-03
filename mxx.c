@@ -35,18 +35,20 @@ char *nis_lgethost(char *name, int cb) {
 }
 
 int nis_gethost(const char *name, uint32_t *ipv4) {
-    struct hostent *remote;
+    struct hostent *remote, ret;
     struct in_addr addr;
-    int n;
+    int h_errnop;
+    char buf[1024];
 
     if (!name || !ipv4) {
         return -EINVAL;
     }
     
     *ipv4 = 0;
+    remote = NULL;
 
     if (isalpha(name[0])) { /* host address is a name */
-        remote = gethostbyname(name);
+        gethostbyname_r(name, &ret, buf, sizeof(buf), &remote, &h_errnop);
     } else {
         /* 
         inet_aton() converts the Internet host address cp from the IPv4 numbers-and-dots notation into binary form (in network byte order) 
@@ -63,11 +65,8 @@ int nis_gethost(const char *name, uint32_t *ipv4) {
         The form that uses exactly four decimal numbers is referred to as IPv4 dotted-decimal notation (or sometimes: IPv4 dotted-quad notation).
         inet_aton() returns 1 if the supplied string was successfully interpreted, or 0 if the string is invalid (errno is not set on error).
         */
-        n = inet_aton(name, &addr);
-        if (0 == n) {
-            return -1;
-        } else {
-            remote = gethostbyaddr((char *) &addr, 4, AF_INET);
+        if (inet_aton(name, &addr)) {
+            gethostbyaddr_r(&addr, sizeof(addr), AF_INET, &ret, buf, sizeof(buf), &remote, &h_errnop);
         }
     }
 
