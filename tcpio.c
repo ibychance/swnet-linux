@@ -21,7 +21,7 @@ int __tcp_syn(ncb_t *ncb_server) {
     if (tcp_save_info(ncb_server, &ktcp) >= 0) {
         if (ktcp.tcpi_state != TCP_LISTEN) {
             nis_call_ecr("nshost.tcpio.__tcp_syn:state illegal,link:%lld, kernel states %s.",
-                ncb_server->hld, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+                ncb_server->hld, tcp_state2name(ktcp.tcpi_state));
             return 0;
         }
     }
@@ -261,7 +261,7 @@ int tcp_tx(ncb_t *ncb) {
     /* get the socket status of tcp_info to check the socket tcp statues */
     if (tcp_save_info(ncb, &ktcp) >= 0) {
         if (ktcp.tcpi_state != TCP_ESTABLISHED) {
-            nis_call_ecr("nshost.tcpio.tcp_tx:state illegal,link:%lld, kernel states %s.", ncb->hld, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+            nis_call_ecr("nshost.tcpio.tcp_tx:state illegal,link:%lld, kernel states %s.", ncb->hld, tcp_state2name(ktcp.tcpi_state));
             return -1;
         }
     }

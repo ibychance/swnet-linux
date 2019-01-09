@@ -27,8 +27,18 @@
  *  };
  */
 const char *TCP_KERNEL_STATE_NAME[] = {
-    "TCP_UNDEFINED", "TCP_ESTABLISHED", "TCP_SYN_SENT", "TCP_SYN_RECV", "TCP_FIN_WAIT1", "TCP_FIN_WAIT2", 
-    "TCP_TIME_WAIT", "TCP_CLOSE", "TCP_CLOSE_WAIT", "TCP_LAST_ACK", "TCP_LISTEN", "TCP_CLOSING"
+    "TCP_UNDEFINED", 
+    "TCP_ESTABLISHED", 
+    "TCP_SYN_SENT", 
+    "TCP_SYN_RECV", 
+    "TCP_FIN_WAIT1", 
+    "TCP_FIN_WAIT2", 
+    "TCP_TIME_WAIT", 
+    "TCP_CLOSE", 
+    "TCP_CLOSE_WAIT", 
+    "TCP_LAST_ACK", 
+    "TCP_LISTEN", 
+    "TCP_CLOSING"
 };
 
 void tcp_update_opts(const ncb_t *ncb) {
@@ -312,7 +322,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         /* get the socket status of tcp_info to check the socket tcp statues */
         if (tcp_save_info(ncb, &ktcp) >= 0) {
             if (ktcp.tcpi_state != TCP_CLOSE) {
-                nis_call_ecr("nshost.tcp.connect:state illegal,link:%lld, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+                nis_call_ecr("nshost.tcp.connect:state illegal,link:%lld, kernel states %s.", lnk, tcp_state2name(ktcp.tcpi_state));
                 break;
             }
         }
@@ -391,7 +401,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         /* get the socket status of tcp_info to check the socket tcp statues */
         if (tcp_save_info(ncb, &ktcp) >= 0) {
             if (ktcp.tcpi_state != TCP_CLOSE) {
-                nis_call_ecr("nshost.tcp.connect2:state illegal,link:%lld, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+                nis_call_ecr("nshost.tcp.connect2:state illegal,link:%lld, kernel states %s.", lnk, tcp_state2name(ktcp.tcpi_state));
                 break;
             }
         }
@@ -471,7 +481,7 @@ int tcp_listen(HTCPLINK lnk, int block) {
         /* get the socket status of tcp_info to check the socket tcp statues */
         if (tcp_save_info(ncb, &ktcp) >= 0) {
             if (ktcp.tcpi_state != TCP_CLOSE) {
-                nis_call_ecr("nshost.tcp.listen:state illegal,link:%lld, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+                nis_call_ecr("nshost.tcp.listen:state illegal,link:%lld, kernel states %s.", lnk, tcp_state2name(ktcp.tcpi_state));
                 break;
             }
         }
@@ -560,7 +570,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
         /* get the socket status of tcp_info to check the socket tcp statues */
         if (tcp_save_info(ncb, &ktcp) >= 0) {
             if (ktcp.tcpi_state != TCP_ESTABLISHED) {
-                nis_call_ecr("nshost.tcp.write:state illegal,link:%lld, kernel states %s.", lnk, TCP_KERNEL_STATE_NAME[ktcp.tcpi_state]);
+                nis_call_ecr("nshost.tcp.write:state illegal,link:%lld, kernel states %s.", lnk, tcp_state2name(ktcp.tcpi_state));
                 break;
             }
         }
