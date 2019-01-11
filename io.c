@@ -93,7 +93,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt){
                     objclos(ncb->hld);
                 }
             }else{
-                nis_call_ecr("nshost.io.__iorun:ncb read function address is NULL");
+                nis_call_ecr("nshost.io.__iorun:ncb read function address is unspecified.");
             }
         }
 

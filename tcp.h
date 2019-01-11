@@ -22,7 +22,7 @@
 
 extern const char *TCP_KERNEL_STATE_NAME[];
 #define tcp_state2name(stat)    \
-            (((stat >= 0) && (stat < sizeof(TCP_KERNEL_STATE_NAME) / sizeof(TCP_KERNEL_STATE_NAME[0]))) ? TCP_KERNEL_STATE_NAME[stat] : "MalformedState:"#stat)
+            (((stat >= 0) && (stat < 12)) ? TCP_KERNEL_STATE_NAME[stat] : "MalformedState:"#stat)
 
 extern
 void tcp_update_opts(ncb_t *ncb);

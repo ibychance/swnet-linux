@@ -173,7 +173,7 @@ int __tcp_rx(ncb_t *ncb) {
             return EAGAIN;
         }
 
-        nis_call_ecr("nshost.tcpio.__tcp_rx: link %d syscall recvfrom error, code:%d", ncb->hld, errcode);
+        nis_call_ecr("nshost.tcpio.__tcp_rx: link %d syscall recv error, code:%d", ncb->hld, errcode);
         return -1;
     }
     return 0;
