@@ -111,7 +111,7 @@ static void *__wp_run(void *p) {
     int retval;
     
     thread = (struct wthread *)p;
-    nis_call_ecr("nshost.wpool.init: LWP:%u startup.", posix__gettid());
+    nis_call_ecr("[nshost.wpool.init] LWP:%u startup.", posix__gettid());
 
     while (!__wpool.stop) {
         retval = posix__waitfor_waitable_handle(&thread->signal, 10);
@@ -133,7 +133,7 @@ static void *__wp_run(void *p) {
         }
     }
 
-    nis_call_ecr("nshost.pool.wpool: LWP:%u terminated.", posix__gettid());
+    nis_call_ecr("[nshost.pool.wpool] LWP:%u terminated.", posix__gettid());
     pthread_exit((void *) 0);
     return NULL;
 }
@@ -153,7 +153,9 @@ static int __wp_init() {
         posix__init_notification_waitable_handle(&__wpool.write_threads[i].signal);
         posix__pthread_mutex_init(&__wpool.write_threads[i].mutex);
         __wpool.write_threads[i].task_list_size = 0;
-        posix__pthread_create(&__wpool.write_threads[i].thread, &__wp_run, (void *)&__wpool.write_threads[i]);
+        if (posix__pthread_create(&__wpool.write_threads[i].thread, &__wp_run, (void *)&__wpool.write_threads[i]) < 0 ) {
+            nis_call_ecr("[nshost.pool.__wp_init] fatal error occurred syscall pthread_create(3), error:%d", errno);
+        }
     }
     
     return 0;

@@ -39,7 +39,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt) {
 
         /* disconnect/error happend */
         if (evts[i].events & EPOLLRDHUP) {
-            nis_call_ecr("nshost.io.__iorun: link:%lld get event RDHUP", hld);
+            nis_call_ecr("[nshost.io.__iorun] event EPOLLRDHUP on link:%lld", hld);
 	        objclos(hld);
             continue;
         }
@@ -53,7 +53,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt) {
             if (ncb->ncb_error) {
                 ncb->ncb_error(ncb);
             }
-            nis_call_ecr("nshost.io.__iorun: link %lld get event ERR", hld);
+            nis_call_ecr("[nshost.io.__iorun] event EPOLLERR on link:%lld", hld);
             objclos(hld);
             continue;
         }
@@ -85,11 +85,11 @@ static void __iorun(struct epoll_event *evts, int sigcnt) {
         if (evts[i].events & EPOLLIN) {
             if (ncb->ncb_read) {
                 if (ncb->ncb_read(ncb) < 0) {
-                    nis_call_ecr("nshost.io.__iorun:link:%lld ncb read function return fatal error, this will cause link close.", hld);
+                    nis_call_ecr("[nshost.io.__iorun] ncb read function return fatal error, this will cause link close, link:%lld", hld);
                     objclos(ncb->hld);
                 }
             }else{
-                nis_call_ecr("nshost.io.__iorun:link:%lld ncb read function address is NULL", hld);
+                nis_call_ecr("[nshost.io.__iorun] ncb read function unspecified,link:%lld", hld);
             }
         }
 
@@ -125,7 +125,7 @@ static void *__epoll_proc(void *argv) {
     static const int EP_TIMEDOUT = -1;
 
     epo = (struct epoll_object *)argv;
-    nis_call_ecr("nshost.io.epoll: epfd:%d LWP:%u startup.", epo->epfd, posix__gettid());
+    nis_call_ecr("[nshost.io.epoll] epfd:%d LWP:%u startup.", epo->epfd, posix__gettid());
 
     while (epo->actived) {
         sigcnt = epoll_wait(epo->epfd, evts, EPOLL_SIZE, EP_TIMEDOUT);
@@ -139,7 +139,7 @@ static void *__epoll_proc(void *argv) {
                 continue;
             }
 
-            nis_call_ecr("nshost.io.epoll:epfd:%d LWP:%u errno:%u", epo->epfd, posix__gettid(), errcode);
+            nis_call_ecr("[nshost.io.epoll] fatal error occurred syscall epoll_wait(2), epfd:%d, LWP:%u, error:%d", epo->epfd, posix__gettid(), errcode);
             break;
         }
 
@@ -150,7 +150,7 @@ static void *__epoll_proc(void *argv) {
         }
     }
 
-    nis_call_ecr("nshost.io.epoll:epfd:%d LWP:%u terminated.", epo->epfd, posix__gettid());
+    nis_call_ecr("[nshost.io.epoll] epfd:%d LWP:%u terminated.", epo->epfd, posix__gettid());
     posix__pthread_exit( (void *)0 );
     return NULL;
 }
@@ -170,7 +170,7 @@ int __ioinit() {
         epmgr.epos[i].load = 0;
         epmgr.epos[i].epfd = epoll_create(EPOLL_SIZE);
         if (epmgr.epos[i].epfd < 0) {
-            nis_call_ecr("nshost.io.epoll:file descriptor creat failed. error:%u", errno);
+            nis_call_ecr("[nshost.io.epoll] fatal error occurred syscall epoll_create(2), error:%d", errno);
             epmgr.epos[i].actived = 0;
             continue;
         }
@@ -178,6 +178,7 @@ int __ioinit() {
         /* active field as a judge of operational effectiveness, as well as a control symbol of operation  */
         epmgr.epos[i].actived = 1;
         if (posix__pthread_create(&epmgr.epos[i].thread, &__epoll_proc, &epmgr.epos[i]) < 0) {
+            nis_call_ecr("[nshost.io.epoll] fatal error occurred syscall pthread_create(3), error:%d", errno);
             epmgr.epos[i].actived = 0;
             close(epmgr.epos[i].epfd);
             epmgr.epos[i].epfd = -1;
@@ -249,7 +250,8 @@ int ioatth(void *ncbptr, int mask) {
 	ncb->epfd = epmgr.epos[ncb->hld % epmgr.divisions].epfd;
     if ( epoll_ctl(ncb->epfd, EPOLL_CTL_ADD, ncb->sockfd, &e_evt) < 0 &&
             errno != EEXIST ) {
-        nis_call_ecr("nshost.io.ctladd:fail to add sockfd:%d into epollfd:%d with mask:%d, error:%u", ncb->sockfd, ncb->epfd, mask, errno);
+        nis_call_ecr("[nshost.io.ioatth] fatal error occurred syscall epoll_ctl(2) when add sockfd:%d upon epollfd:%d with mask:%d, error:%u,link:%lld", 
+            ncb->sockfd, ncb->epfd, mask, errno, ncb->hld);
         ncb->epfd = -1;
         return -1;
 	}
@@ -275,7 +277,8 @@ int iomod(void *ncbptr, int mask ) {
 	e_evt.events |= mask;
 	
     if ( epoll_ctl(ncb->epfd, EPOLL_CTL_MOD, ncb->sockfd, &e_evt) < 0 ) {
-        nis_call_ecr("nshost.io.ctlmod:fail to modify sockfd:%d on epollfd:%d with mask:%d, error:%u", ncb->sockfd, ncb->epfd, mask, errno);
+        nis_call_ecr("[nshost.io.ctlmod] fatal error occurred syscall epoll_ctl(2) when modify sockfd:%d upon epollfd:%d with mask:%d, error:%u, link:%lld", 
+            ncb->sockfd, ncb->epfd, mask, errno, ncb->hld);
         return -1;
     }
 
@@ -289,7 +292,10 @@ void iodeth(void *ncbptr) {
     if (posix__atomic_initial_passed(__inited__)) {
         ncb = (ncb_t *)ncbptr;
         if (ncb) {
-            epoll_ctl(ncb->epfd, EPOLL_CTL_DEL, ncb->sockfd, &evt);
+            if (epoll_ctl(ncb->epfd, EPOLL_CTL_DEL, ncb->sockfd, &evt) < 0) {
+                nis_call_ecr("[nshost.io.iodeth] fatal error occurred syscall epoll_ctl(2) when remove sockfd:%d from epollfd:%d, error:%u, link:%lld", 
+                    ncb->sockfd, ncb->epfd, errno, ncb->hld);
+            }
         }
     }
 }
@@ -337,24 +343,24 @@ int setasio(int fd) {
 
     opt = fcntl(fd, F_GETFL);
     if (opt < 0) {
-        nis_call_ecr("nshost.io.setasio: fcntl F_GETFL failed.error:%u\n", errno);
+        nis_call_ecr("[nshost.io.setasio] fatal error occurred syscall fcntl(2) with F_GETFL.error:%d", errno);
         return -1;
     }
 
     if (fcntl(fd, F_SETFL, opt | O_NONBLOCK) < 0) {
-        nis_call_ecr("nshost.io.setasio: fcntl F_SETFL failed.error:%u\n", errno);
+        nis_call_ecr("[nshost.io.setasio] fatal error occurred syscall fcntl(2) with F_SETFL.error:%d", errno);
         return -1;
     }
 
     opt = fcntl(fd, F_GETFD);
     if (opt < 0) {
-        nis_call_ecr("nshost.io.setasio: fcntl F_GETFD failed.error:%u\n", errno);
+        nis_call_ecr("[nshost.io.setasio] fatal error occurred syscall fcntl(2) with F_GETFD.error:%d", errno);
         return -1;
     }
 
     /* to disable the port inherit when fork/exec */
     if (fcntl(fd, F_SETFD, opt | FD_CLOEXEC) < 0) {
-        nis_call_ecr("nshost.io.setasio: fcntl F_SETFD failed.error:%u\n", errno);
+        nis_call_ecr("[nshost.io.setasio] fatal error occurred syscall fcntl(2) with F_SETFD.error:%d", errno);
         return -1;
     }
 

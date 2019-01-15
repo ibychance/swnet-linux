@@ -42,11 +42,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
 
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
-        if (l_ipstr) {
-            nis_call_ecr("nshost.udp.create: file descriptor create failed,%s:%u,errno:%u",l_ipstr, l_port, errno);
-        } else {
-            nis_call_ecr("nshost.udp.create: file descriptor create failed, 0.0.0.0:%u,errno:%u", l_port, errno);
-        }
+        nis_call_ecr("[nshost.udp.create] fatal error occurred syscall socket(2), error:%d", errno);
         return -1;
     }
 
@@ -58,14 +54,14 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
     addrlocal.sin_port = htons(l_port);
     retval = bind(fd, (struct sockaddr *) &addrlocal, sizeof ( struct sockaddr));
     if (retval < 0) {
-        nis_call_ecr("nshost.udp.create: bind sockaddr failed, %s:%u, errno:%d.\n", l_ipstr, l_port, errno);
+        nis_call_ecr("[nshost.udp.create] fatal error occurred syscall bind(2),local endpoint %s:%u, error:%d,", (l_ipstr ? l_ipstr : "0.0.0.0"), l_port, errno);
         close(fd);
         return -1;
     }
 
     hld = objallo(sizeof ( ncb_t), NULL, &ncb_uninit, NULL, 0);
     if (hld < 0) {
-        nis_call_ecr("nshost.udp.create: failed allocate inner object");
+        nis_call_ecr("[nshost.udp.create] insufficient resource for allocate inner object");
         close(fd);
         return -1;
     }
@@ -139,18 +135,10 @@ void udp_destroy(HUDPLINK lnk) {
     /* it should be the last reference operation of this object no matter how many ref-count now. */
     ncb = objreff(lnk);
     if (ncb) {
-        nis_call_ecr("nshost.udp.destroy: link %lld order to destroy", ncb->hld);
+        nis_call_ecr("[nshost.udp.destroy] link:%lld order to destroy", ncb->hld);
         ioclose(ncb);
         objdefr(lnk);
     }
-}
-
-static int udp_maker(void *data, int cb, const void *context) {
-    if (data && cb > 0 && context) {
-        memcpy(data, context, cb);
-        return 0;
-    }
-    return -1;
 }
 
 int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, const char* r_ipstr, uint16_t r_port) {
@@ -159,7 +147,7 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, c
     unsigned char *buffer;
     struct tx_node *node;
 
-    if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > MAX_UDP_SIZE)) {
+    if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > MAX_UDP_SIZE) || !par) {
         return -EINVAL;
     }
 
@@ -186,14 +174,11 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, c
 
         if (maker) {
             if ((*maker)(buffer, cb, par) < 0) {
-                nis_call_ecr("nshost.udp.write:fatal call amaker");
+                nis_call_ecr("[nshost.udp.write] fatal usrcall amaker");
                 break;
             }
         }else{
-            if (udp_maker(buffer, cb, par) < 0) {
-                nis_call_ecr("nshost.udp.write:fatal call amaker");
-                break;
-            }
+            memcpy(buffer, par, cb);
         }
 
         node = (struct tx_node *) malloc(sizeof (struct tx_node));

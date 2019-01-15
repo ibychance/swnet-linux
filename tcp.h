@@ -3,23 +3,12 @@
 
 #include "ncb.h"
 
-#if !defined TCP_BUFFER_SIZE
 #define TCP_BUFFER_SIZE   ( 0x11000 )
-#endif
-
-#if !defined TCP_MAXIMUM_PACKET_SIZE
 #define TCP_MAXIMUM_PACKET_SIZE  ( 50 << 20 )
-#endif
-
-#if !defined TCP_MAXIMUM_TEMPLATE_SIZE
 #define TCP_MAXIMUM_TEMPLATE_SIZE   (32)
-#endif
 
-#define NS_TCP_NODELAY_UNSET  (0)
-#define NS_TCP_NODELAY_SET  (1)
-
-#define TCP_KERNEL_STATE_LIST_SIZE      (12)
-extern const char *TCP_KERNEL_STATE_NAME[];
+#define TCP_KERNEL_STATE_LIST_SIZE (12)
+extern const char *TCP_KERNEL_STATE_NAME[TCP_KERNEL_STATE_LIST_SIZE];
 #define tcp_state2name(stat)    \
             (((stat >= 0) && (stat < TCP_KERNEL_STATE_LIST_SIZE)) ? TCP_KERNEL_STATE_NAME[stat] : "MalformedState:"#stat)
 

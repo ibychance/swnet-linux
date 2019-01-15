@@ -26,7 +26,7 @@
  *    TCP_CLOSING 
  *  };
  */
-const char *TCP_KERNEL_STATE_NAME[] = {
+const char *TCP_KERNEL_STATE_NAME[TCP_KERNEL_STATE_LIST_SIZE] = {
     "TCP_UNDEFINED", 
     "TCP_ESTABLISHED", 
     "TCP_SYN_SENT", 
@@ -82,12 +82,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
 
     fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) {
-        if (l_ipstr) {
-            nis_call_ecr("nshost.tcp.create: file descriptor create failed,%s:%u,errno:%u",l_ipstr, l_port, errno);
-        } else {
-            nis_call_ecr("nshost.tcp.create: file descriptor create failed, 0.0.0.0:%u,errno:%u", l_port, errno);
-        }
-        
+        nis_call_ecr("[nshost.tcp.create] fatal error occurred syscall socket(2),error:%d", errno);
         return -1;
     }
 
@@ -101,14 +96,14 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
     addrlocal.sin_port = htons(l_port);
     retval = bind(fd, (struct sockaddr *) &addrlocal, sizeof ( struct sockaddr));
     if (retval < 0) {
-        nis_call_ecr("nshost.tcp.create: bind sockaddr failed, %s:%u, errno:%u.\n", l_ipstr, l_port, errno);
+        nis_call_ecr("[nshost.tcp.create] fatal error occurred syscall bind(2), local endpoint %s:%u, error:%d", (l_ipstr ? l_ipstr : "0.0.0.0"), l_port, errno);
         close(fd);
         return -1;
     }
 
     hld = objallo(sizeof(ncb_t), NULL, &ncb_uninit, NULL, 0);
     if (hld < 0) {
-        nis_call_ecr("nshost.tcp.create: failed allocate inner object");
+        nis_call_ecr("[nshost.tcp.create] insufficient resource for allocate inner object.");
         close(fd);
         return -1;
     }
@@ -160,6 +155,7 @@ int tcp_settst(HTCPLINK lnk, const tst_t *tst) {
 
      /* size of tcp template must be less or equal to 32 bytes */
     if (tst->cb_ > TCP_MAXIMUM_TEMPLATE_SIZE) {
+        nis_call_ecr("[nshost.tcp.settst] tst size must less than 32 byte.");
         return -EINVAL;
     }
     
@@ -218,7 +214,7 @@ void tcp_destroy(HTCPLINK lnk) {
     /* it should be the last reference operation of this object, no matter how many ref-count now. */
     ncb = objreff(lnk);
     if (ncb) {
-        nis_call_ecr("nshost.tcp.destroy: link:%lld order to destroy", ncb->hld);
+        nis_call_ecr("[nshost.tcp.destroy] link:%lld order to destroy", ncb->hld);
         ioclose(ncb);
         objdefr(lnk);
     }
@@ -322,7 +318,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         /* get the socket status of tcp_info to check the socket tcp statues */
         if (tcp_save_info(ncb, &ktcp) >= 0) {
             if (ktcp.tcpi_state != TCP_CLOSE) {
-                nis_call_ecr("nshost.tcp.connect:state illegal,link:%lld, kernel states %s.", lnk, tcp_state2name(ktcp.tcpi_state));
+                nis_call_ecr("[nshost.tcp.connect] state illegal,link:%lld, kernel states:%s.", lnk, tcp_state2name(ktcp.tcpi_state));
                 break;
             }
         }
@@ -343,7 +339,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
 
         if (retval < 0) {
             /* if this socket is already connected, or it is in listening states, sys-call failed with error EISCONN  */
-            nis_call_ecr("nshost.tcp.connect:fatal syscall, link:%lld, %s:%u, error:%u", lnk, r_ipstr, r_port, e);
+            nis_call_ecr("[nshost.tcp.connect] fatal error occurred syscall connect(2), %s:%u, error:%u, link:%lld", r_ipstr, r_port, e, lnk);
             break;
         }
 
@@ -401,7 +397,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         /* get the socket status of tcp_info to check the socket tcp statues */
         if (tcp_save_info(ncb, &ktcp) >= 0) {
             if (ktcp.tcpi_state != TCP_CLOSE) {
-                nis_call_ecr("nshost.tcp.connect2:state illegal,link:%lld, kernel states %s.", lnk, tcp_state2name(ktcp.tcpi_state));
+                nis_call_ecr("[nshost.tcp.connect2] state illegal,link:%lld, kernel states:%s.", lnk, tcp_state2name(ktcp.tcpi_state));
                 break;
             }
         }
@@ -409,7 +405,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         if ((NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_write, NULL, &tcp_tx_syn)) ||
             (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_read, NULL, &tcp_rx_syn)) ||
             (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_error, NULL, &tcp_rx_syn))) {
-            nis_call_ecr("nshost.tcp.connect2:link:%lld multithreading double call is not allowed.", lnk);
+            nis_call_ecr("[nshost.tcp.connect2] link:%lld multithreading double call is not allowed.", lnk);
             retval = -1;
             break;
         }
@@ -445,9 +441,9 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         }
 
         if (EAGAIN == e) {
-            nis_call_ecr("nshost.tcp.connect2:Insufficient entries in the routing cache, link:%lld", link);
+            nis_call_ecr("[nshost.tcp.connect2] Insufficient entries in the routing cache, link:%lld", link);
         } else {
-            nis_call_ecr("nshost.tcp.connect2:fatal syscall, link:%lld, %s:%u, error:%u", lnk, r_ipstr, r_port, e);
+            nis_call_ecr("[nshost.tcp.connect2] fatal error occurred syscall connect(2) to target endpoint %s:%u, error:%d, link:%lld", r_ipstr, r_port, e, lnk);
         }
         
     } while (0);
@@ -481,14 +477,14 @@ int tcp_listen(HTCPLINK lnk, int block) {
         /* get the socket status of tcp_info to check the socket tcp statues */
         if (tcp_save_info(ncb, &ktcp) >= 0) {
             if (ktcp.tcpi_state != TCP_CLOSE) {
-                nis_call_ecr("nshost.tcp.listen:state illegal,link:%lld, kernel states %s.", lnk, tcp_state2name(ktcp.tcpi_state));
+                nis_call_ecr("[nshost.tcp.listen] state illegal,link:%lld, kernel states:%s.", lnk, tcp_state2name(ktcp.tcpi_state));
                 break;
             }
         }
 
         /* this NCB object is readonly， and it must be used for accept */
         if (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_read, NULL, &tcp_syn)) {
-            nis_call_ecr("nshost.tcp.tcp_listen:link:%lld multithreading double call is not allowed.", lnk);
+            nis_call_ecr("[nshost.tcp.tcp_listen] multithreading double call is not allowed,link:%lld", lnk);
             retval = -1;
             break;
         }
@@ -500,7 +496,7 @@ int tcp_listen(HTCPLINK lnk, int block) {
          */
         retval = listen(ncb->sockfd, ((0 == block) || (block > SOMAXCONN)) ? SOMAXCONN : block);
         if (retval < 0) {
-            nis_call_ecr("nshost.tcp.listen:fatal syscall,error:%u", errno);
+            nis_call_ecr("[nshost.tcp.listen] fatal error occurred syscall listen(2),error:%u", errno);
             break;
         }
 
@@ -570,7 +566,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
         /* get the socket status of tcp_info to check the socket tcp statues */
         if (tcp_save_info(ncb, &ktcp) >= 0) {
             if (ktcp.tcpi_state != TCP_ESTABLISHED) {
-                nis_call_ecr("nshost.tcp.write:state illegal,link:%lld, kernel states %s.", lnk, tcp_state2name(ktcp.tcpi_state));
+                nis_call_ecr("[nshost.tcp.write] state illegal,link:%lld, kernel states:%s.", lnk, tcp_state2name(ktcp.tcpi_state));
                 break;
             }
         }
@@ -592,7 +588,7 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
 
              /* fill user data seg */
             if ((*amaker)(buffer, cb, par) < 0) {
-                nis_call_ecr("nshost.tcp.write:fatal call amaker");
+                nis_call_ecr("[nshost.tcp.write] fatal usrcall amaker");
                 break;
             }
         } else {
@@ -605,13 +601,13 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
 
             /* build protocol head */
             if ((*ncb->u.tcp.template.builder_)(buffer, cb) < 0) {
-                nis_call_ecr("nshost.tcp.write:fatal call tcp.template.builder_");
+                nis_call_ecr("[nshost.tcp.write] fatal usrcall tst.builder");
                 break;
             }
 
             /* fill user data seg */
             if ((*amaker)(buffer + ncb->u.tcp.template.cb_, cb, par) < 0) {
-                nis_call_ecr("nshost.tcp.write:fatal call amaker");
+                nis_call_ecr("[nshost.tcp.write] fatal usrcall amaker");
                 break;
             }
         }

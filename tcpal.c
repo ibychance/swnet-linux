@@ -70,20 +70,20 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
 
     /* The low-level protocol interacts with the protocol template, and the unpacking operation cannot continue if the processing fails.  */
     if (!(*ncb->u.tcp.template.parser_)) {
-        nis_call_ecr("nshost.tcpal.parse : parser tempalte method illegal.");
+        nis_call_ecr("[nshost.tcpal.parse] parser tempalte method illegal.");
         return -1;
     }
 
 	/* Get the length of user segment data by interpreting routines  */
     if ((*ncb->u.tcp.template.parser_)(ncb->packet, ncb->u.tcp.rx_parse_offset, &user_data_size) < 0) {
-        nis_call_ecr("nshost.tcpal.parse : failed to parse template header.");
+        nis_call_ecr("[nshost.tcpal.parse] failed to parse template header.");
 		return -1;
 	}
 	
 	/* If the user data length exceeds the maximum tolerance length, 
      * it will be reported as an error directly, possibly a malicious attack.  */
     if ((user_data_size > TCP_MAXIMUM_PACKET_SIZE) || (user_data_size <= 0)) {
-        nis_call_ecr("nshost.tcpal.parse : bad data size:%d.", user_data_size);
+        nis_call_ecr("[nshost.tcpal.parse] bad data size:%d.", user_data_size);
 		return -1;
 	}
 	

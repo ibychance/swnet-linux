@@ -61,7 +61,7 @@ int fifo_queue(ncb_t *ncb, struct tx_node *node) {
         if (0 == fifo->blocking) {
             fifo->blocking = 1;
             iomod(ncb, EPOLLIN | EPOLLOUT);
-            nis_call_ecr("nshost.fifo:link %lld set IO blocking.", ncb->hld);
+            nis_call_ecr("[nshost.fifo.fifo_queue] set IO blocking,link:%lld", ncb->hld);
         }
     } while(0);
     
@@ -112,7 +112,7 @@ int fifo_pop(ncb_t *ncb, struct tx_node **node) {
         if ((0 == remain) && (1 == fifo->blocking)) {
             fifo->blocking = 0;
             iomod(ncb, EPOLLIN);
-            nis_call_ecr("nshost.fifo:link %lld cancel IO blocking.", ncb->hld);
+            nis_call_ecr("[nshost.fifo.fifo_pop] cancel IO blocking,link:%lld", ncb->hld);
         }
     }
     posix__pthread_mutex_unlock(&fifo->lock);
