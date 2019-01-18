@@ -256,6 +256,7 @@ int ioatth(void *ncbptr, int mask) {
         return -1;
 	}
 
+    nis_call_ecr("[nshost.io.ioatth] success associate sockfd:%d with epfd:%d, link:%lld", ncb->sockfd, ncb->epfd, ncb->hld);
 	return 0;
 }
 

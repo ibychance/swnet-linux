@@ -142,13 +142,16 @@ static int __wp_init() {
     int i;
     
     __wpool.stop = posix__false;
-    __wpool.wthread_count = posix__getnprocs();
+    __wpool.wthread_count = posix__getnprocs() >> 1;
+    if (__wpool.wthread_count <= 0) {
+        __wpool.wthread_count = 2;
+    }
     __wpool.write_threads = (struct wthread *)malloc(sizeof(struct wthread) * __wpool.wthread_count);
     if (!__wpool.write_threads) {
         return -ENOMEM;
     }
     
-    for (i = 0; i < __wpool.wthread_count; i++){
+    for (i = 0; i < __wpool.wthread_count; i++) {
         INIT_LIST_HEAD(&__wpool.write_threads[i].tasks);
         posix__init_notification_waitable_handle(&__wpool.write_threads[i].signal);
         posix__pthread_mutex_init(&__wpool.write_threads[i].mutex);
