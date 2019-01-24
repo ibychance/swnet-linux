@@ -822,17 +822,17 @@ int tcp_set_keepalive_value(const ncb_t *ncb, int idle, int interval, int probes
     }
 
     do {
-        /* 如果在这个时间内没有数据往来， 则进行心跳检查 */
+        /* lanuch keepalive when no data transfer during @idle */
         if (setsockopt(ncb->sockfd, SOL_TCP, TCP_KEEPIDLE, (void *)&idle, sizeof(idle)) < 0) {
             break;
         }
 
-        /* 心跳包的检查间隔 */
+        /* the interval of each keepalive check */
         if (setsockopt(ncb->sockfd, SOL_TCP, TCP_KEEPINTVL, (void *)&interval, sizeof(interval)) < 0) {
             break;
         }
 
-        /* 允许心跳失败的次数 */
+        /* times of allowable keepalive failures */
         if (setsockopt(ncb->sockfd, SOL_TCP, TCP_KEEPCNT, (void *)&probes, sizeof(probes)) < 0) {
             break;
         }

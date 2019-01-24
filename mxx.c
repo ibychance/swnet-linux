@@ -8,7 +8,10 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <netdb.h>
+#include <ifaddrs.h>  
+#include <arpa/inet.h> 
 
+#include "nisdef.h"
 #include "ncb.h"
 
 int nis_getver(swnet_version_t *version) {
@@ -127,4 +130,52 @@ void nis_call_ecr(const char *fmt,...) {
     if (ecr && !old) {
         ecr(logstr, NULL, 0);
     }
+}
+
+int nis_getifmisc(ifmisc_t *ifv, int *cbifv) {
+    struct ifaddrs *ifa, *ifs;
+    int count;
+    int i;
+    int cbacquire;
+
+    ifa = NULL;
+    count = 0;
+
+    if (!cbifv) {
+        return posix__mkerror(EINVAL);
+    }
+
+    if (*cbifv > 0 && !ifv) {
+        return posix__mkerror(EINVAL);
+    }
+
+    if (getifaddrs(&ifs) < 0) {
+        return posix__mkerror(errno);
+    }
+
+    for (ifa = ifs; ifa != NULL; ifa = ifa->ifa_next) {
+        if(ifa->ifa_addr->sa_family == AF_INET) {
+            ++count;
+        }
+    }
+
+    cbacquire = count * sizeof(ifmisc_t);
+    if (*cbifv < cbacquire) {
+        *cbifv = cbacquire;
+        return posix__mkerror(EAGAIN);
+    }
+
+    i = 0;
+    for (ifa = ifs; ifa != NULL; ifa = ifa->ifa_next) {
+        if(ifa->ifa_addr->sa_family == AF_INET) {
+            strncpy(ifv[i].interface_, ifa->ifa_name, sizeof(ifv[i].interface_) - 1);
+            ifv[i].addr_ = ((struct sockaddr_in *)ifa->ifa_addr)->sin_addr.s_addr;
+            ifv[i].netmask_ = ((struct sockaddr_in *)ifa->ifa_netmask)->sin_addr.s_addr;
+            ifv[i].boardcast_ = ((struct sockaddr_in *)ifa->ifa_ifu.ifu_broadaddr)->sin_addr.s_addr;
+            i++;
+        }
+    }
+
+    freeifaddrs(ifs);
+    return 0;
 }

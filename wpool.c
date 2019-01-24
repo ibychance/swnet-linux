@@ -192,7 +192,7 @@ void wp_uninit(){
         posix__sig_waitable_handle(&__wpool.write_threads[i].signal);
         posix__pthread_join(&__wpool.write_threads[i].thread, &retval);
         
-        /* 清理来不及处理的任务 */
+        /* clear the tasks which too late to deal with */
         posix__pthread_mutex_lock(&__wpool.write_threads[i].mutex);
         while (NULL != (task = __get_task(&__wpool.write_threads[i]))) {
             free(task);
