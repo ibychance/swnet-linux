@@ -31,16 +31,19 @@ struct tx_fifo {
     int size;
     posix__pthread_mutex_t lock;
     struct list_head head;
-} ;
+};
 
-typedef struct _ncb {
-    objhld_t hld;
-    int sockfd;
-    int epfd;  /* the file-descriptor of epoll */
+struct _ncb;
+typedef int (*ncb_routine_t)(struct _ncb *);
+
+struct _ncb {
+    objhld_t hld;       /* the object handle of this ncb */
+    int sockfd;         /* the file-descriptor of socket */
+    int epfd;           /* the file-descriptor of epoll which binding with @sockfd */
     enum ncb__protocol_type proto_type;
 
     /* the actually buffer for receive */
-    char *packet;
+    unsigned char *packet;
     
     /* fifo queue of pending packet for send */
     struct tx_fifo fifo;
@@ -53,9 +56,9 @@ typedef struct _ncb {
     nis_callback_t nis_callback;
     
     /* IO response routine */
-    int (*ncb_read)(struct _ncb *);
-    int (*ncb_write)(struct _ncb *);
-    int (*ncb_error)(struct _ncb *);
+    ncb_routine_t ncb_read;
+    ncb_routine_t ncb_write;
+    ncb_routine_t ncb_error;
     
     /* save the timeout information/options */
     struct timeval rcvtimeo;
@@ -72,10 +75,10 @@ typedef struct _ncb {
             int rx_parse_offset;
             
             /* the actually buffer give to syscall @recv */
-            char *rx_buffer;
+            unsigned char *rx_buffer;
     
             /* the large-block information(TCP packets larger than 0x11000B but less than 50MB) */
-            char* lbdata;   /* large-block data buffer */
+            unsigned char* lbdata;   /* large-block data buffer */
             int lboffset;   /* save offset in @lbdata */
             int lbsize;     /* the total length include protocol-head */
     
@@ -97,7 +100,8 @@ typedef struct _ncb {
             int flag;
         } udp;
     } u;
-} ncb_t;
+};
+typedef struct _ncb ncb_t;
 
 #define ncb_lb_marked(ncb) ((ncb) ? ((NULL != ncb->u.tcp.lbdata) && (ncb->u.tcp.lbsize > 0)) : (0))
 
@@ -135,7 +139,7 @@ void ncb_post_preclose(const ncb_t *ncb);
 extern
 void ncb_post_close(const ncb_t *ncb);
 extern
-void ncb_post_recvdata(const ncb_t *ncb,  int cb, const char *data);
+void ncb_post_recvdata(const ncb_t *ncb,  int cb, const unsigned char *data);
 extern
 void ncb_post_accepted(const ncb_t *ncb, HTCPLINK link);
 extern

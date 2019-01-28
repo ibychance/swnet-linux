@@ -122,7 +122,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
         ncb_set_linger(ncb, 0, 0);
 
         /* allocate normal TCP package */
-        ncb->packet = (char *) malloc(TCP_BUFFER_SIZE);
+        ncb->packet = (unsigned char *) malloc(TCP_BUFFER_SIZE);
         if (!ncb->packet) {
             retval = -ENOMEM;
             break;
@@ -130,7 +130,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
 
         /* zeroization protocol head*/
         ncb->u.tcp.rx_parse_offset = 0;
-        ncb->u.tcp.rx_buffer = (char *) malloc(TCP_BUFFER_SIZE);
+        ncb->u.tcp.rx_buffer = (unsigned char *) malloc(TCP_BUFFER_SIZE);
         if (!ncb->u.tcp.rx_buffer) {
             retval = -ENOMEM;
             break;
@@ -516,25 +516,15 @@ int tcp_listen(HTCPLINK lnk, int block) {
     return retval;
 }
 
-static 
-int tcp_maker(void *data, int cb, const void *context) {
-    if (data && cb > 0 && context) {
-        memcpy(data, context, cb);
-        return 0;
-    }
-    return -EINVAL;
-}
-
-int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
+int tcp_write(HTCPLINK lnk, const void *origin, int cb, const nis_serializer_t serializer) {
     ncb_t *ncb;
     unsigned char *buffer;
-    nis_sender_maker_t amaker;
     int packet_length;
     struct tcp_info ktcp;
     struct tx_node *node;
     int retval;
 
-    if ( lnk < 0 || cb <= 0 || cb > TCP_MAXIMUM_PACKET_SIZE || !par ) {
+    if ( lnk < 0 || cb <= 0 || cb > TCP_MAXIMUM_PACKET_SIZE || !origin) {
         return -EINVAL;
     }
 
@@ -571,12 +561,6 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
             }
         }
 
-        /* user data filler */
-        amaker = maker;
-        if (!maker) {
-            amaker = &tcp_maker;
-        }
-
         /* if template.builder is specified then use it, otherwise, indicate the packet size by input parameter @cb */
         if (!(*ncb->u.tcp.template.builder_) || (ncb->u.tcp.attr & LINKATTR_TCP_NO_BUILD)) {
             packet_length = cb;
@@ -586,11 +570,16 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
                 break;
             }
 
-             /* fill user data seg */
-            if ((*amaker)(buffer, cb, par) < 0) {
-                nis_call_ecr("[nshost.tcp.write] fatal usrcall amaker");
-                break;
+            /* serialize data into packet or direct use data pointer by @origin */
+            if (serializer) {
+                if ((*serializer)(buffer, origin, cb) < 0 ) {
+                    nis_call_ecr("[nshost.tcp.write] fatal usrcall serializer.");
+                    break;
+                }
+            } else {
+                memcpy(buffer, origin, cb);
             }
+            
         } else {
             packet_length = cb + ncb->u.tcp.template.cb_;
             buffer = (unsigned char *) malloc(packet_length);
@@ -605,10 +594,14 @@ int tcp_write(HTCPLINK lnk, int cb, nis_sender_maker_t maker, const void *par) {
                 break;
             }
 
-            /* fill user data seg */
-            if ((*amaker)(buffer + ncb->u.tcp.template.cb_, cb, par) < 0) {
-                nis_call_ecr("[nshost.tcp.write] fatal usrcall amaker");
-                break;
+            /* serialize data into packet or direct use data pointer by @origin */
+            if (serializer) {
+                if ((*serializer)(buffer + ncb->u.tcp.template.cb_, origin, cb - ncb->u.tcp.template.cb_) < 0 ) {
+                    nis_call_ecr("[nshost.tcp.write] fatal usrcall serializer.");
+                    break;
+                }
+            } else {
+                memcpy(buffer + ncb->u.tcp.template.cb_, origin, cb );
             }
         }
 

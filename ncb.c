@@ -184,7 +184,7 @@ void ncb_post_close(const ncb_t *ncb) {
     }
 }
 
-void ncb_post_recvdata(const ncb_t *ncb,  int cb, const char *data) {
+void ncb_post_recvdata(const ncb_t *ncb,  int cb, const unsigned char *data) {
     nis_event_t c_event;
     tcp_data_t c_data;
 
@@ -193,7 +193,7 @@ void ncb_post_recvdata(const ncb_t *ncb,  int cb, const char *data) {
             c_event.Ln.Tcp.Link = (HTCPLINK) ncb->hld;
             c_event.Event = EVT_RECEIVEDATA;
             c_data.e.Packet.Size = cb;
-            c_data.e.Packet.Data = (const char *) ((char *) data);
+            c_data.e.Packet.Data = data;
             ncb->nis_callback(&c_event, &c_data);
         }
     }

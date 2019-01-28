@@ -31,7 +31,7 @@ int tcp_rx_syn(ncb_t *ncb);
 
 /* tcp al */
 extern
-int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb);
+int tcp_parse_pkt(ncb_t *ncb, const unsigned char *data, int cpcb);
 
 /*
 for TCP_INFO socket option 

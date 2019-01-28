@@ -88,7 +88,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         }
 
         /* allocate buffer for normal packet */
-        ncb->packet = (char *) malloc(UDP_BUFFER_SIZE);
+        ncb->packet = (unsigned char *) malloc(UDP_BUFFER_SIZE);
         if (!ncb->packet) {
             retval = -ENOMEM;
             break;
@@ -141,13 +141,13 @@ void udp_destroy(HUDPLINK lnk) {
     }
 }
 
-int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, const char* r_ipstr, uint16_t r_port) {
+int udp_write(HUDPLINK lnk, const void *origin, int cb, const char* r_ipstr, uint16_t r_port, const nis_serializer_t serializer) {
     int retval;
     ncb_t *ncb;
     unsigned char *buffer;
     struct tx_node *node;
 
-    if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > MAX_UDP_SIZE) || !par) {
+    if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > MAX_UDP_SIZE) || !origin) {
         return -EINVAL;
     }
 
@@ -172,14 +172,15 @@ int udp_write(HUDPLINK lnk, int cb, nis_sender_maker_t maker, const void *par, c
             break;
         }
 
-        if (maker) {
-            if ((*maker)(buffer, cb, par) < 0) {
-                nis_call_ecr("[nshost.udp.write] fatal usrcall amaker");
+        /* serialize data into packet or direct use data pointer by @origin */
+        if (serializer) {
+            if ((*serializer)(buffer, origin, cb) < 0 ) {
                 break;
             }
-        }else{
-            memcpy(buffer, par, cb);
+        } else {
+            memcpy(buffer, origin, cb);
         }
+        
 
         node = (struct tx_node *) malloc(sizeof (struct tx_node));
         if (!node) {

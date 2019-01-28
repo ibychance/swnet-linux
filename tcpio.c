@@ -96,14 +96,14 @@ int __tcp_syn(ncb_t *ncb_server) {
         ncb_set_linger(ncb_client, 1, 0);
 
         /* allocate memory for TCP normal package */
-        ncb_client->packet = (char *) malloc(TCP_BUFFER_SIZE);
+        ncb_client->packet = (unsigned char *) malloc(TCP_BUFFER_SIZE);
         if (!ncb_client->packet) {
             break;
         }
 
         /* clear the protocol head */
         ncb_client->u.tcp.rx_parse_offset = 0;
-        ncb_client->u.tcp.rx_buffer = (char *) malloc(TCP_BUFFER_SIZE);
+        ncb_client->u.tcp.rx_buffer = (unsigned char *) malloc(TCP_BUFFER_SIZE);
         if (!ncb_client->u.tcp.rx_buffer) {
             break;
         }

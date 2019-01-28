@@ -1,16 +1,18 @@
 #include "tcp.h"
 #include "mxx.h"
 
-int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
+int tcp_parse_pkt(ncb_t *ncb, const unsigned char *data, int cpcb) {
     int used;
     int overplus;
-    const char *cpbuff;
+    const unsigned char *cpbuff;
     int total_packet_length;
     int user_data_size;
     int retcb;
 
-    if (!ncb || !data || 0 == cpcb) return -1;
-
+    if (!ncb || !data || 0 == cpcb) {
+        return -1;
+    }
+    
     cpbuff = data;
 
     /* no template specified, direct give the whole packet */
@@ -92,7 +94,7 @@ int tcp_parse_pkt(ncb_t *ncb, const char *data, int cpcb) {
 
     /* If it is a large-block, then we should establish a large-block process.  */
     if (total_packet_length > TCP_BUFFER_SIZE) {
-        ncb->u.tcp.lbdata = (char *) malloc(total_packet_length);
+        ncb->u.tcp.lbdata = (unsigned char *) malloc(total_packet_length);
         if (!ncb->u.tcp.lbdata) {
             return -1;
         }
