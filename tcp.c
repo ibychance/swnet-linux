@@ -41,6 +41,26 @@ const char *TCP_KERNEL_STATE_NAME[TCP_KERNEL_STATE_LIST_SIZE] = {
     "TCP_CLOSING"
 };
 
+static
+int tcprefr( objhld_t hld, ncb_t **ncb ) {
+    if ( hld < 0 || !ncb) {
+        return -ENOENT;
+    }
+
+    *ncb = objrefr( hld );
+    if ( NULL != (*ncb) ) {
+        if ( (*ncb)->proto_type == kProtocolType_TCP ) {
+            return 0;
+        }
+
+        objdefr( hld );
+        *ncb = NULL;
+        return -EPROTOTYPE;
+    }
+    
+    return -ENOENT;
+}
+
 void tcp_update_opts(const ncb_t *ncb) {
     if (ncb) {
         ncb_set_window_size(ncb, SO_RCVBUF, TCP_BUFFER_SIZE);
@@ -158,22 +178,15 @@ int tcp_settst(HTCPLINK lnk, const tst_t *tst) {
         nis_call_ecr("[nshost.tcp.settst] tst size must less than 32 byte.");
         return -EINVAL;
     }
-    
-    ncb = (ncb_t *) objrefr(lnk);
-    if (!ncb) {
-        return -ENOENT;
+
+    retval = tcprefr(lnk, &ncb);
+    if (retval < 0) {
+        return retval;
     }
 
-    retval = -EPROTOTYPE;
-   
-    /* allows change the tst info that is already existed.  */
-    if (ncb->proto_type == kProtocolType_TCP) {
-        ncb->u.tcp.template.cb_ = tst->cb_;
-        ncb->u.tcp.template.builder_ = tst->builder_;
-        ncb->u.tcp.template.parser_ = tst->parser_;
-        retval = 0;
-    }
-
+    ncb->u.tcp.template.cb_ = tst->cb_;
+    ncb->u.tcp.template.builder_ = tst->builder_;
+    ncb->u.tcp.template.parser_ = tst->parser_;
     objdefr(lnk);
     return retval;
 }
@@ -186,20 +199,14 @@ int tcp_gettst(HTCPLINK lnk, tst_t *tst) {
         return -ENOENT;
     }
 
-    ncb = (ncb_t *) objrefr(lnk);
-    if (!ncb) {
-        return -ENOENT;
+    retval = tcprefr(lnk, &ncb);
+    if (retval < 0) {
+        return retval;
     }
 
-    retval = -EPROTOTYPE;
-
-    if (ncb->proto_type == kProtocolType_TCP) {
-        tst->cb_ = ncb->u.tcp.template.cb_;
-        tst->builder_ = ncb->u.tcp.template.builder_;
-        tst->parser_ = ncb->u.tcp.template.parser_;
-        retval = 0;
-    }
-
+    tst->cb_ = ncb->u.tcp.template.cb_;
+    tst->builder_ = ncb->u.tcp.template.builder_;
+    tst->parser_ = ncb->u.tcp.template.parser_;
     objdefr(lnk);
     return retval;
 }
@@ -302,18 +309,13 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         return -ENOENT;
     }
 
-    ncb = (ncb_t *) objrefr(lnk);
-    if (!ncb) {
-        return -1;
+    retval = tcprefr(lnk, &ncb);
+    if (retval < 0) {
+        return retval;
     }
 
     do {
         retval = -1;
-
-        if (kProtocolType_TCP != ncb->proto_type) {
-            retval = -EPROTOTYPE;
-            break;
-        }
 
         /* get the socket status of tcp_info to check the socket tcp statues */
         if (tcp_save_info(ncb, &ktcp) >= 0) {
@@ -377,22 +379,17 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
     int optval;
     struct tcp_info ktcp;
 
-    if (!r_ipstr || 0 == r_port ) {
+    if (!r_ipstr || 0 == r_port || lnk < 0 ) {
         return -EINVAL;
     }
 
-    ncb = (ncb_t *) objrefr(lnk);
-    if (!ncb) {
-        return -ENOENT;
+    retval = tcprefr(lnk, &ncb);
+    if (retval < 0) {
+        return retval;
     }
     
     do {
         retval = -1;
-
-        if (kProtocolType_TCP != ncb->proto_type) {
-            retval = -EPROTOTYPE;
-            break;
-        }
 
         /* get the socket status of tcp_info to check the socket tcp statues */
         if (tcp_save_info(ncb, &ktcp) >= 0) {
@@ -461,18 +458,13 @@ int tcp_listen(HTCPLINK lnk, int block) {
         return -EINVAL;
     }
 
-    ncb = (ncb_t *) objrefr(lnk);
-    if (!ncb) {
-        return -ENOENT;
+    retval = tcprefr(lnk, &ncb);
+    if (retval < 0) {
+        return retval;
     }
 
     do {
         retval = -1;
-
-        if (kProtocolType_TCP != ncb->proto_type) {
-            retval = -EPROTOTYPE;
-            break;
-        }
 
         /* get the socket status of tcp_info to check the socket tcp statues */
         if (tcp_save_info(ncb, &ktcp) >= 0) {
@@ -530,19 +522,13 @@ int tcp_write(HTCPLINK lnk, const void *origin, int cb, const nis_serializer_t s
 
     buffer = NULL;
     node = NULL;
-    retval = -1;
 
-    ncb = (ncb_t *) objrefr(lnk);
-    if (!ncb) {
-        return -ENOENT;
+    retval = tcprefr(lnk, &ncb);
+    if (retval < 0) {
+        return retval;
     }
     
     do {
-        if (kProtocolType_TCP != ncb->proto_type) {
-            retval = -EPROTOTYPE;
-            break;
-        }
-
         /* the calling thread is likely to occur as follows:
          * immediately call @tcp_write after creation, but no connection established and no listening has yet been taken
          * in this situation, @wpool::run_task maybe take a task, but @ncb->ncb_write is ineffectiveness.application may crashed.
@@ -660,34 +646,30 @@ int tcp_getaddr(HTCPLINK lnk, int type, uint32_t* ipv4, uint16_t* port) {
     int retval;
     struct sockaddr_in *addr;
 
-    ncb = objrefr(lnk);
-    if (!ncb) {
-        return -ENOENT;
+    addr = NULL;
+
+    retval = tcprefr(lnk, &ncb);
+    if (retval < 0) {
+        return retval;
+    }
+    
+    if (LINK_ADDR_LOCAL == type) {
+        addr = &ncb->local_addr;
     }
 
-    retval = 0;
+    if (LINK_ADDR_REMOTE == type) {
+        addr = &ncb->remot_addr;
+    }
 
-    if (kProtocolType_TCP != ncb->proto_type) {
-        retval = -EPROTOTYPE;
+    if (addr) {
+        if (ipv4) {
+            *ipv4 = htonl(addr->sin_addr.s_addr);
+        }
+        if (port) {
+            *port = htons(addr->sin_port);
+        }
     } else {
-        addr = NULL;
-        if (LINK_ADDR_LOCAL == type) {
-            addr = &ncb->local_addr;
-        }
-        if (LINK_ADDR_REMOTE == type) {
-            addr = &ncb->remot_addr;
-        }
-
-        if (addr) {
-            if (ipv4) {
-                *ipv4 = htonl(addr->sin_addr.s_addr);
-            }
-            if (port) {
-                *port = htons(addr->sin_port);
-            }
-        } else {
-            retval = -EINVAL;
-        }
+        retval = -EINVAL;
     }
 
     objdefr(lnk);
@@ -698,15 +680,12 @@ int tcp_setopt(HTCPLINK lnk, int level, int opt, const char *val, int len) {
     ncb_t *ncb;
     int retval;
  
-    ncb = objrefr(lnk);
-    if (!ncb) {
-        return -ENOENT;
+    retval = tcprefr(lnk, &ncb);
+    if (retval < 0) {
+        return retval;
     }
 
-    retval = -EPROTOTYPE;
-    if (kProtocolType_TCP == ncb->proto_type) {
-        retval = setsockopt(ncb->sockfd, level, opt, (const void *) val, (socklen_t) len);
-    }
+    retval = setsockopt(ncb->sockfd, level, opt, (const void *) val, (socklen_t) len);
 
     objdefr(lnk);
     return retval;
@@ -716,15 +695,12 @@ int tcp_getopt(HTCPLINK lnk, int level, int opt, char *__restrict val, int *len)
     ncb_t *ncb;
     int retval;
 
-    ncb = objrefr(lnk);
-    if (!ncb) {
-        return -ENOENT;
+    retval = tcprefr(lnk, &ncb);
+    if (retval < 0) {
+        return retval;
     }
 
-    retval = -EPROTOTYPE;
-    if (kProtocolType_TCP == ncb->proto_type) {
-        retval = getsockopt(ncb->sockfd, level, opt, (void * __restrict)val, (socklen_t *) len);
-    }
+    retval = getsockopt(ncb->sockfd, level, opt, (void * __restrict)val, (socklen_t *) len);
 
     objdefr(lnk);
     return retval;
@@ -879,30 +855,22 @@ int tcp_setattr(HTCPLINK lnk, int attr, int enable) {
     ncb_t *ncb;
     int retval;
 
-    ncb = objrefr(lnk);
-    if (!ncb) {
-        return -ENOENT;
+    retval = tcprefr(lnk, &ncb);
+    if (retval < 0) {
+        return retval;
     }
 
-    retval = -EPROTOTYPE;
-
-    do{
-        if (kProtocolType_TCP != ncb->proto_type) {
+    switch(attr) {
+        case LINKATTR_TCP_FULLY_RECEIVE:
+        case LINKATTR_TCP_NO_BUILD:
+        case LINKATTR_TCP_UPDATE_ACCEPT_CONTEXT:
+            (enable > 0) ? (ncb->u.tcp.attr |= attr) : (ncb->u.tcp.attr &= ~attr);
+            retval = 0;
             break;
-        }
-
-        switch(attr) {
-            case LINKATTR_TCP_FULLY_RECEIVE:
-            case LINKATTR_TCP_NO_BUILD:
-            case LINKATTR_TCP_UPDATE_ACCEPT_CONTEXT:
-                (enable > 0) ? (ncb->u.tcp.attr |= attr) : (ncb->u.tcp.attr &= ~attr);
-                retval = 0;
-                break;
-            default:
-                retval = -EINVAL;
-                break;
-        }
-    }while(0);
+        default:
+            retval = -EINVAL;
+            break;
+    }
 
     objdefr(lnk);
     return retval;
@@ -912,19 +880,15 @@ int tcp_getattr(HTCPLINK lnk, int attr, int *enabled) {
     ncb_t *ncb;
     int retval;
 
-    ncb = objrefr(lnk);
-    if (!ncb) {
-        return -ENOENT;
+    retval = tcprefr(lnk, &ncb);
+    if (retval < 0) {
+        return retval;
     }
 
-    retval = -EPROTOTYPE;
-    if (kProtocolType_TCP == ncb->proto_type) {
-        if (ncb->u.tcp.attr & attr) {
-            *enabled = 1;
-        } else {
-            *enabled = 0;
-        }
-        retval = 0;
+    if (ncb->u.tcp.attr & attr) {
+        *enabled = 1;
+    } else {
+        *enabled = 0;
     }
 
     objdefr(lnk);

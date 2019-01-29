@@ -10,3 +10,52 @@
 不过我同时用epoll也做了实验(connect一个无效端口，errno=110, errmsg=connect refused)，当连接失败的时候，会触发epoll的EPOLLERR与EPOLLIN，不会触发EPOLLOUT。
 当用select检测连接时，socket既可读又可写，只能在可读的集合通过getsockopt获取错误码。
 当用epoll检测连接时，socket既可读又可写，只能在EPOLLERR中通过getsockopt获取错误码。
+
+/*
+ * 触发条件:
+ * 1. 有数据到达
+ * 2. 有 syn 请求到达
+ * 3. 读取缓冲区因任意可能转变为非空
+ * 		TCP 读缓冲区  cat /proc/sys/net/ipv4/tcp_rmem 
+ * 
+ * 备注:
+ * 1.9系列版本的最大特色就是epoll线程直接处理描述符的数据
+ * 2.描述符从epoll唤醒到上层分析协议总共经历以下步骤:
+ *      2.1 响应epoll事件，从内核缓冲区read直到EAGAIN
+ *      2.2 应用层解包
+ *      2.3 等待上层处理完成
+ *   这其中，2.1和2.2， 无论是否转换线程，需要的计算时间都是相同，8系列的处理方式画蛇添足
+ *   转换线程尽管可以表面上促进epoll获得下一个描述符事件，但收到事件后的处理消耗CPU时间并不会减少
+ *   唯一需要关注的上层应用在 on_recvdata 中的操作方案， 如果上层采用耗时操作， 则会阻塞当前线程上所有描述符的继续收包
+ * 3.考虑到多数的快速响应案例，即便上层可能发生阻塞操作，也应该由上层投递线程池，而不是由下层管理线程池
+ */
+if (evts[i].events & EPOLLIN) {
+    if (ncb->ncb_read) {
+        if (ncb->ncb_read(ncb) < 0) {
+            nis_call_ecr("[nshost.io.__iorun] ncb read function return fatal error, this will cause link close, link:%lld", hld);
+            objclos(ncb->hld);
+        }
+    }else{
+        nis_call_ecr("[nshost.io.__iorun] ncb read function unspecified,link:%lld", hld);
+    }
+}
+
+/*
+ * ET模式下，EPOLLOUT触发条件有：
+ *   1.缓冲区满-->缓冲区非满；
+ *		TCP 写缓冲区 cat /proc/sys/net/ipv4/tcp_wmem 
+ *   2.同时监听EPOLLOUT和EPOLLIN事件 时，当有IN 事件发生，都会顺带一个OUT事件；
+ *   3.一个客户端connect过来，accept成功后会触发一次OUT事件。
+ *   4.通过 EPOLL_CTL_MOD 增加 EPOLLOUT 的关注， 立即得到一个OUT事件(不管缓冲区状态), 已经关注EPOLLOUT重复调用epoll_ctl则不会立即得到事件
+ *
+ * 注意事项:
+ * 1. (EPOLLIN | EPOLLOUT) 一旦被关注， 则每个写入缓冲区不满 EPOLLIN 都会携带触发一次, 损耗性能， 且不容易操作 oneshot
+ * 2. 平常无需关注 EPOLLOUT
+ * 3. 一旦写入操作发生 EAGAIN, 则下一个写入操作能且只能由 EPOLLOUT 发起(关注状态切换)
+ * 
+ * 
+ * 已验证：当发生发送EAGAIN后再关注EPOLLOUT，可以在缓冲区成功空出后得到通知
+ */
+if (evts[i].events & EPOLLOUT) {
+    wp_queued(ncb->hld);
+}

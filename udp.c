@@ -5,6 +5,26 @@
 #include "io.h"
 #include "wpool.h"
 
+static
+int udprefr( objhld_t hld, ncb_t **ncb ) {
+    if ( hld < 0 || !ncb) {
+        return -ENOENT;
+    }
+
+    *ncb = objrefr( hld );
+    if ( NULL != (*ncb) ) {
+        if ( (*ncb)->proto_type == kProtocolType_UDP ) {
+            return 0;
+        }
+
+        objdefr( hld );
+        *ncb = NULL;
+        return -EPROTOTYPE;
+    }
+    
+    return -ENOENT;
+}
+
 static int __udp_update_opts(ncb_t *ncb) {
     static const int RECV_BUFFER_SIZE = 0xFFFF;
     static const int SEND_BUFFER_SIZE = 0xFFFF;
@@ -155,16 +175,13 @@ int udp_write(HUDPLINK lnk, const void *origin, int cb, const char* r_ipstr, uin
     buffer = NULL;
     node = NULL;
 
-    ncb = (ncb_t *) objrefr(lnk);
-    if (!ncb) {
-        return -ENOENT;
+    retval = udprefr(lnk, &ncb);
+    if (retval < 0) {
+        return retval;
     }
 
     do {
-        if (ncb->proto_type != kProtocolType_UDP) {
-            retval = -EPROTOTYPE;
-            break;
-        }
+        retval = -1;
 
         buffer = (unsigned char *) malloc(cb);
         if (!buffer) {
@@ -239,21 +256,16 @@ int udp_getaddr(HUDPLINK lnk, uint32_t *ipv4, uint16_t *port) {
     ncb_t *ncb;
     int retval;
 
-    ncb = objrefr(lnk);
-    if (!ncb) {
-        return -ENOENT;
+    retval = udprefr(lnk, &ncb);
+    if (retval < 0) {
+        return retval;
     }
 
-    if (ncb->proto_type == kProtocolType_UDP) {
-        if (ipv4) {
-            *ipv4 = htonl(ncb->local_addr.sin_addr.s_addr);
-        }
-        if (port) {
-            *port = htons(ncb->local_addr.sin_port);
-        }
-        retval = 0;
-    } else {
-        retval = -EPROTOTYPE;
+    if (ipv4) {
+        *ipv4 = htonl(ncb->local_addr.sin_addr.s_addr);
+    }
+    if (port) {
+        *port = htons(ncb->local_addr.sin_port);
     }
 
     objdefr(lnk);
@@ -264,15 +276,12 @@ int udp_setopt(HUDPLINK lnk, int level, int opt, const char *val, int len) {
     ncb_t *ncb;
     int retval;
 
-    ncb = objrefr(lnk);
-    if (!ncb) {
-        return -ENOENT;
+    retval = udprefr(lnk, &ncb);
+    if (retval < 0) {
+        return retval;
     }
 
-    retval = -EPROTOTYPE;
-    if (ncb->proto_type == kProtocolType_UDP) {
-        retval = setsockopt(ncb->sockfd, level, opt, val, len);
-    }
+    retval = setsockopt(ncb->sockfd, level, opt, val, len);
 
     objdefr(lnk);
     return retval;
@@ -282,15 +291,12 @@ int udp_getopt(HUDPLINK lnk, int level, int opt, char *val, int *len) {
     ncb_t *ncb;
     int retval;
 
-    ncb = objrefr(lnk);
-    if (!ncb) {
-        return -ENOENT;
+    retval = udprefr(lnk, &ncb);
+    if (retval < 0) {
+        return retval;
     }
 
-    retval = -EPROTOTYPE;
-    if (ncb->proto_type == kProtocolType_UDP) {
-        retval = getsockopt(ncb->sockfd, level, opt, val, (socklen_t *)len);
-    }
+    retval = getsockopt(ncb->sockfd, level, opt, val, (socklen_t *)len);
 
     objdefr(lnk);
     return retval;
@@ -338,18 +344,13 @@ int udp_joingrp(HUDPLINK lnk, const char *g_ipstr, uint16_t g_port) {
         return -EINVAL;
     }
 
-    ncb = objrefr(lnk);
-    if (!ncb) {
-        return -ENOENT;
+    retval = udprefr(lnk, &ncb);
+    if (retval < 0) {
+        return retval;
     }
 
     do {
         retval = -1;
-
-        if (ncb->proto_type != kProtocolType_UDP) {
-            retval = -EPROTOTYPE;
-            break;
-        }
 
         if (!(ncb->u.udp.flag & UDP_FLAG_MULTICAST)) {
             break;
@@ -383,18 +384,13 @@ int udp_dropgrp(HUDPLINK lnk){
     ncb_t *ncb;
     int retval;
     
-    ncb = objrefr(lnk);
-    if (!ncb) {
-        return -ENOENT;
+    retval = udprefr(lnk, &ncb);
+    if (retval < 0) {
+        return retval;
     }
 
     do{
         retval = -1;
-
-        if (ncb->proto_type != kProtocolType_UDP) {
-            retval = -EPROTOTYPE;
-            break;
-        }
         
         if (!(ncb->u.udp.flag & UDP_FLAG_MULTICAST) || !ncb->u.udp.mreq) {
             break;
