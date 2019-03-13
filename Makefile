@@ -1,4 +1,4 @@
-TARGET=nshost.so.9.7.6
+TARGET=nshost.so.9.7.7
 build=automatic
 arch=x86_64
 INSTALL_DIR=
@@ -31,7 +31,7 @@ SRCS+=../libnsp/com/avltree.c \
 
 OBJS=$(patsubst %.$(SRC_EXT),%.o,$(SRCS))
 
-CFLAGS+=-I ../libnsp/icom -fPIC -Wall -std=gnu99 
+CFLAGS+=-I ../libnsp/icom -fPIC -Wall -std=gnu99
 LDFLAGS=-shared -lcrypt
 
 ifeq ($(build),debug)

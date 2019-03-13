@@ -23,21 +23,21 @@
  *    TCP_CLOSE_WAIT,
  *    TCP_LAST_ACK,
  *    TCP_LISTEN,
- *    TCP_CLOSING 
+ *    TCP_CLOSING
  *  };
  */
 const char *TCP_KERNEL_STATE_NAME[TCP_KERNEL_STATE_LIST_SIZE] = {
-    "TCP_UNDEFINED", 
-    "TCP_ESTABLISHED", 
-    "TCP_SYN_SENT", 
-    "TCP_SYN_RECV", 
-    "TCP_FIN_WAIT1", 
-    "TCP_FIN_WAIT2", 
-    "TCP_TIME_WAIT", 
-    "TCP_CLOSE", 
-    "TCP_CLOSE_WAIT", 
-    "TCP_LAST_ACK", 
-    "TCP_LISTEN", 
+    "TCP_UNDEFINED",
+    "TCP_ESTABLISHED",
+    "TCP_SYN_SENT",
+    "TCP_SYN_RECV",
+    "TCP_FIN_WAIT1",
+    "TCP_FIN_WAIT2",
+    "TCP_TIME_WAIT",
+    "TCP_CLOSE",
+    "TCP_CLOSE_WAIT",
+    "TCP_LAST_ACK",
+    "TCP_LISTEN",
     "TCP_CLOSING"
 };
 
@@ -57,7 +57,7 @@ int tcprefr( objhld_t hld, ncb_t **ncb ) {
         *ncb = NULL;
         return -EPROTOTYPE;
     }
-    
+
     return -ENOENT;
 }
 
@@ -65,7 +65,7 @@ void tcp_update_opts(const ncb_t *ncb) {
     if (ncb) {
         ncb_set_window_size(ncb, SO_RCVBUF, TCP_BUFFER_SIZE);
         ncb_set_window_size(ncb, SO_SNDBUF, TCP_BUFFER_SIZE);
-        
+
         /* atomic keepalive */
         tcp_set_keepalive(ncb, 1);
         tcp_set_keepalive_value(ncb, 30, 5, 6);
@@ -272,10 +272,10 @@ static int __tcp_check_connection(int sockfd) {
     retval = -1;
     len = sizeof (error);
     do {
-        
-        /* The nfds argument specifies the range of descriptors to be tested. 
-         * The first nfds descriptors shall be checked in each set; 
-         * that is, the descriptors from zero through nfds-1 in the descriptor sets shall be examined. 
+
+        /* The nfds argument specifies the range of descriptors to be tested.
+         * The first nfds descriptors shall be checked in each set;
+         * that is, the descriptors from zero through nfds-1 in the descriptor sets shall be examined.
          */
         nfd = select(sockfd + 1, &rset, &wset, NULL, &timeo);
         if ( nfd <= 0) {
@@ -347,7 +347,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
 
         /* set other options */
         tcp_update_opts(ncb);
-        
+
         /* save address information after connect successful */
         addrlen = sizeof (addr_to);
         getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* remote address information */
@@ -357,7 +357,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         ncb->ncb_read = &tcp_rx;
         ncb->ncb_write = &tcp_tx;
 
-        /* ensuer all file descriptor in asynchronous mode, 
+        /* ensuer all file descriptor in asynchronous mode,
            and than, queue object into epoll manager */
         retval = setasio(ncb->sockfd);
         if (retval >= 0) {
@@ -387,7 +387,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
     if (retval < 0) {
         return retval;
     }
-    
+
     do {
         retval = -1;
 
@@ -410,7 +410,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         /* try no more than 3 times of tcp::syn */
         optval = 3;
         setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
-        
+
         /* queue object into epoll manage befor syscall @connect,
            epoll_wait will get a EPOLLOUT signal when syn success.
            so, file descriptor must be set to asynchronous now. */
@@ -431,7 +431,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         if ( 0 == retval) {
             break;
         }
-            
+
         if (e == EINPROGRESS) {
             retval = ioatth(ncb, EPOLLOUT | EPOLLIN);
             break;
@@ -442,7 +442,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         } else {
             nis_call_ecr("[nshost.tcp.connect2] fatal error occurred syscall connect(2) to target endpoint %s:%u, error:%d, link:%lld", r_ipstr, r_port, e, lnk);
         }
-        
+
     } while (0);
 
     objdefr(lnk);
@@ -497,7 +497,7 @@ int tcp_listen(HTCPLINK lnk, int block) {
         if (retval < 0){
             break;
         }
-        
+
         if (ioatth(ncb, EPOLLIN) < 0) {
             break;
         }
@@ -527,7 +527,7 @@ int tcp_write(HTCPLINK lnk, const void *origin, int cb, const nis_serializer_t s
     if (retval < 0) {
         return retval;
     }
-    
+
     do {
         /* the calling thread is likely to occur as follows:
          * immediately call @tcp_write after creation, but no connection established and no listening has yet been taken
@@ -565,7 +565,7 @@ int tcp_write(HTCPLINK lnk, const void *origin, int cb, const nis_serializer_t s
             } else {
                 memcpy(buffer, origin, cb);
             }
-            
+
         } else {
             packet_length = cb + ncb->u.tcp.template.cb_;
             buffer = (unsigned char *) malloc(packet_length);
@@ -604,27 +604,34 @@ int tcp_write(HTCPLINK lnk, const void *origin, int cb, const nis_serializer_t s
         if (!fifo_is_blocking(ncb)) {
             retval = tcp_txn(ncb, node);
 
-            /* 
+            /*
              * the return value means direct failed when it equal to -1 or success when it greater than zero.
              * in these case, destroy memory resource outside loop, no matter what the actually result it is.
              */
             if (-EAGAIN != retval) {
-                break; 
+                break;
             }
         }
 
-        /* 
+        /*
          * when the IO blocking is existed, we can't send data immediately,
          * only way to handler this situation is queued data into @wpool.
-         * otherwise, the wrong operation may broken the output sequence 
+         * otherwise, the wrong operation may broken the output sequence
          *
          * in case of -EAGAIN return by @tcp_txn, means the write operation cannot be complete right now,
          * insert @node into the tail of @fifo queue, be careful, in this case, memory of @buffer and @node cannot be destroy until asynchronous completed
          *
          * just insert @node into tail of @fifo queue,  awaken write thread is not necessary.
-         * don't worry about the task thread notify, when success calling to @ncb_set_blocking, ensure that the @EPOLLOUT event can being captured by IO thread 
+         * don't worry about the task thread notify, when success calling to @ncb_set_blocking, ensure that the @EPOLLOUT event can being captured by IO thread
+         *
+         * the return value by calling @fifo_queue maybe -EBUSY
+         * in this case means the cache queue is full, no more items canbe insert into @fifo of this ncb, package will be drop
          */
-        fifo_queue(ncb, node);
+        retval = fifo_queue(ncb, node);
+        if (retval < 0) {
+            break;
+        }
+
         objdefr(lnk);
         return 0;
     } while (0);
@@ -652,7 +659,7 @@ int tcp_getaddr(HTCPLINK lnk, int type, uint32_t* ipv4, uint16_t* port) {
     if (retval < 0) {
         return retval;
     }
-    
+
     if (LINK_ADDR_LOCAL == type) {
         addr = &ncb->local_addr;
     }
@@ -679,7 +686,7 @@ int tcp_getaddr(HTCPLINK lnk, int type, uint32_t* ipv4, uint16_t* port) {
 int tcp_setopt(HTCPLINK lnk, int level, int opt, const char *val, int len) {
     ncb_t *ncb;
     int retval;
- 
+
     retval = tcprefr(lnk, &ncb);
     if (retval < 0) {
         return retval;
@@ -808,7 +815,7 @@ int tcp_set_keepalive_value(const ncb_t *ncb, int idle, int interval, int probes
 
         return 0;
     }while( 0 );
-    
+
     return -1;
 }
 
@@ -847,7 +854,7 @@ int tcp_get_keepalive_value(const ncb_t *ncb,int *idle, int *interval, int *prob
 
         return 0;
     }while( 0 );
-    
+
     return -1;
 }
 

@@ -50,6 +50,7 @@ int fifo_queue(ncb_t *ncb, struct tx_node *node) {
     posix__pthread_mutex_lock(&fifo->lock);
     do {
         if (fifo->size >= MAXIMUM_FIFO_SIZE) {
+            n = -EBUSY;
             break;
         }
         list_add_tail(&node->link, &fifo->head);
@@ -64,7 +65,7 @@ int fifo_queue(ncb_t *ncb, struct tx_node *node) {
             nis_call_ecr("[nshost.fifo.fifo_queue] set IO blocking,link:%lld", ncb->hld);
         }
     } while(0);
-    
+
     posix__pthread_mutex_unlock(&fifo->lock);
     return n;
 }
