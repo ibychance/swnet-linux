@@ -54,16 +54,22 @@ int fifo_queue(ncb_t *ncb, struct tx_node *node) {
             break;
         }
         list_add_tail(&node->link, &fifo->head);
-        n = ++fifo->size;
 
         /* queue item into fifo.
          * it is ensure the EAGAIN event was happened.
          * the calling thread should change the epoll to EPOLLOUT mode */
         if (0 == fifo->blocking) {
+            n = iomod(ncb, EPOLLIN | EPOLLOUT);
+            if ( n < 0) {
+                list_del(&node->link);
+                INIT_LIST_HEAD(&node->link);
+                break;
+            }
             fifo->blocking = 1;
-            iomod(ncb, EPOLLIN | EPOLLOUT);
             nis_call_ecr("[nshost.fifo.fifo_queue] set IO blocking,link:%lld", ncb->hld);
         }
+
+        n = ++fifo->size;
     } while(0);
 
     posix__pthread_mutex_unlock(&fifo->lock);
@@ -126,6 +132,7 @@ int fifo_pop(ncb_t *ncb, struct tx_node **node) {
         if (front->data) {
             free(front->data);
         }
+
         free(front);
         return 1;
     }

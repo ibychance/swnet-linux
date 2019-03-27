@@ -44,7 +44,7 @@ static void __add_task(struct task_node *task) {
 
 static struct task_node *__get_task(struct wthread *thread){
     struct task_node *task;
-    
+
     posix__pthread_mutex_lock(&thread->mutex);
     if (NULL != (task = list_first_entry_or_null(&thread->tasks, struct task_node, link))) {
          --thread->task_list_size;
@@ -52,7 +52,7 @@ static struct task_node *__get_task(struct wthread *thread){
         INIT_LIST_HEAD(&task->link);
     }
     posix__pthread_mutex_unlock(&thread->mutex);
-    
+
     return task;
 }
 
@@ -63,18 +63,18 @@ static int __wp_exec(struct task_node *task) {
     assert(NULL != task);
 
     retval = -1;
-    
+
     ncb = objrefr(task->hld);
     if (!ncb) {
         return -ENOENT;
     }
-    
+
     if (ncb->ncb_write) {
-        /* 
-         * if the return value of @ncb_write equal to -1, that means system call maybe error, this link will be close 
+        /*
+         * if the return value of @ncb_write equal to -1, that means system call maybe error, this link will be close
          *
          * if the return value of @ncb_write equal to -EAGAIN, set write IO blocked. this ncb object willbe switch to focus on EPOLLOUT | EPOLLIN
-         * bacause the write operation object always takes place in the same thread context, there is no thread security problem. 
+         * bacause the write operation object always takes place in the same thread context, there is no thread security problem.
          * for the data which has been reverted, write tasks will be obtained through event triggering of EPOLLOUT
          *
          * if the return value of @ncb_write equal to zero, it means the queue of pending data node is empty, not any send operations are need.
@@ -100,7 +100,7 @@ static int __wp_exec(struct task_node *task) {
             }
         }
     }
-    
+
     objdefr(ncb->hld);
     return retval;
 }
@@ -109,7 +109,7 @@ static void *__wp_run(void *p) {
     struct task_node *task;
     struct wthread *thread;
     int retval;
-    
+
     thread = (struct wthread *)p;
     nis_call_ecr("[nshost.wpool.init] LWP:%u startup.", posix__gettid());
 
@@ -140,7 +140,7 @@ static void *__wp_run(void *p) {
 
 static int __wp_init() {
     int i;
-    
+
     __wpool.stop = posix__false;
     __wpool.wthread_count = posix__getnprocs() >> 1;
     if (__wpool.wthread_count <= 0) {
@@ -150,7 +150,7 @@ static int __wp_init() {
     if (!__wpool.write_threads) {
         return -ENOMEM;
     }
-    
+
     for (i = 0; i < __wpool.wthread_count; i++) {
         INIT_LIST_HEAD(&__wpool.write_threads[i].tasks);
         posix__init_notification_waitable_handle(&__wpool.write_threads[i].signal);
@@ -160,7 +160,7 @@ static int __wp_init() {
             nis_call_ecr("[nshost.pool.__wp_init] fatal error occurred syscall pthread_create(3), error:%d", errno);
         }
     }
-    
+
     return 0;
 }
 
@@ -182,47 +182,51 @@ void wp_uninit(){
     int i;
     void *retval;
     struct task_node *task;
-    
+
     if (!posix__atomic_initial_regress(__inited__)) {
         return;
     }
-    
+
     __wpool.stop = posix__true;
     for (i = 0; i < __wpool.wthread_count; i++){
         posix__sig_waitable_handle(&__wpool.write_threads[i].signal);
         posix__pthread_join(&__wpool.write_threads[i].thread, &retval);
-        
+
         /* clear the tasks which too late to deal with */
         posix__pthread_mutex_lock(&__wpool.write_threads[i].mutex);
         while (NULL != (task = __get_task(&__wpool.write_threads[i]))) {
             free(task);
         }
         posix__pthread_mutex_unlock(&__wpool.write_threads[i].mutex);
-        
+
         INIT_LIST_HEAD(&__wpool.write_threads[i].tasks);
         posix__uninit_waitable_handle(&__wpool.write_threads[i].signal);
         posix__pthread_mutex_uninit(&__wpool.write_threads[i].mutex);
     }
-    
+
     free(__wpool.write_threads);
     __wpool.write_threads = NULL;
 }
 
 int wp_queued(objhld_t hld) {
     struct task_node *task;
+    struct wthread *thread;
 
     if (!posix__atomic_initial_passed(__inited__)) {
         return -1;
     }
-    
+
+    thread = &__wpool.write_threads[hld % __wpool.wthread_count];
+
     if (NULL == (task = (struct task_node *)malloc(sizeof(struct task_node)))){
         return -ENOMEM;
     }
 
     task->hld = hld;
-    task->thread = &__wpool.write_threads[hld % __wpool.wthread_count];
-    
+    task->thread = thread;
     __add_task(task);
-    posix__sig_waitable_handle(&task->thread->signal);
+
+    /* use local variable to save the thread object, because @task maybe already freed by handler now */
+    posix__sig_waitable_handle(&thread->signal);
     return 0;
 }
