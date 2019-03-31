@@ -54,11 +54,12 @@ static void __iorun(struct epoll_event *evts, int sigcnt) {
                 ncb->ncb_error(ncb);
             }
             nis_call_ecr("[nshost.io.__iorun] event EPOLLERR on link:%lld", hld);
+            objdefr(hld);
             objclos(hld);
             continue;
         }
 
-    	/* concern but not deal with EPOLLHUP 
+    	/* concern but not deal with EPOLLHUP
     	 * every connect request should trigger a EPOLLHUP event, no matter successful or failed*/
     	if ( evts[i].events & EPOLLHUP ) {
     	    ;
@@ -80,7 +81,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt) {
         if (evts[i].events & EPOLLOUT) {
             wp_queued(ncb->hld);
         }
-        
+
         objdefr(hld);
     }
 }
@@ -101,7 +102,7 @@ static void *__epoll_proc(void *argv) {
             errcode = errno;
 
 	    /* The call was interrupted by a signal handler before either :
-	     * (1) any of the requested events occurred or 
+	     * (1) any of the requested events occurred or
 	     * (2) the timeout expired; */
             if (EINTR == errcode) {
                 continue;
@@ -128,12 +129,12 @@ int __ioinit() {
 
     /* write a closed socket, return EPIPE and raise a SIGPIPE signal. ignore it */
     signal(SIGPIPE, SIG_IGN);
-    
+
     epmgr.divisions = posix__getnprocs();
     if ( NULL == (epmgr.epos = (struct epoll_object *)malloc(sizeof(struct epoll_object) * epmgr.divisions))) {
         return -1;
     }
-    
+
     for (i = 0; i < epmgr.divisions; i++) {
         epmgr.epos[i].load = 0;
         epmgr.epos[i].epfd = epoll_create(EPOLL_SIZE);
@@ -142,7 +143,7 @@ int __ioinit() {
             epmgr.epos[i].actived = 0;
             continue;
         }
-        
+
         /* active field as a judge of operational effectiveness, as well as a control symbol of operation  */
         epmgr.epos[i].actived = 1;
         if (posix__pthread_create(&epmgr.epos[i].thread, &__epoll_proc, &epmgr.epos[i]) < 0) {
@@ -176,23 +177,23 @@ void iouninit() {
     if (!posix__atomic_initial_regress(__inited__)) {
         return;
     }
-    
+
     if (!epmgr.epos) {
         return;
     }
-    
+
     for (i = 0; i < epmgr.divisions; i++){
         if (epmgr.epos[i].epfd > 0){
             close(epmgr.epos[i].epfd);
             epmgr.epos[i].epfd = -1;
         }
-        
+
         if (epmgr.epos[i].actived){
            posix__atomic_xchange(&epmgr.epos[i].actived, 0);
            posix__pthread_join(&epmgr.epos[i].thread, NULL);
         }
     }
-    
+
     free(epmgr.epos);
     epmgr.epos = NULL;
 }
@@ -204,21 +205,21 @@ int ioatth(void *ncbptr, int mask) {
     if (!posix__atomic_initial_passed(__inited__)) {
         return -1;
     }
-    
+
     ncb = (ncb_t *)ncbptr;
     if (!ncb) {
         return -EINVAL;
     }
-    
+
     memset(&e_evt, 0, sizeof(e_evt));
     e_evt.data.u64 = (uint64_t)ncb->hld;
-    e_evt.events = (EPOLLET | EPOLLRDHUP | EPOLLHUP | EPOLLERR); 
+    e_evt.events = (EPOLLET | EPOLLRDHUP | EPOLLHUP | EPOLLERR);
 	e_evt.events |= mask;
-	
+
 	ncb->epfd = epmgr.epos[ncb->hld % epmgr.divisions].epfd;
     if ( epoll_ctl(ncb->epfd, EPOLL_CTL_ADD, ncb->sockfd, &e_evt) < 0 &&
             errno != EEXIST ) {
-        nis_call_ecr("[nshost.io.ioatth] fatal error occurred syscall epoll_ctl(2) when add sockfd:%d upon epollfd:%d with mask:%d, error:%u,link:%lld", 
+        nis_call_ecr("[nshost.io.ioatth] fatal error occurred syscall epoll_ctl(2) when add sockfd:%d upon epollfd:%d with mask:%d, error:%u,link:%lld",
             ncb->sockfd, ncb->epfd, mask, errno, ncb->hld);
         ncb->epfd = -1;
         return -1;
@@ -235,18 +236,18 @@ int iomod(void *ncbptr, int mask ) {
     if (!posix__atomic_initial_passed(__inited__)) {
         return -1;
     }
-    
+
     ncb = (ncb_t *)ncbptr;
     if (!ncb) {
         return -EINVAL;
     }
 
     e_evt.data.u64 = (uint64_t)ncb->hld;
-    e_evt.events = (EPOLLET | EPOLLRDHUP | EPOLLHUP | EPOLLERR); 
+    e_evt.events = (EPOLLET | EPOLLRDHUP | EPOLLHUP | EPOLLERR);
 	e_evt.events |= mask;
-	
+
     if ( epoll_ctl(ncb->epfd, EPOLL_CTL_MOD, ncb->sockfd, &e_evt) < 0 ) {
-        nis_call_ecr("[nshost.io.ctlmod] fatal error occurred syscall epoll_ctl(2) when modify sockfd:%d upon epollfd:%d with mask:%d, error:%u, link:%lld", 
+        nis_call_ecr("[nshost.io.ctlmod] fatal error occurred syscall epoll_ctl(2) when modify sockfd:%d upon epollfd:%d with mask:%d, error:%u, link:%lld",
             ncb->sockfd, ncb->epfd, mask, errno, ncb->hld);
         return -1;
     }
@@ -262,7 +263,7 @@ void iodeth(void *ncbptr) {
         ncb = (ncb_t *)ncbptr;
         if (ncb) {
             if (epoll_ctl(ncb->epfd, EPOLL_CTL_DEL, ncb->sockfd, &evt) < 0) {
-                nis_call_ecr("[nshost.io.iodeth] fatal error occurred syscall epoll_ctl(2) when remove sockfd:%d from epollfd:%d, error:%u, link:%lld", 
+                nis_call_ecr("[nshost.io.iodeth] fatal error occurred syscall epoll_ctl(2) when remove sockfd:%d from epollfd:%d, error:%u, link:%lld",
                     ncb->sockfd, ncb->epfd, errno, ncb->hld);
             }
         }
@@ -274,29 +275,29 @@ void ioclose(void *ncbptr) {
     if (!ncb){
         return;
     }
-    
+
     if (ncb->sockfd > 0){
 
         /* It is necessary to ensure that the SOCKET descriptor is removed from the EPOLL before closing the SOCKET,
            otherwise the epoll_wait function has a thread security problem and the behavior is not defined.
 
-           While one thread is blocked in a call to epoll_pwait(), 
-           it is possible for another thread to add a file descriptor to the waited-upon epoll instance. 
-           If the new file descriptor becomes ready, it will cause the epoll_wait() call to unblock. 
-            For a discussion of what may happen if a file descriptor in an epoll instance being monitored by epoll_wait() is closed in another thread, see select(2) 
+           While one thread is blocked in a call to epoll_pwait(),
+           it is possible for another thread to add a file descriptor to the waited-upon epoll instance.
+           If the new file descriptor becomes ready, it will cause the epoll_wait() call to unblock.
+            For a discussion of what may happen if a file descriptor in an epoll instance being monitored by epoll_wait() is closed in another thread, see select(2)
 
-            If a file descriptor being monitored by select() is closed in another thread, 
-            the result is unspecified. On some UNIX systems, select() unblocks and returns, 
-            with an indication that the file descriptor is ready (a subsequent I/O operation will likely fail with an error, 
-            unless another the file descriptor reopened between the time select() returned and the I/O operations was performed). 
+            If a file descriptor being monitored by select() is closed in another thread,
+            the result is unspecified. On some UNIX systems, select() unblocks and returns,
+            with an indication that the file descriptor is ready (a subsequent I/O operation will likely fail with an error,
+            unless another the file descriptor reopened between the time select() returned and the I/O operations was performed).
             On Linux (and some other systems), closing the file descriptor in another thread has no effect on select().
-            In summary, any application that relies on a particular behavior in this scenario must be considered buggy 
+            In summary, any application that relies on a particular behavior in this scenario must be considered buggy
         */
         if (ncb->epfd > 0){
             iodeth(ncb);
             ncb->epfd = -1;
         }
-         
+
         shutdown(ncb->sockfd, SHUT_RDWR);
         close(ncb->sockfd);
         ncb->sockfd = -1;
