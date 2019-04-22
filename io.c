@@ -60,7 +60,13 @@ static void __iorun(struct epoll_event *evts, int sigcnt) {
         }
 
     	/* concern but not deal with EPOLLHUP
-    	 * every connect request should trigger a EPOLLHUP event, no matter successful or failed*/
+    	 * every connect request should trigger a EPOLLHUP event, no matter successful or failed
+         *   EPOLLHUP
+         *    Hang up happened on the associated file descriptor.  epoll_wait(2) will always wait for this event; it is not necessary to set it in events.
+         *
+         *    Note  that  when  reading from a channel such as a pipe or a stream socket, this event merely indicates that the peer closed its end of the channel.
+         *    Subsequent reads from the channel will return 0 (end of file) only after all outstanding data in
+         *    the channel has been consumed. */
     	if ( evts[i].events & EPOLLHUP ) {
     	    ;
     	}
@@ -281,16 +287,16 @@ void ioclose(void *ncbptr) {
         /* It is necessary to ensure that the SOCKET descriptor is removed from the EPOLL before closing the SOCKET,
            otherwise the epoll_wait function has a thread security problem and the behavior is not defined.
 
-           While one thread is blocked in a call to epoll_pwait(),
+           While one thread is blocked in a call to epoll_pwait(2),
            it is possible for another thread to add a file descriptor to the waited-upon epoll instance.
-           If the new file descriptor becomes ready, it will cause the epoll_wait() call to unblock.
-            For a discussion of what may happen if a file descriptor in an epoll instance being monitored by epoll_wait() is closed in another thread, see select(2)
+           If the new file descriptor becomes ready, it will cause the epoll_wait(2) call to unblock.
+            For a discussion of what may happen if a file descriptor in an epoll instance being monitored by epoll_wait(2) is closed in another thread, see select(2)
 
-            If a file descriptor being monitored by select() is closed in another thread,
-            the result is unspecified. On some UNIX systems, select() unblocks and returns,
+            If a file descriptor being monitored by select(2) is closed in another thread,
+            the result is unspecified. On some UNIX systems, select(2) unblocks and returns,
             with an indication that the file descriptor is ready (a subsequent I/O operation will likely fail with an error,
-            unless another the file descriptor reopened between the time select() returned and the I/O operations was performed).
-            On Linux (and some other systems), closing the file descriptor in another thread has no effect on select().
+            unless another the file descriptor reopened between the time select(2) returned and the I/O operations was performed).
+            On Linux (and some other systems), closing the file descriptor in another thread has no effect on select(2).
             In summary, any application that relies on a particular behavior in this scenario must be considered buggy
         */
         if (ncb->epfd > 0){

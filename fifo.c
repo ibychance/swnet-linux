@@ -26,6 +26,7 @@ void fifo_uninit(ncb_t *ncb) {
         posix__pthread_mutex_lock(&fifo->lock);
         while ((node = list_first_entry_or_null(&fifo->head, struct tx_node, link)) != NULL) {
             list_del(&node->link);
+            INIT_LIST_HEAD(&node->link);
             if (node->data) {
                 free(node->data);
             }
@@ -127,13 +128,12 @@ int fifo_pop(ncb_t *ncb, struct tx_node **node) {
     if (front) {
         if (node) {
             *node = front;
+        } else {
+            if (front->data) {
+                free(front->data);
+            }
+            free(front);
         }
-
-        if (front->data) {
-            free(front->data);
-        }
-
-        free(front);
         return 1;
     }
 

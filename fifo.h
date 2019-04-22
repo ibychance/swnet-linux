@@ -23,7 +23,7 @@ extern int fifo_top(ncb_t *ncb, struct tx_node **node);
 
 /* pop the front item from current fifo, option, you can get the top one
  * when the last item have been pop from the fifo, the io blocking status will be automatic recover to 0,
- * if @node is null, the front item memory will be free after pop
+ * if @node is null, the front item memory will be free after pop, otherwise, the calling thread MUST free @*node after @fifo_pop return 1
  *
  * the return value definition:
  * -1 : error occurred

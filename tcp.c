@@ -196,7 +196,7 @@ int tcp_gettst(HTCPLINK lnk, tst_t *tst) {
     int retval;
 
     if (!tst) {
-        return -ENOENT;
+        return -EINVAL;
     }
 
     retval = tcprefr(lnk, &ncb);
@@ -306,7 +306,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
     struct tcp_info ktcp;
 
     if (lnk < 0 || !r_ipstr || 0 == r_port ) {
-        return -ENOENT;
+        return -EINVAL;
     }
 
     retval = tcprefr(lnk, &ncb);
