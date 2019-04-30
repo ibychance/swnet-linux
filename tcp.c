@@ -693,6 +693,9 @@ int tcp_setopt(HTCPLINK lnk, int level, int opt, const char *val, int len) {
     }
 
     retval = setsockopt(ncb->sockfd, level, opt, (const void *) val, (socklen_t) len);
+    if (retval < 0) {
+        nis_call_ecr("[nshost.tcp.tcp_setopt] fatal error occurred syscall setsockopt(2) with level:%d optname:%d,error:%d", level, opt, errno);
+    }
 
     objdefr(lnk);
     return retval;
@@ -708,6 +711,9 @@ int tcp_getopt(HTCPLINK lnk, int level, int opt, char *__restrict val, int *len)
     }
 
     retval = getsockopt(ncb->sockfd, level, opt, (void * __restrict)val, (socklen_t *) len);
+    if (retval < 0) {
+        nis_call_ecr("[nshost.tcp.tcp_setopt] fatal error occurred syscall getsockopt(2) with level:%d optname:%d,error:%d", level, opt, errno);
+    }
 
     objdefr(lnk);
     return retval;

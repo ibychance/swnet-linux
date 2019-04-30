@@ -8,11 +8,11 @@
 #endif
 
 #if !defined UDP_BUFFER_SIZE
-#define UDP_BUFFER_SIZE          	(0xFFFF) 
+#define UDP_BUFFER_SIZE          	(0xFFFF)
 #endif
 
 #if !defined MAX_UDP_SIZE
-#define MAX_UDP_SIZE				(MTU - (ETHERNET_P_SIZE + IP_P_SIZE + UDP_P_SIZE))
+#define MAX_UDP_SIZE				(MTU - IP_UDP_HEAD_SIZE)
 #endif
 
 /* udp io */
