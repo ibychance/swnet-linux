@@ -13,7 +13,7 @@ int __udp_rx(ncb_t *ncb) {
     int errcode;
 
     addrlen = sizeof (struct sockaddr_in);
-    recvcb = recvfrom(ncb->sockfd, ncb->packet, MAX_UDP_SIZE, 0, (struct sockaddr *) &remote, &addrlen);
+    recvcb = recvfrom(ncb->sockfd, ncb->packet, MTU, 0, (struct sockaddr *) &remote, &addrlen);
     errcode = errno;
     if (recvcb > 0) {
         c_event.Ln.Udp.Link = ncb->hld;
@@ -26,18 +26,18 @@ int __udp_rx(ncb_t *ncb) {
             ncb->nis_callback(&c_event, &c_data);
         }
     }
-    
+
     if (0 == recvcb) {
         nis_call_ecr("[nshost.udpio.__udp_rx] fatal error occurred syscall recvfrom(2),the return value equal to zero,link:%lld", ncb->hld);
         return -1;
     }
-    
+
     /* ECONNRESET 104 Connection reset by peer */
     if (recvcb < 0){
         if ((EAGAIN == errcode) || (EWOULDBLOCK == errcode)){
             return EAGAIN;
         }
-        
+
         /* system interrupted */
         if (EINTR == errcode) {
             return 0;
@@ -46,17 +46,17 @@ int __udp_rx(ncb_t *ncb) {
         nis_call_ecr("[nshost.udpio.__udp_rx] fatal error occurred syscall recvfrom(2), error:%d, link:%lld", errcode, ncb->hld );
         return -1;
     }
-    
+
     return 0;
 }
 
 int udp_rx(ncb_t *ncb) {
      int retval;
-    
+
     do {
         retval = __udp_rx(ncb);
     } while (0 == retval);
-    
+
     return retval;
 }
 
@@ -65,7 +65,7 @@ int udp_txn(ncb_t *ncb, void *p) {
     int errcode;
     struct tx_node *node = (struct tx_node *)p;
     socklen_t len = sizeof(struct sockaddr);
-    
+
     while (node->offset < node->wcb) {
         wcb = sendto(ncb->sockfd, node->data + node->offset, node->wcb - node->offset, 0,
                 (__CONST_SOCKADDR_ARG)&node->udp_target, len );
@@ -78,7 +78,7 @@ int udp_txn(ncb_t *ncb, void *p) {
 
         if (wcb < 0) {
              errcode = errno;
-             
+
             /* the write buffer is full, active EPOLLOUT and waitting for epoll event trigger
              * at this point, we need to deal with the queue header node and restore the unprocessed node back to the queue header.
              * the way 'oneshot' focus on the write operation completion point */
@@ -92,7 +92,7 @@ int udp_txn(ncb_t *ncb, void *p) {
             if (EINTR == errcode) {
                 continue;
             }
-            
+
              /* other error, these errors should cause link close */
             nis_call_ecr("[nshost.udpio.udp_txn] fatal error occurred syscall sendto(2), error:%d, link:%lld",errcode, ncb->hld );
             return -1;
@@ -100,18 +100,18 @@ int udp_txn(ncb_t *ncb, void *p) {
 
         node->offset += wcb;
     }
-    
+
     return node->wcb;
 }
 
 int udp_tx(ncb_t *ncb) {
     struct tx_node *node;
     int retval;
-    
+
     if (!ncb) {
         return -1;
     }
-    
+
     /* try to write front package into system kernel send-buffer */
     if (fifo_top(ncb, &node) >= 0) {
         retval = udp_txn(ncb, node);
