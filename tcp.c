@@ -77,14 +77,14 @@ void tcp_update_opts(const ncb_t *ncb) {
 
 /* tcp impls */
 int tcp_init() {
-    if (ioinit() >= 0) {
+    if (io_init_tcp() >= 0) {
         wp_init();
     }
     return 0;
 }
 
 void tcp_uninit() {
-    iouninit();
+    io_uninit_tcp();
     wp_uninit();
 }
 
@@ -222,7 +222,7 @@ void tcp_destroy(HTCPLINK lnk) {
     ncb = objreff(lnk);
     if (ncb) {
         nis_call_ecr("[nshost.tcp.destroy] link:%lld order to destroy", ncb->hld);
-        ioclose(ncb);
+        io_close(ncb);
         objdefr(lnk);
     }
 }
@@ -359,9 +359,9 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
 
         /* ensuer all file descriptor in asynchronous mode,
            and than, queue object into epoll manager */
-        retval = setasio(ncb->sockfd);
+        retval = io_set_asynchronous(ncb->sockfd);
         if (retval >= 0) {
-            retval = ioatth(ncb, EPOLLIN);
+            retval = io_attach(ncb, EPOLLIN);
             if (retval >= 0) {
                 ncb_post_connected(ncb);
             }
@@ -414,7 +414,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         /* queue object into epoll manage befor syscall @connect,
            epoll_wait will get a EPOLLOUT signal when syn success.
            so, file descriptor must be set to asynchronous now. */
-        if (setasio(ncb->sockfd) < 0) {
+        if (io_set_asynchronous(ncb->sockfd) < 0) {
             break;
         }
 
@@ -433,7 +433,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) {
         }
 
         if (e == EINPROGRESS) {
-            retval = ioatth(ncb, EPOLLOUT | EPOLLIN);
+            retval = io_attach(ncb, EPOLLOUT | EPOLLIN);
             break;
         }
 
@@ -493,12 +493,12 @@ int tcp_listen(HTCPLINK lnk, int block) {
         }
 
         /* file descriptor must set to asynchronous mode befor accept */
-        retval = setasio(ncb->sockfd);
+        retval = io_set_asynchronous(ncb->sockfd);
         if (retval < 0){
             break;
         }
 
-        if (ioatth(ncb, EPOLLIN) < 0) {
+        if (io_attach(ncb, EPOLLIN) < 0) {
             break;
         }
         retval = 0;

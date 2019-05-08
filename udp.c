@@ -40,14 +40,14 @@ static int __udp_update_opts(ncb_t *ncb) {
 }
 
 int udp_init() {
-    if (ioinit() >= 0) {
+    if (io_init_udp() >= 0) {
         return wp_init();
     }
     return -1;
 }
 
 void udp_uninit() {
-    iouninit();
+    io_uninit_udp();
     wp_uninit();
 }
 
@@ -98,7 +98,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         ncb->proto_type = kProtocolType_UDP;
 
         /* must keep all file descriptor in asynchronous mode with ET mode */
-        if (setasio(fd) < 0) {
+        if (io_set_asynchronous(fd) < 0) {
             break;
         }
 
@@ -135,7 +135,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         ncb->ncb_write = &udp_tx;
 
         /* attach to epoll */
-        retval = ioatth(ncb, EPOLLIN);
+        retval = io_attach(ncb, EPOLLIN);
         if (retval < 0) {
             break;
         }
@@ -156,7 +156,7 @@ void udp_destroy(HUDPLINK lnk) {
     ncb = objreff(lnk);
     if (ncb) {
         nis_call_ecr("[nshost.udp.destroy] link:%lld order to destroy", ncb->hld);
-        ioclose(ncb);
+        io_close(ncb);
         objdefr(lnk);
     }
 }

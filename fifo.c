@@ -60,7 +60,7 @@ int fifo_queue(ncb_t *ncb, struct tx_node *node) {
          * it is ensure the EAGAIN event was happened.
          * the calling thread should change the epoll to EPOLLOUT mode */
         if (0 == fifo->blocking) {
-            n = iomod(ncb, EPOLLIN | EPOLLOUT);
+            n = io_modify(ncb, EPOLLIN | EPOLLOUT);
             if ( n < 0) {
                 list_del(&node->link);
                 INIT_LIST_HEAD(&node->link);
@@ -119,7 +119,7 @@ int fifo_pop(ncb_t *ncb, struct tx_node **node) {
         /* the calling thread should change the epoll to EPOLLIN mode */
         if ((0 == remain) && (1 == fifo->blocking)) {
             fifo->blocking = 0;
-            iomod(ncb, EPOLLIN);
+            io_modify(ncb, EPOLLIN);
             nis_call_ecr("[nshost.fifo.fifo_pop] cancel IO blocking,link:%lld", ncb->hld);
         }
     }

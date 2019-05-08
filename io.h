@@ -2,24 +2,28 @@
 #define IO_H_20170118
 
 /*
- *  Kernel IO Events and internal scheduling 
- *  related to EPOLL publication and notification of its concerns 
+ *  Kernel IO Events and internal scheduling
+ *  related to EPOLL publication and notification of its concerns
  *  neo.anderson 2017-01-18
  */
 
 extern
-int ioinit();
+int io_init_tcp();
 extern
-void iouninit();
+int io_init_udp();
 extern
-int ioatth(void *ncbptr, int mask);
+void io_uninit_tcp();
 extern
-int iomod(void *ncbptr, int mask );
+void io_uninit_udp();
 extern
-void iodeth(void *ncbptr);
+int io_attach(void *ncbptr, int mask);
 extern
-void ioclose(void *ncbptr);
+int io_modify(void *ncbptr, int mask );
 extern
-int setasio(int fd);
+void io_detach(void *ncbptr);
+extern
+void io_close(void *ncbptr);
+extern
+int io_set_asynchronous(int fd);
 
 #endif /* IO_H */

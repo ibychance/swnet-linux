@@ -82,14 +82,14 @@ int __tcp_syn(ncb_t *ncb_server) {
         getsockname(fd_client, (struct sockaddr *) &ncb_client->local_addr, &addrlen); /* local */
 
         /*all file descriptor must kept asynchronous with ET mode*/
-        if (setasio(ncb_client->sockfd) < 0) {
+        if (io_set_asynchronous(ncb_client->sockfd) < 0) {
             break;
         }
 
         /* set other options */
         tcp_update_opts(ncb_client);
-        
-        /* acquire save TCP Info and adjust linger in the accept phase. 
+
+        /* acquire save TCP Info and adjust linger in the accept phase.
             l_onoff on and l_linger not zero, these settings means:
             TCP drop any data cached in the kernel buffer of this socket file descriptor when close(2) called.
             post a TCP-RST to peer, do not use FIN-FINACK, using this flag to avoid TIME_WAIT stauts */
@@ -118,11 +118,11 @@ int __tcp_syn(ncb_t *ncb_server) {
             memcpy(&ncb_client->u.tcp.template, &ncb_server->u.tcp.template, sizeof(tst_t));
         }
 
-        /* tell calling thread, link has been accepted. 
+        /* tell calling thread, link has been accepted.
             user can rewrite some context in callback even if LINKATTR_TCP_UPDATE_ACCEPT_CONTEXT is set */
         ncb_post_accepted(ncb_server, hld_client);
-        
-        if (ioatth(ncb_client, EPOLLIN) < 0) {
+
+        if (io_attach(ncb_client, EPOLLIN) < 0) {
             break;
         }
 
@@ -161,7 +161,7 @@ int __tcp_rx(ncb_t *ncb) {
         do {
             overplus = tcp_parse_pkt(ncb, ncb->u.tcp.rx_buffer + offset, cpcb);
             if (overplus < 0) {
-                /* fatal to parse low level protocol, 
+                /* fatal to parse low level protocol,
                     close the object immediately */
                 return -1;
             }
@@ -327,7 +327,7 @@ int tcp_tx_syn(ncb_t *ncb) {
             ncb->ncb_read = &tcp_rx;
             ncb->ncb_write = &tcp_tx;
             ncb->ncb_error = NULL;
-            if (iomod(ncb, EPOLLIN) < 0) {
+            if (io_modify(ncb, EPOLLIN) < 0) {
                 objclos(ncb->hld);
                 return -1;
             }
@@ -342,11 +342,11 @@ int tcp_tx_syn(ncb_t *ncb) {
             case EALREADY:
                 return 0;
 
-            /* other interrupted or full cached,try again 
+            /* other interrupted or full cached,try again
                 Only a few linux version likely to happen. */
             case EINTR:
                 break;
-            
+
             case EAGAIN:
                 return -EAGAIN;
 
@@ -358,7 +358,7 @@ int tcp_tx_syn(ncb_t *ncb) {
                 return -1;
         }
     }
-    
+
     return 0;
 }
 
@@ -384,6 +384,6 @@ int tcp_rx_syn(ncb_t *ncb) {
     } else {
         nis_call_ecr("[nshost.tcpio.tcp_rx_syn] fatal error occurred syscall getsockopt(2), error:%d,link:%lld", errno, ncb->hld);
     }
-    
+
     return -1;
 }

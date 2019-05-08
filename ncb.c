@@ -27,12 +27,12 @@ void ncb_uninit(objhld_t ignore, void *p) {
     if (ncb->hld >= 0) {
         ncb_post_preclose(ncb);
     }
-    
+
     /* stop network service
-     * cancel relation of epoll 
+     * cancel relation of epoll
      * close file descriptor */
-    ioclose(ncb);
-    
+    io_close(ncb);
+
     /* free packet cache */
     if (ncb->packet) {
         free(ncb->packet);
@@ -45,7 +45,7 @@ void ncb_uninit(objhld_t ignore, void *p) {
 
     /* clear all packages pending in send queue */
     fifo_uninit(ncb);
-    
+
     /* post close event to calling thread */
     if (ncb->hld >= 0) {
         ncb_post_close(ncb);
@@ -106,7 +106,7 @@ int ncb_set_window_size(const ncb_t *ncb, int dir, int size){
     if (ncb){
         return setsockopt(ncb->sockfd, SOL_SOCKET, dir, (const void *)&size, sizeof(size));
     }
-    
+
      return -EINVAL;
 }
 
@@ -117,17 +117,17 @@ int ncb_get_window_size(const ncb_t *ncb, int dir, int *size){
             return -1;
         }
     }
-    
+
      return -EINVAL;
 }
 
 int ncb_set_linger(const ncb_t *ncb, int onoff, int lin){
     struct linger lgr;
-    
+
     if (!ncb){
         return -EINVAL;
     }
-    
+
     lgr.l_onoff = onoff;
     lgr.l_linger = lin;
     return setsockopt(ncb->sockfd, SOL_SOCKET, SO_LINGER, (char *) &lgr, sizeof ( struct linger));
@@ -148,11 +148,11 @@ int ncb_get_linger(const ncb_t *ncb, int *onoff, int *lin) {
     if (onoff){
         *onoff = lgr.l_onoff;
     }
-    
+
     if (lin){
         *lin = lgr.l_linger;
     }
-    
+
     return 0;
 }
 
@@ -224,5 +224,5 @@ void ncb_post_connected(const ncb_t *ncb) {
             c_data.e.LinkOption.OptionLink = ncb->hld;
             ncb->nis_callback(&c_event, &c_data);
         }
-    } 
+    }
 }
