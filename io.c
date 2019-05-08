@@ -100,7 +100,7 @@ static void *__epoll_proc(void *argv)
     int sigcnt;
     int errcode;
     struct epoll_object *epo;
-    static const int EP_TIMEDOUT = -1;
+    static const int EP_TIMEDOUT = 5000;
 
     epo = (struct epoll_object *)argv;
     nis_call_ecr("[nshost.io.epoll] epfd:%d LWP:%u startup.", epo->epfd, posix__gettid());
@@ -274,7 +274,7 @@ static void __iouninit(struct epoll_object *epo, int division)
 
 void io_uninit_tcp()
 {
-    if (!posix__atomic_initial_regress(__io_inited_tcp__)) {
+    if (!posix__atomic_initial_regress(&__io_inited_tcp__)) {
         return;
     }
 
@@ -289,7 +289,7 @@ void io_uninit_tcp()
 
 void io_uninit_udp()
 {
-    if (!posix__atomic_initial_regress(__io_inited_udp__)) {
+    if (!posix__atomic_initial_regress(&__io_inited_udp__)) {
         return;
     }
 

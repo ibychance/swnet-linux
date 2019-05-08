@@ -191,7 +191,7 @@ void wp_uninit()
     void *retval;
     struct task_node *task;
 
-    if (!posix__atomic_initial_regress(__inited__)) {
+    if (!posix__atomic_initial_regress(&__inited__)) {
         return;
     }
 
