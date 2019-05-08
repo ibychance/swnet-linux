@@ -108,7 +108,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         }
 
         /* allocate buffer for normal packet */
-        ncb->packet = (unsigned char *) malloc(UDP_BUFFER_SIZE);
+        ncb->packet = (unsigned char *) malloc(MAX_UDP_UNIT);
         if (!ncb->packet) {
             retval = -ENOMEM;
             break;
@@ -167,7 +167,7 @@ int udp_write(HUDPLINK lnk, const void *origin, int cb, const char* r_ipstr, uin
     unsigned char *buffer;
     struct tx_node *node;
 
-    if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > MAX_UDP_SIZE) || !origin) {
+    if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (lnk < 0) || (cb > MAX_UDP_UNIT) || !origin) {
         return -EINVAL;
     }
 

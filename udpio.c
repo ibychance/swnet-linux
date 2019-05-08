@@ -13,7 +13,7 @@ int __udp_rx(ncb_t *ncb) {
     int errcode;
 
     addrlen = sizeof (struct sockaddr_in);
-    recvcb = recvfrom(ncb->sockfd, ncb->packet, MTU, 0, (struct sockaddr *) &remote, &addrlen);
+    recvcb = recvfrom(ncb->sockfd, ncb->packet, MAX_UDP_UNIT, 0, (struct sockaddr *) &remote, &addrlen);
     errcode = errno;
     if (recvcb > 0) {
         c_event.Ln.Udp.Link = ncb->hld;

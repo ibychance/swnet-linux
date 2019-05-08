@@ -72,7 +72,7 @@ clean:
 	$(RM) $(OBJS) nshost.so*
 
 install:
-	cp -f $(TARGET) $(INSTALL_DIR)
+	install -m644 $(TARGET) $(INSTALL_DIR)
 	ln -sf $(INSTALL_DIR)$(TARGET) $(INSTALL_DIR)nshost.so
 
 .PHONY:clean all install
