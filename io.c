@@ -195,7 +195,6 @@ static int __io_init_global()
         } else {
             posix__atomic_initial_exception(&__io_inited_global__);
         }
-
     }
 
     return __io_inited_global__;
@@ -303,6 +302,20 @@ void io_uninit_udp()
     epmgr.divisions = 0;
 }
 
+/* boolean return */
+static int io_inner_check(ncb_t *ncb) 
+{
+	if (ncb->proto_type == kProtocolType_TCP) {
+		return posix__atomic_initial_passed(__io_inited_tcp__);
+    }
+	
+	if (ncb->proto_type == kProtocolType_UDP) {
+		return posix__atomic_initial_passed(__io_inited_udp__);
+    }
+	
+	return 0;
+}
+
 int io_attach(void *ncbptr, int mask)
 {
     struct epoll_event e_evt;
@@ -314,12 +327,17 @@ int io_attach(void *ncbptr, int mask)
         return -EINVAL;
     }
 
+	epo = NULL;
     if (ncb->proto_type == kProtocolType_TCP) {
-        epo = epmgr.epos;
-    } else if (ncb->proto_type == kProtocolType_UDP) {
-        epo = epmgr.epos2;
-    } else {
-        epo = NULL;
+		if (posix__atomic_initial_passed(__io_inited_tcp__)) {
+			epo = epmgr.epos;
+		}
+    }
+	
+	if (ncb->proto_type == kProtocolType_UDP) {
+		if (posix__atomic_initial_passed(__io_inited_udp__)) {
+			epo = epmgr.epos2;
+		}
     }
 
     if (!epo) {
@@ -354,6 +372,10 @@ int io_modify(void *ncbptr, int mask )
     if (!ncb) {
         return -EINVAL;
     }
+	
+	if (!io_inner_check(ncb)) {
+		return -EINVAL;
+	}
 
     e_evt.data.u64 = (uint64_t)ncb->hld;
     e_evt.events = (EPOLLET | EPOLLRDHUP | EPOLLHUP | EPOLLERR);
@@ -375,6 +397,10 @@ void io_detach(void *ncbptr)
 
     ncb = (ncb_t *)ncbptr;
     if (ncb) {
+		if (!io_inner_check(ncb)) {
+			return;
+		}
+		
         if (epoll_ctl(ncb->epfd, EPOLL_CTL_DEL, ncb->sockfd, &evt) < 0) {
             nis_call_ecr("[nshost.io.io_detach] fatal error occurred syscall epoll_ctl(2) when remove sockfd:%d from epollfd:%d, error:%u, link:%lld",
                 ncb->sockfd, ncb->epfd, errno, ncb->hld);

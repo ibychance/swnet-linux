@@ -1,7 +1,8 @@
 #include "tcp.h"
 #include "mxx.h"
 
-int tcp_parse_pkt(ncb_t *ncb, const unsigned char *data, int cpcb) {
+int tcp_parse_pkt(ncb_t *ncb, const unsigned char *data, int cpcb) 
+{
     int used;
     int overplus;
     const unsigned char *cpbuff;

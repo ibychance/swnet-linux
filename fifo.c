@@ -5,7 +5,8 @@
 
 #define MAXIMUM_FIFO_SIZE       (100)
 
-void fifo_init(ncb_t *ncb) {
+void fifo_init(ncb_t *ncb) 
+{
     struct tx_fifo *fifo;
 
     if (ncb) {
@@ -17,7 +18,8 @@ void fifo_init(ncb_t *ncb) {
     }
 }
 
-void fifo_uninit(ncb_t *ncb) {
+void fifo_uninit(ncb_t *ncb) 
+{
     struct tx_node *node;
     struct tx_fifo *fifo;
 
@@ -37,7 +39,8 @@ void fifo_uninit(ncb_t *ncb) {
     }
 }
 
-int fifo_queue(ncb_t *ncb, struct tx_node *node) {
+int fifo_queue(ncb_t *ncb, struct tx_node *node) 
+{
     int n;
     struct tx_fifo *fifo;
 
@@ -77,7 +80,8 @@ int fifo_queue(ncb_t *ncb, struct tx_node *node) {
     return n;
 }
 
-int fifo_top(ncb_t *ncb, struct tx_node **node) {
+int fifo_top(ncb_t *ncb, struct tx_node **node) 
+{
     struct tx_node *front;
     struct tx_fifo *fifo;
 
@@ -97,7 +101,8 @@ int fifo_top(ncb_t *ncb, struct tx_node **node) {
     return ((NULL == front) ? -1 : 0);
 }
 
-int fifo_pop(ncb_t *ncb, struct tx_node **node) {
+int fifo_pop(ncb_t *ncb, struct tx_node **node) 
+{
     struct tx_node *front;
     struct tx_fifo *fifo;
     int remain;
@@ -140,7 +145,8 @@ int fifo_pop(ncb_t *ncb, struct tx_node **node) {
     return 0;
 }
 
-int fifo_is_blocking(ncb_t *ncb) {
+int fifo_is_blocking(ncb_t *ncb) 
+{
     struct tx_fifo *fifo;
     int blocking;
 

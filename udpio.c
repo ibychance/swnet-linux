@@ -4,7 +4,8 @@
 #include "fifo.h"
 
 static
-int __udp_rx(ncb_t *ncb) {
+int __udp_rx(ncb_t *ncb) 
+{
     int recvcb;
     struct sockaddr_in remote;
     socklen_t addrlen;
@@ -50,7 +51,8 @@ int __udp_rx(ncb_t *ncb) {
     return 0;
 }
 
-int udp_rx(ncb_t *ncb) {
+int udp_rx(ncb_t *ncb) 
+{
      int retval;
 
     do {
@@ -60,13 +62,20 @@ int udp_rx(ncb_t *ncb) {
     return retval;
 }
 
-int udp_txn(ncb_t *ncb, void *p) {
+int udp_txn(ncb_t *ncb, void *p) 
+{
     int wcb;
     int errcode;
-    struct tx_node *node = (struct tx_node *)p;
-    socklen_t len = sizeof(struct sockaddr);
-
+    struct tx_node *node;
+    socklen_t len;
+	
+	node = (struct tx_node *)p;
+	if (!node) {
+		return -EINVAL;
+	}
+	
     while (node->offset < node->wcb) {
+		len = sizeof(struct sockaddr);
         wcb = sendto(ncb->sockfd, node->data + node->offset, node->wcb - node->offset, 0,
                 (__CONST_SOCKADDR_ARG)&node->udp_target, len );
 
@@ -104,7 +113,8 @@ int udp_txn(ncb_t *ncb, void *p) {
     return node->wcb;
 }
 
-int udp_tx(ncb_t *ncb) {
+int udp_tx(ncb_t *ncb) 
+{
     struct tx_node *node;
     int retval;
 

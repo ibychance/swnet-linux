@@ -30,8 +30,10 @@ struct wpool_manager {
 };
 static struct wpool_manager __wpool;
 
-static void __add_task(struct task_node *task) {
+static void __add_task(struct task_node *task) 
+{
     struct wthread *thread;
+	
     if (task) {
         thread = task->thread;
         INIT_LIST_HEAD(&task->link);
@@ -42,7 +44,8 @@ static void __add_task(struct task_node *task) {
     }
 }
 
-static struct task_node *__get_task(struct wthread *thread){
+static struct task_node *__get_task(struct wthread *thread)
+{
     struct task_node *task;
 
     posix__pthread_mutex_lock(&thread->mutex);
@@ -56,7 +59,8 @@ static struct task_node *__get_task(struct wthread *thread){
     return task;
 }
 
-static int __wp_exec(struct task_node *task) {
+static int __wp_exec(struct task_node *task) 
+{
     int retval;
     ncb_t *ncb;
 
@@ -105,7 +109,8 @@ static int __wp_exec(struct task_node *task) {
     return retval;
 }
 
-static void *__wp_run(void *p) {
+static void *__wp_run(void *p) 
+{
     struct task_node *task;
     struct wthread *thread;
     int retval;
@@ -138,7 +143,8 @@ static void *__wp_run(void *p) {
     return NULL;
 }
 
-static int __wp_init() {
+static int __wp_init() 
+{
     int i;
 
     __wpool.stop = posix__false;
@@ -166,7 +172,8 @@ static int __wp_init() {
 
 posix__atomic_initial_declare_variable(__inited__);
 
-int wp_init() {
+int wp_init() 
+{
     if (posix__atomic_initial_try(&__inited__)) {
         if (__wp_init() < 0) {
             posix__atomic_initial_exception(&__inited__);
@@ -178,7 +185,8 @@ int wp_init() {
     return __inited__;
 }
 
-void wp_uninit(){
+void wp_uninit()
+{
     int i;
     void *retval;
     struct task_node *task;
@@ -208,7 +216,8 @@ void wp_uninit(){
     __wpool.write_threads = NULL;
 }
 
-int wp_queued(objhld_t hld) {
+int wp_queued(objhld_t hld) 
+{
     struct task_node *task;
     struct wthread *thread;
 

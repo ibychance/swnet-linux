@@ -14,7 +14,8 @@
 #include "nisdef.h"
 #include "ncb.h"
 
-int nis_getver(swnet_version_t *version) {
+int nis_getver(swnet_version_t *version) 
+{
     if (!version) {
         return -1;
     }
@@ -26,7 +27,8 @@ int nis_getver(swnet_version_t *version) {
     return 0;
 }
 
-char *nis_lgethost(char *name, int cb) {
+char *nis_lgethost(char *name, int cb) 
+{
     if (name && cb > 0) {
         if (0 == gethostname(name, cb)) {
             return name;
@@ -37,7 +39,8 @@ char *nis_lgethost(char *name, int cb) {
     return name;
 }
 
-int nis_gethost(const char *name, uint32_t *ipv4) {
+int nis_gethost(const char *name, uint32_t *ipv4) 
+{
     struct hostent *remote, ret;
     struct in_addr addr;
     int h_errnop;
@@ -98,7 +101,8 @@ int nis_gethost(const char *name, uint32_t *ipv4) {
 /* manage ECR and it's calling */
 static nis_event_callback_t current_ecr = NULL;
 
-nis_event_callback_t nis_checr(const nis_event_callback_t ecr) {
+nis_event_callback_t nis_checr(const nis_event_callback_t ecr) 
+{
     if (!ecr) {
         __sync_lock_release(&current_ecr);
         return NULL;
@@ -106,7 +110,8 @@ nis_event_callback_t nis_checr(const nis_event_callback_t ecr) {
     return __sync_lock_test_and_set(&current_ecr, ecr);
 }
 
-void nis_call_ecr(const char *fmt,...) {
+void nis_call_ecr(const char *fmt,...) 
+{
     nis_event_callback_t ecr = NULL;
     nis_event_callback_t old;
     va_list ap;
@@ -132,7 +137,8 @@ void nis_call_ecr(const char *fmt,...) {
     }
 }
 
-int nis_getifmisc(ifmisc_t *ifv, int *cbifv) {
+int nis_getifmisc(ifmisc_t *ifv, int *cbifv) 
+{
     struct ifaddrs *ifa, *ifs;
     int count;
     int i;
