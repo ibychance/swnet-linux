@@ -40,15 +40,15 @@ static int __udp_update_opts(ncb_t *ncb) {
 }
 
 int udp_init() {
-    if (io_init_udp() >= 0) {
-        return wp_init();
+    if (io_init(kProtocolType_UDP) >= 0) {
+        return wp_init(kProtocolType_UDP);
     }
     return -1;
 }
 
 void udp_uninit() {
-    io_uninit_udp();
-    wp_uninit();
+    io_uninit(kProtocolType_UDP);
+    wp_uninit(kProtocolType_UDP);
 }
 
 HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16_t l_port, int flag) {

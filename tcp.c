@@ -42,7 +42,7 @@ const char *TCP_KERNEL_STATE_NAME[TCP_KERNEL_STATE_LIST_SIZE] = {
 };
 
 static
-int tcprefr( objhld_t hld, ncb_t **ncb ) 
+int tcprefr( objhld_t hld, ncb_t **ncb )
 {
     if ( hld < 0 || !ncb) {
         return -ENOENT;
@@ -62,7 +62,7 @@ int tcprefr( objhld_t hld, ncb_t **ncb )
     return -ENOENT;
 }
 
-void tcp_update_opts(const ncb_t *ncb) 
+void tcp_update_opts(const ncb_t *ncb)
 {
     if (ncb) {
         ncb_set_window_size(ncb, SO_RCVBUF, TCP_BUFFER_SIZE);
@@ -78,21 +78,21 @@ void tcp_update_opts(const ncb_t *ncb)
 }
 
 /* tcp impls */
-int tcp_init() 
+int tcp_init()
 {
-    if (io_init_tcp() >= 0) {
-        wp_init();
+    if (io_init(kProtocolType_TCP) >= 0) {
+        return wp_init(kProtocolType_TCP);
     }
-    return 0;
+    return -1;
 }
 
-void tcp_uninit() 
+void tcp_uninit()
 {
-    io_uninit_tcp();
-    wp_uninit();
+    io_uninit(kProtocolType_TCP);
+    wp_uninit(kProtocolType_TCP);
 }
 
-HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16_t l_port) 
+HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16_t l_port)
 {
     int fd;
     struct sockaddr_in addrlocal;
@@ -170,7 +170,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
     return -1;
 }
 
-int tcp_settst(HTCPLINK lnk, const tst_t *tst) 
+int tcp_settst(HTCPLINK lnk, const tst_t *tst)
 {
     ncb_t *ncb;
     int retval;
@@ -197,7 +197,7 @@ int tcp_settst(HTCPLINK lnk, const tst_t *tst)
     return retval;
 }
 
-int tcp_gettst(HTCPLINK lnk, tst_t *tst) 
+int tcp_gettst(HTCPLINK lnk, tst_t *tst)
 {
     ncb_t *ncb;
     int retval;
@@ -222,7 +222,7 @@ int tcp_gettst(HTCPLINK lnk, tst_t *tst)
  * Object destruction operations may be intended to interrupt some blocking operations. just like @tcp_connect
  * so,close the file descriptor directly, destroy the object by the smart pointer.
  */
-void tcp_destroy(HTCPLINK lnk) 
+void tcp_destroy(HTCPLINK lnk)
 {
     ncb_t *ncb;
 
@@ -238,7 +238,7 @@ void tcp_destroy(HTCPLINK lnk)
 #if 0
 
 /* <tcp_check_connection_bypoll> */
-static int __tcp_check_connection_bypoll(int sockfd) 
+static int __tcp_check_connection_bypoll(int sockfd)
 {
     struct pollfd pofd;
     socklen_t len;
@@ -262,7 +262,7 @@ static int __tcp_check_connection_bypoll(int sockfd)
 }
 
 /* <tcp_check_connection_byselect> */
-static int __tcp_check_connection(int sockfd) 
+static int __tcp_check_connection(int sockfd)
 {
     int retval;
     socklen_t len;
@@ -306,7 +306,7 @@ static int __tcp_check_connection(int sockfd)
 
 #endif
 
-int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) 
+int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
 {
     ncb_t *ncb;
     int retval;
@@ -383,7 +383,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
     return retval;
 }
 
-int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port) 
+int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
 {
     ncb_t *ncb;
     int retval;
@@ -461,7 +461,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
     return retval;
 }
 
-int tcp_listen(HTCPLINK lnk, int block) 
+int tcp_listen(HTCPLINK lnk, int block)
 {
     ncb_t *ncb;
     int retval;
@@ -521,7 +521,7 @@ int tcp_listen(HTCPLINK lnk, int block)
     return retval;
 }
 
-int tcp_write(HTCPLINK lnk, const void *origin, int cb, const nis_serializer_t serializer) 
+int tcp_write(HTCPLINK lnk, const void *origin, int cb, const nis_serializer_t serializer)
 {
     ncb_t *ncb;
     unsigned char *buffer;
@@ -662,7 +662,7 @@ int tcp_write(HTCPLINK lnk, const void *origin, int cb, const nis_serializer_t s
     return retval;
 }
 
-int tcp_getaddr(HTCPLINK lnk, int type, uint32_t* ipv4, uint16_t* port) 
+int tcp_getaddr(HTCPLINK lnk, int type, uint32_t* ipv4, uint16_t* port)
 {
     ncb_t *ncb;
     int retval;
@@ -698,7 +698,7 @@ int tcp_getaddr(HTCPLINK lnk, int type, uint32_t* ipv4, uint16_t* port)
     return retval;
 }
 
-int tcp_setopt(HTCPLINK lnk, int level, int opt, const char *val, int len) 
+int tcp_setopt(HTCPLINK lnk, int level, int opt, const char *val, int len)
 {
     ncb_t *ncb;
     int retval;
@@ -736,7 +736,7 @@ int tcp_getopt(HTCPLINK lnk, int level, int opt, char *__restrict val, int *len)
     return retval;
 }
 
-int tcp_save_info(const ncb_t *ncb, struct tcp_info *ktcp) 
+int tcp_save_info(const ncb_t *ncb, struct tcp_info *ktcp)
 {
     socklen_t len;
 
@@ -748,7 +748,7 @@ int tcp_save_info(const ncb_t *ncb, struct tcp_info *ktcp)
     return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_INFO, (void * __restrict)ktcp, &len);
 }
 
-int tcp_setmss(const ncb_t *ncb, int mss) 
+int tcp_setmss(const ncb_t *ncb, int mss)
 {
     if (ncb && mss > 0) {
         return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_MAXSEG, (const void *) &mss, sizeof (mss));
@@ -757,7 +757,7 @@ int tcp_setmss(const ncb_t *ncb, int mss)
     return -EINVAL;
 }
 
-int tcp_getmss(const ncb_t *ncb) 
+int tcp_getmss(const ncb_t *ncb)
 {
     if (ncb) {
         socklen_t lenmss = sizeof (ncb->u.tcp.mss);
@@ -766,7 +766,7 @@ int tcp_getmss(const ncb_t *ncb)
     return -EINVAL;
 }
 
-int tcp_set_nodelay(const ncb_t *ncb, int set) 
+int tcp_set_nodelay(const ncb_t *ncb, int set)
 {
     if (ncb) {
         return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (const void *) &set, sizeof ( set));
@@ -775,7 +775,7 @@ int tcp_set_nodelay(const ncb_t *ncb, int set)
     return -EINVAL;
 }
 
-int tcp_get_nodelay(const ncb_t *ncb, int *set) 
+int tcp_get_nodelay(const ncb_t *ncb, int *set)
 {
     if (ncb && set) {
         socklen_t optlen = sizeof (int);
@@ -784,7 +784,7 @@ int tcp_get_nodelay(const ncb_t *ncb, int *set)
     return -EINVAL;
 }
 
-int tcp_set_cork(const ncb_t *ncb, int set) 
+int tcp_set_cork(const ncb_t *ncb, int set)
 {
     if (ncb) {
         return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_CORK, (const void *) &set, sizeof ( set));
@@ -793,7 +793,7 @@ int tcp_set_cork(const ncb_t *ncb, int set)
     return -EINVAL;
 }
 
-int tcp_get_cork(const ncb_t *ncb, int *set) 
+int tcp_get_cork(const ncb_t *ncb, int *set)
 {
     if (ncb && set) {
         socklen_t optlen = sizeof (int);
@@ -802,7 +802,7 @@ int tcp_get_cork(const ncb_t *ncb, int *set)
     return -EINVAL;
 }
 
-int tcp_set_keepalive(const ncb_t *ncb, int enable) 
+int tcp_set_keepalive(const ncb_t *ncb, int enable)
 {
     if (ncb) {
         return setsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (const char *) &enable, sizeof ( enable));
@@ -819,7 +819,7 @@ int tcp_get_keepalive(const ncb_t *ncb, int *enabled)
     return -EINVAL;
 }
 
-int tcp_set_keepalive_value(const ncb_t *ncb, int idle, int interval, int probes) 
+int tcp_set_keepalive_value(const ncb_t *ncb, int idle, int interval, int probes)
 {
     int enabled;
     if (tcp_get_keepalive(ncb, &enabled) < 0) {
@@ -852,7 +852,7 @@ int tcp_set_keepalive_value(const ncb_t *ncb, int idle, int interval, int probes
     return -1;
 }
 
-int tcp_get_keepalive_value(const ncb_t *ncb,int *idle, int *interval, int *probes) 
+int tcp_get_keepalive_value(const ncb_t *ncb,int *idle, int *interval, int *probes)
 {
     int enabled;
     socklen_t optlen;
@@ -892,7 +892,7 @@ int tcp_get_keepalive_value(const ncb_t *ncb,int *idle, int *interval, int *prob
     return -1;
 }
 
-int tcp_setattr(HTCPLINK lnk, int attr, int enable) 
+int tcp_setattr(HTCPLINK lnk, int attr, int enable)
 {
     ncb_t *ncb;
     int retval;
@@ -918,7 +918,7 @@ int tcp_setattr(HTCPLINK lnk, int attr, int enable)
     return retval;
 }
 
-int tcp_getattr(HTCPLINK lnk, int attr, int *enabled) 
+int tcp_getattr(HTCPLINK lnk, int attr, int *enabled)
 {
     ncb_t *ncb;
     int retval;

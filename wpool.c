@@ -1,5 +1,7 @@
 #include "wpool.h"
 
+#include "object.h"
+
 #include "posix_wait.h"
 #include "posix_atomic.h"
 #include "posix_ifos.h"
@@ -15,6 +17,7 @@ struct wthread {
     posix__waitable_handle_t signal;
     struct list_head tasks; /* struct task_node::link */
     int task_list_size;
+    int stop;
 };
 
 struct task_node {
@@ -23,43 +26,39 @@ struct task_node {
     struct list_head link;
 };
 
-struct wpool_manager {
-    struct wthread *write_threads;
-    int wthread_count;
-    int stop;
-};
-static struct wpool_manager __wpool;
+static objhld_t wphld_tcp = -1;
+static objhld_t wphld_udp = -1;
 
-static void __add_task(struct task_node *task) 
+static void __add_task(struct task_node *task)
 {
-    struct wthread *thread;
-	
+    struct wthread *wpthptr;
+
     if (task) {
-        thread = task->thread;
+        wpthptr = task->thread;
         INIT_LIST_HEAD(&task->link);
-        posix__pthread_mutex_lock(&thread->mutex);
-        list_add_tail(&task->link, &thread->tasks);
-        ++thread->task_list_size;
-        posix__pthread_mutex_unlock(&thread->mutex);
+        posix__pthread_mutex_lock(&wpthptr->mutex);
+        list_add_tail(&task->link, &wpthptr->tasks);
+        ++wpthptr->task_list_size;
+        posix__pthread_mutex_unlock(&wpthptr->mutex);
     }
 }
 
-static struct task_node *__get_task(struct wthread *thread)
+static struct task_node *__get_task(struct wthread *wpthptr)
 {
     struct task_node *task;
 
-    posix__pthread_mutex_lock(&thread->mutex);
-    if (NULL != (task = list_first_entry_or_null(&thread->tasks, struct task_node, link))) {
-         --thread->task_list_size;
+    posix__pthread_mutex_lock(&wpthptr->mutex);
+    if (NULL != (task = list_first_entry_or_null(&wpthptr->tasks, struct task_node, link))) {
+         --wpthptr->task_list_size;
         list_del(&task->link);
         INIT_LIST_HEAD(&task->link);
     }
-    posix__pthread_mutex_unlock(&thread->mutex);
+    posix__pthread_mutex_unlock(&wpthptr->mutex);
 
     return task;
 }
 
-static int __wp_exec(struct task_node *task) 
+static int __wp_exec(struct task_node *task)
 {
     int retval;
     ncb_t *ncb;
@@ -109,29 +108,29 @@ static int __wp_exec(struct task_node *task)
     return retval;
 }
 
-static void *__wp_run(void *p) 
+static void *__wp_run(void *p)
 {
     struct task_node *task;
-    struct wthread *thread;
+    struct wthread *wpthptr;
     int retval;
 
-    thread = (struct wthread *)p;
+    wpthptr = (struct wthread *)p;
     nis_call_ecr("[nshost.wpool.init] LWP:%u startup.", posix__gettid());
 
-    while (!__wpool.stop) {
-        retval = posix__waitfor_waitable_handle(&thread->signal, 10);
+    while (!wpthptr->stop) {
+        retval = posix__waitfor_waitable_handle(&wpthptr->signal, 10);
         if ( retval < 0) {
             break;
         }
 
         /* reset wait object to block status immediately when the wait object timeout */
         if ( 0 == retval ) {
-            posix__block_waitable_handle(&thread->signal);
+            posix__block_waitable_handle(&wpthptr->signal);
         }
 
         /* complete all write task when once signal arrived,
             no matter which thread wake up this wait object */
-        while ((NULL != (task = __get_task(thread)) ) && !__wpool.stop) {
+        while ((NULL != (task = __get_task(wpthptr)) ) && !wpthptr->stop) {
             if (__wp_exec(task) <= 0) {
                 free(task);
             }
@@ -143,99 +142,137 @@ static void *__wp_run(void *p)
     return NULL;
 }
 
-static int __wp_init() 
+static int __wp_init(struct wthread *wpthptr)
 {
-    int i;
-
-    __wpool.stop = posix__false;
-    __wpool.wthread_count = posix__getnprocs() >> 1;
-    if (__wpool.wthread_count <= 0) {
-        __wpool.wthread_count = 2;
-    }
-    __wpool.write_threads = (struct wthread *)malloc(sizeof(struct wthread) * __wpool.wthread_count);
-    if (!__wpool.write_threads) {
-        return -ENOMEM;
-    }
-
-    for (i = 0; i < __wpool.wthread_count; i++) {
-        INIT_LIST_HEAD(&__wpool.write_threads[i].tasks);
-        posix__init_notification_waitable_handle(&__wpool.write_threads[i].signal);
-        posix__pthread_mutex_init(&__wpool.write_threads[i].mutex);
-        __wpool.write_threads[i].task_list_size = 0;
-        if (posix__pthread_create(&__wpool.write_threads[i].thread, &__wp_run, (void *)&__wpool.write_threads[i]) < 0 ) {
-            nis_call_ecr("[nshost.pool.__wp_init] fatal error occurred syscall pthread_create(3), error:%d", errno);
-        }
-    }
-
-    return 0;
-}
-
-posix__atomic_initial_declare_variable(__inited__);
-
-int wp_init() 
-{
-    if (posix__atomic_initial_try(&__inited__)) {
-        if (__wp_init() < 0) {
-            posix__atomic_initial_exception(&__inited__);
-        } else {
-            posix__atomic_initial_complete(&__inited__);
-        }
-    }
-
-    return __inited__;
-}
-
-void wp_uninit()
-{
-    int i;
-    void *retval;
-    struct task_node *task;
-
-    if (!posix__atomic_initial_regress(&__inited__)) {
-        return;
-    }
-
-    __wpool.stop = posix__true;
-    for (i = 0; i < __wpool.wthread_count; i++){
-        posix__sig_waitable_handle(&__wpool.write_threads[i].signal);
-        posix__pthread_join(&__wpool.write_threads[i].thread, &retval);
-
-        /* clear the tasks which too late to deal with */
-        posix__pthread_mutex_lock(&__wpool.write_threads[i].mutex);
-        while (NULL != (task = __get_task(&__wpool.write_threads[i]))) {
-            free(task);
-        }
-        posix__pthread_mutex_unlock(&__wpool.write_threads[i].mutex);
-
-        INIT_LIST_HEAD(&__wpool.write_threads[i].tasks);
-        posix__uninit_waitable_handle(&__wpool.write_threads[i].signal);
-        posix__pthread_mutex_uninit(&__wpool.write_threads[i].mutex);
-    }
-
-    free(__wpool.write_threads);
-    __wpool.write_threads = NULL;
-}
-
-int wp_queued(objhld_t hld) 
-{
-    struct task_node *task;
-    struct wthread *thread;
-
-    if (!posix__atomic_initial_passed(__inited__)) {
+    INIT_LIST_HEAD(&wpthptr->tasks);
+    posix__init_notification_waitable_handle(&wpthptr->signal);
+    posix__pthread_mutex_init(&wpthptr->mutex);
+    wpthptr->task_list_size = 0;
+    if (posix__pthread_create(&wpthptr->thread, &__wp_run, (void *)wpthptr) < 0 ) {
+        nis_call_ecr("[nshost.pool.__wp_init] fatal error occurred syscall pthread_create(3), error:%d", errno);
         return -1;
     }
 
-    thread = &__wpool.write_threads[hld % __wpool.wthread_count];
+    return 0;
+}
 
-    if (NULL == (task = (struct task_node *)malloc(sizeof(struct task_node)))){
-        return -ENOMEM;
+static void __wp_uninit(objhld_t hld, void *udata)
+{
+    struct wthread *wpthptr;
+    int *retval;
+    struct task_node *task;
+
+    wpthptr = (struct wthread *)udata;
+    assert(wpthptr);
+
+    wpthptr->stop = 1;
+    posix__sig_waitable_handle(&wpthptr->signal);
+    posix__pthread_join(&wpthptr->thread, (void **)&retval);
+
+    /* clear the tasks which too late to deal with */
+    posix__pthread_mutex_lock(&wpthptr->mutex);
+    while (NULL != (task = __get_task(wpthptr))) {
+        free(task);
+    }
+    posix__pthread_mutex_unlock(&wpthptr->mutex);
+
+    INIT_LIST_HEAD(&wpthptr->tasks);
+    posix__uninit_waitable_handle(&wpthptr->signal);
+    posix__pthread_mutex_uninit(&wpthptr->mutex);
+}
+
+void wp_uninit(int protocol)
+{
+    if (kProtocolType_TCP ==protocol ) {
+        objclos(wphld_tcp);
+        wphld_tcp = -1;
     }
 
-    task->hld = hld;
-    task->thread = thread;
-    __add_task(task);
+    if (kProtocolType_UDP == protocol ) {
+        objclos(wphld_udp);
+        wphld_udp = -1;
+    }
+}
 
-    /* use local variable to save the thread object, because @task maybe already freed by handler now */
-    posix__sig_waitable_handle(&thread->signal);
-    return 0;
+int wp_init(int protocol)
+{
+    int retval;
+    struct wthread *wpthptr;
+    objhld_t *hldptr;
+
+    hldptr = NULL;
+
+    if (kProtocolType_TCP ==protocol ) {
+        hldptr = &wphld_tcp;
+    }
+
+    if (kProtocolType_UDP == protocol ) {
+        hldptr = &wphld_udp;
+    }
+
+    if (!hldptr) {
+        return -1;
+    }
+
+    if (*hldptr >= 0) {
+        return 0;
+    }
+
+    *hldptr = objallo(sizeof(struct wthread), NULL, &__wp_uninit, NULL, 0);
+    if (*hldptr < 0) {
+        return -1;
+    }
+
+    wpthptr = objrefr(*hldptr);
+    assert(wpthptr);
+
+    retval = __wp_init(wpthptr);
+    objdefr(*hldptr);
+    return retval;
+}
+
+int wp_queued(void *ncbptr)
+{
+    struct task_node *task;
+    struct wthread *wpthptr;
+    ncb_t *ncb;
+    objhld_t wphld;
+    int retval;
+
+    ncb = (ncb_t *)ncbptr;
+    if (!ncb) {
+        return -EINVAL;
+    }
+
+    wphld = -1;
+    if (ncb->proto_type == kProtocolType_TCP) {
+        wphld = wphld_tcp;
+    }
+
+    if (ncb->proto_type == kProtocolType_UDP) {
+        wphld = wphld_udp;
+    }
+
+    wpthptr = objrefr(wphld);
+    if (!wpthptr) {
+        return -1;
+    }
+
+    do {
+        if (NULL == (task = (struct task_node *)malloc(sizeof(struct task_node)))) {
+            retval = -ENOMEM;
+            break;
+        }
+
+        task->hld = ncb->hld;
+        task->thread = wpthptr;
+        __add_task(task);
+
+        /* use local variable to save the thread object, because @task maybe already freed by handler now */
+        posix__sig_waitable_handle(&wpthptr->signal);
+        retval = 0;
+    } while (0);
+
+    objdefr(wphld);
+    return retval;
 }

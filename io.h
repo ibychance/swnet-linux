@@ -8,13 +8,9 @@
  */
 
 extern
-int io_init_tcp();
+int io_init(int protocol);
 extern
-int io_init_udp();
-extern
-void io_uninit_tcp();
-extern
-void io_uninit_udp();
+void io_uninit(int protocol);
 extern
 int io_attach(void *ncbptr, int mask);
 extern

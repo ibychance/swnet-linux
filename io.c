@@ -3,6 +3,7 @@
 #include <fcntl.h>
 
 #include <sys/signal.h>
+#include <signal.h>
 
 #include "posix_thread.h"
 #include "posix_atomic.h"
@@ -15,20 +16,20 @@
 /* 1024 is just a hint for the kernel */
 #define EPOLL_SIZE    (1024)
 
-struct epoll_object {
+struct epoll_object_block {
     int epfd;
     posix__boolean_t actived;
     posix__pthread_t thread;
     int load; /* load of current thread */
 } ;
 
-struct epoll_object_manager {
-    struct epoll_object *epos;
-    struct epoll_object *epos2; /* the epoll for UDP object */
-    int divisions;		/* count of epoll thread */
+struct io_object_block {
+    struct epoll_object_block *epoptr;
+    int divisions;
 };
 
-static struct epoll_object_manager epmgr = {NULL, NULL, 0};
+static objhld_t iohld_tcp = -1;
+static objhld_t iohld_udp = -1;
 
 static void __iorun(struct epoll_event *evts, int sigcnt)
 {
@@ -87,7 +88,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt)
 
         /* OUT event by epoll */
         if (evts[i].events & EPOLLOUT) {
-            wp_queued(ncb->hld);
+            wp_queued(ncb);
         }
 
         objdefr(hld);
@@ -99,14 +100,14 @@ static void *__epoll_proc(void *argv)
     struct epoll_event evts[EPOLL_SIZE];
     int sigcnt;
     int errcode;
-    struct epoll_object *epo;
-    static const int EP_TIMEDOUT = 5000;
+    struct epoll_object_block *epoptr;
+    static const int EP_TIMEDOUT = 100;
 
-    epo = (struct epoll_object *)argv;
-    nis_call_ecr("[nshost.io.epoll] epfd:%d LWP:%u startup.", epo->epfd, posix__gettid());
+    epoptr = (struct epoll_object_block *)argv;
+    nis_call_ecr("[nshost.io.epoll] epfd:%d LWP:%u startup.", epoptr->epfd, posix__gettid());
 
-    while (epo->actived) {
-        sigcnt = epoll_wait(epo->epfd, evts, EPOLL_SIZE, EP_TIMEDOUT);
+    while (epoptr->actived) {
+        sigcnt = epoll_wait(epoptr->epfd, evts, EPOLL_SIZE, EP_TIMEDOUT);
         if (sigcnt < 0) {
             errcode = errno;
 
@@ -117,7 +118,7 @@ static void *__epoll_proc(void *argv)
                 continue;
             }
 
-            nis_call_ecr("[nshost.io.epoll] fatal error occurred syscall epoll_wait(2), epfd:%d, LWP:%u, error:%d", epo->epfd, posix__gettid(), errcode);
+            nis_call_ecr("[nshost.io.epoll] fatal error occurred syscall epoll_wait(2), epfd:%d, LWP:%u, error:%d", epoptr->epfd, posix__gettid(), errcode);
             break;
         }
 
@@ -128,221 +129,137 @@ static void *__epoll_proc(void *argv)
         }
     }
 
-    nis_call_ecr("[nshost.io.epoll] epfd:%d LWP:%u terminated.", epo->epfd, posix__gettid());
+    nis_call_ecr("[nshost.io.epoll] epfd:%d LWP:%u terminated.", epoptr->epfd, posix__gettid());
     posix__pthread_exit( (void *)0 );
     return NULL;
 }
 
-static int __ioinit(struct epoll_object *epo, int divisions)
+static int __io_init(struct io_object_block *iobptr)
 {
     int i;
+    struct epoll_object_block *epoptr;
 
-    if (!epo || divisions <= 0) {
+    if (!iobptr) {
         return -EINVAL;
     }
 
-    for (i = 0; i < divisions; i++) {
-        epo[i].load = 0;
-        epo[i].epfd = epoll_create(EPOLL_SIZE);
-        if (epo[i].epfd < 0) {
-            nis_call_ecr("[nshost.io.__ioinit] fatal error occurred syscall epoll_create(2), error:%d", errno);
-            epo[i].actived = 0;
+    iobptr->divisions = posix__getnprocs();
+    iobptr->epoptr = (struct epoll_object_block *)malloc(sizeof(struct epoll_object_block) * iobptr->divisions);
+    if (!iobptr->epoptr) {
+        return -ENOMEM;
+    }
+
+    for (i = 0; i < iobptr->divisions; i++) {
+        epoptr = &iobptr->epoptr[i];
+        epoptr->load = 0;
+        epoptr->epfd = epoll_create(EPOLL_SIZE);
+        if (epoptr->epfd < 0) {
+            nis_call_ecr("[nshost.io.__io_init] fatal error occurred syscall epoll_create(2), error:%d", errno);
             continue;
         }
 
         /* active field as a judge of operational effectiveness, as well as a control symbol of operation  */
-        epo[i].actived = 1;
-        if (posix__pthread_create(&epo[i].thread, &__epoll_proc, &epo[i]) < 0) {
-            nis_call_ecr("[nshost.io.__ioinit] fatal error occurred syscall pthread_create(3), error:%d", errno);
-            epo[i].actived = 0;
-            close(epo[i].epfd);
-            epo[i].epfd = -1;
+        epoptr->actived = 1;
+        if (posix__pthread_create(&epoptr->thread, &__epoll_proc, epoptr) < 0) {
+            nis_call_ecr("[nshost.io.__io_init] fatal error occurred syscall pthread_create(3), error:%d", errno);
+            close(epoptr->epfd);
+            epoptr->epfd = -1;
+            epoptr->actived = 0;
         }
     }
 
     return 0;
 }
 
-posix__atomic_initial_declare_variable(__io_inited_global__);
-static int __io_init_global()
+static void __io_uninit(objhld_t hld, void *udata)
 {
-    int retval;
+    int i;
+    struct io_object_block *iobptr;
+    struct epoll_object_block *epoptr;
 
-    if (posix__atomic_initial_try(&__io_inited_global__)) {
-        epmgr.divisions = posix__getnprocs();
+    iobptr = (struct io_object_block *)udata;
+    if (!iobptr) {
+        return;
+    }
 
-        /* write a closed socket, return EPIPE and raise a SIGPIPE signal. ignore it */
-        signal(SIGPIPE, SIG_IGN);
+    for (i = 0; i < iobptr->divisions; i++) {
+        epoptr = &iobptr->epoptr[i];
+        if (epoptr->actived) {
+            epoptr->actived = 0;
+           posix__pthread_join(&epoptr->thread, NULL);
+        }
 
-        retval = 0;
-        do {
-            if ( NULL == (epmgr.epos = (struct epoll_object *)malloc(sizeof(struct epoll_object) * epmgr.divisions))) {
-                retval = -ENOMEM;
-                break;
-            }
-            memset(epmgr.epos, 0, sizeof(struct epoll_object));
-
-            if ( NULL == (epmgr.epos2 = (struct epoll_object *)malloc(sizeof(struct epoll_object) * epmgr.divisions))) {
-                retval = -ENOMEM;
-                break;
-            }
-            memset(epmgr.epos, 0, sizeof(struct epoll_object));
-
-        } while(0);
-
-        if (0 == retval ){
-            posix__atomic_initial_complete(&__io_inited_global__);
-        } else {
-            posix__atomic_initial_exception(&__io_inited_global__);
+        if (epoptr->epfd > 0){
+            close(epoptr->epfd);
+            epoptr->epfd = -1;
         }
     }
 
-    return __io_inited_global__;
+    free(iobptr->epoptr);
+    iobptr->epoptr = NULL;
 }
 
-posix__atomic_initial_declare_variable(__io_inited_tcp__);
-int io_init_tcp()
+int io_init(int protocol)
 {
     int retval;
+    struct io_object_block *iobptr;
+    objhld_t *hldptr;
 
-    retval = __io_init_global();
-    if (retval < 0) {
-        return retval;
-    }
-
-    if (posix__atomic_initial_try(&__io_inited_tcp__)) {
-        if (__ioinit(epmgr.epos, epmgr.divisions) < 0) {
-            posix__atomic_initial_exception(&__io_inited_tcp__);
-        } else {
-            posix__atomic_initial_complete(&__io_inited_tcp__);
-        }
-    }
-
-    return __io_inited_tcp__;
-}
-
-posix__atomic_initial_declare_variable(__io_inited_udp__);
-int io_init_udp()
-{
-    if (__io_init_global() < 0) {
+    hldptr = ((kProtocolType_TCP ==protocol ) ? &iohld_tcp : ((kProtocolType_UDP == protocol ) ? &iohld_udp : NULL));
+    if (!hldptr) {
         return -1;
     }
 
-    if (posix__atomic_initial_try(&__io_inited_udp__)) {
-
-        if (0 == epmgr.divisions) {
-            epmgr.divisions = posix__getnprocs();
-
-            /* write a closed socket, return EPIPE and raise a SIGPIPE signal. ignore it */
-            signal(SIGPIPE, SIG_IGN);
-        }
-
-
-
-        if (__ioinit(epmgr.epos2, epmgr.divisions) < 0) {
-            posix__atomic_initial_exception(&__io_inited_udp__);
-        } else {
-            posix__atomic_initial_complete(&__io_inited_udp__);
-        }
+    if (*hldptr >= 0) {
+        return 0;
     }
 
-    return __io_inited_udp__;
+    *hldptr = objallo(sizeof(struct io_object_block), NULL, &__io_uninit, NULL, 0);
+    if (*hldptr < 0) {
+        return -1;
+    }
+
+    iobptr = objrefr(*hldptr);
+    assert(iobptr);
+
+    retval = __io_init(iobptr);
+    objdefr(*hldptr);
+    return retval;
 }
 
-static void __iouninit(struct epoll_object *epo, int division)
+void io_uninit(int protocol)
 {
-    int i;
-
-    if (!epo || division <= 0) {
-        return;
+    if (kProtocolType_TCP ==protocol ) {
+        objclos(iohld_tcp);
+        iohld_tcp = -1;
     }
 
-    for (i = 0; i < division; i++){
-        if (epo[i].epfd > 0){
-            close(epo[i].epfd);
-            epo[i].epfd = -1;
-        }
-
-        if (epo[i].actived){
-           posix__atomic_xchange(&epo[i].actived, 0);
-           posix__pthread_join(&epo[i].thread, NULL);
-        }
+    if (kProtocolType_UDP == protocol ) {
+        objclos(iohld_udp);
+        iohld_udp = -1;
     }
-
-    free(epo);
-}
-
-void io_uninit_tcp()
-{
-    if (!posix__atomic_initial_regress(&__io_inited_tcp__)) {
-        return;
-    }
-
-    if (!epmgr.epos) {
-        return;
-    }
-
-    __iouninit(epmgr.epos, epmgr.divisions);
-    epmgr.epos = NULL;
-    epmgr.divisions = 0;
-}
-
-void io_uninit_udp()
-{
-    if (!posix__atomic_initial_regress(&__io_inited_udp__)) {
-        return;
-    }
-
-    if (!epmgr.epos2) {
-        return;
-    }
-
-    __iouninit(epmgr.epos2, epmgr.divisions);
-    epmgr.epos2 = NULL;
-    epmgr.divisions = 0;
-}
-
-/* boolean return */
-static int io_inner_check(ncb_t *ncb) 
-{
-	if (ncb->proto_type == kProtocolType_TCP) {
-		return posix__atomic_initial_passed(__io_inited_tcp__);
-    }
-	
-	if (ncb->proto_type == kProtocolType_UDP) {
-		return posix__atomic_initial_passed(__io_inited_udp__);
-    }
-	
-	return 0;
 }
 
 int io_attach(void *ncbptr, int mask)
 {
+    objhld_t hld;
+    struct io_object_block *iobptr;
     struct epoll_event e_evt;
+    int protocol;
     ncb_t *ncb;
-    struct epoll_object *epo;
 
     ncb = (ncb_t *)ncbptr;
-    if (!ncb) {
-        return -EINVAL;
+    assert(ncb);
+
+    protocol = ncb->proto_type;
+    hld = ((kProtocolType_TCP == protocol ) ? iohld_tcp : ((kProtocolType_UDP == protocol ) ? iohld_udp : -1));
+    if (hld < 0) {
+        return -1;
     }
 
-	epo = NULL;
-    if (ncb->proto_type == kProtocolType_TCP) {
-		if (posix__atomic_initial_passed(__io_inited_tcp__)) {
-			epo = epmgr.epos;
-		}
-    }
-	
-	if (ncb->proto_type == kProtocolType_UDP) {
-		if (posix__atomic_initial_passed(__io_inited_udp__)) {
-			epo = epmgr.epos2;
-		}
-    }
-
-    if (!epo) {
-        nis_call_ecr("[nshost.io.io_attach] unknown protocol type:%d specified in ncb", ncb->proto_type);
-        return -EPROTOTYPE;
+    iobptr = objrefr(hld);
+    if (!iobptr) {
+        return -1;
     }
 
     memset(&e_evt, 0, sizeof(e_evt));
@@ -350,17 +267,18 @@ int io_attach(void *ncbptr, int mask)
     e_evt.events = (EPOLLET | EPOLLRDHUP | EPOLLHUP | EPOLLERR);
 	e_evt.events |= mask;
 
-	ncb->epfd = epo[ncb->hld % epmgr.divisions].epfd;
+	ncb->epfd = iobptr->epoptr[ncb->hld % iobptr->divisions].epfd;
     if ( epoll_ctl(ncb->epfd, EPOLL_CTL_ADD, ncb->sockfd, &e_evt) < 0 &&
             errno != EEXIST ) {
         nis_call_ecr("[nshost.io.io_attach] fatal error occurred syscall epoll_ctl(2) when add sockfd:%d upon epollfd:%d with mask:%d, error:%u,link:%lld",
             ncb->sockfd, ncb->epfd, mask, errno, ncb->hld);
         ncb->epfd = -1;
-        return -1;
-	}
+	} else {
+        nis_call_ecr("[nshost.io.io_attach] success associate sockfd:%d with epfd:%d, link:%lld", ncb->sockfd, ncb->epfd, ncb->hld);
+    }
 
-    nis_call_ecr("[nshost.io.io_attach] success associate sockfd:%d with epfd:%d, link:%lld", ncb->sockfd, ncb->epfd, ncb->hld);
-	return 0;
+    objdefr(hld);
+	return ncb->epfd;
 }
 
 int io_modify(void *ncbptr, int mask )
@@ -372,10 +290,6 @@ int io_modify(void *ncbptr, int mask )
     if (!ncb) {
         return -EINVAL;
     }
-	
-	if (!io_inner_check(ncb)) {
-		return -EINVAL;
-	}
 
     e_evt.data.u64 = (uint64_t)ncb->hld;
     e_evt.events = (EPOLLET | EPOLLRDHUP | EPOLLHUP | EPOLLERR);
@@ -397,10 +311,6 @@ void io_detach(void *ncbptr)
 
     ncb = (ncb_t *)ncbptr;
     if (ncb) {
-		if (!io_inner_check(ncb)) {
-			return;
-		}
-		
         if (epoll_ctl(ncb->epfd, EPOLL_CTL_DEL, ncb->sockfd, &evt) < 0) {
             nis_call_ecr("[nshost.io.io_detach] fatal error occurred syscall epoll_ctl(2) when remove sockfd:%d from epollfd:%d, error:%u, link:%lld",
                 ncb->sockfd, ncb->epfd, errno, ncb->hld);
