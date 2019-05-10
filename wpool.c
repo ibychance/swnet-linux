@@ -166,6 +166,9 @@ static void __wp_uninit(objhld_t hld, void *udata)
     wpptr = (struct wpool *)udata;
     assert(wpptr);
 
+    /* This is an important judgment condition.
+        when @__sync_bool_compare_and_swap failed in @wp_init, the mutex/condition_variable will notbe initialed,
+        in this case, wait function block the calling thread and @wp_uninit progress cannot continue */
     if (wpptr->actived) {
         wpptr->actived = 0;
         posix__sig_waitable_handle(&wpptr->signal);
@@ -182,7 +185,6 @@ static void __wp_uninit(objhld_t hld, void *udata)
         posix__uninit_waitable_handle(&wpptr->signal);
         posix__pthread_mutex_uninit(&wpptr->mutex);
     }
-
 
     if (!__sync_bool_compare_and_swap(&tcphld, hld, -1)) {
         __sync_bool_compare_and_swap(&udphld, hld, -1);
@@ -209,10 +211,11 @@ int wp_init(int protocol)
 
     hldptr = ((kProtocolType_TCP ==protocol ) ? &tcphld : ((kProtocolType_UDP == protocol ) ? &udphld : NULL));
     if (!hldptr) {
-        return -1;
+        return -EPROTOTYPE;
     }
 
-    /* judgment thread-unsafe first, handle the most case of interface rep-calls */
+    /* judgment thread-unsafe first, handle the most case of interface rep-calls,
+        this case NOT mean a error */
     if (*hldptr >= 0) {
         return EALREADY;
     }
@@ -222,14 +225,14 @@ int wp_init(int protocol)
         return -1;
     }
 
-    if (-1 != posix__atomic_compare_xchange(hldptr, -1, hld)) {
+    if (!__sync_bool_compare_and_swap(hldptr, -1, hld)) {
         objclos(hld);
         return EALREADY;
     }
 
     wpptr = objrefr(*hldptr);
     if (!wpptr) {
-        return -1;
+        return -ENOENT;
     }
 
     retval = __wp_init(wpptr);
@@ -259,7 +262,7 @@ int wp_queued(void *ncbptr)
 
     wpptr = objrefr(hld);
     if (!wpptr) {
-        return -1;
+        return -ENOENT;
     }
 
     do {

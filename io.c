@@ -211,7 +211,7 @@ int io_init(int protocol)
 
     hldptr = ((kProtocolType_TCP ==protocol ) ? &tcphld : ((kProtocolType_UDP == protocol ) ? &udphld : NULL));
     if (!hldptr) {
-        return -1;
+        return -EPROTOCOLTYPE;
     }
 
     if (*hldptr >= 0) {
@@ -222,16 +222,15 @@ int io_init(int protocol)
     if (hld < 0) {
         return -1;
     }
-    if (-1 != posix__atomic_compare_xchange(hldptr, -1, hld)) {
+
+    if (! __sync_bool_compare_and_swap(hldptr, -1, hld)) {
         objclos(hld);
         return EALREADY;
     }
 
     iobptr = objrefr(*hldptr);
     if (!iobptr) {
-        /* in this case, mybe in uninit progress,
-                but return status MUST be fatal */
-        return -1;
+        return -ENOENT;
     }
 
     retval = __io_init(iobptr);
@@ -265,7 +264,7 @@ int io_attach(void *ncbptr, int mask)
     protocol = ncb->protocol;
     hld = ((kProtocolType_TCP == protocol ) ? tcphld : ((kProtocolType_UDP == protocol ) ? udphld : -1));
     if (hld < 0) {
-        return -ENOENT;
+        return -EPROTOCOLTYPE;
     }
 
     iobptr = objrefr(hld);
@@ -372,7 +371,7 @@ int io_set_asynchronous(int fd)
     int opt;
 
     if (fd < 0) {
-        return -1;
+        return -EINVAL;
     }
 
     opt = fcntl(fd, F_GETFL);
