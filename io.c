@@ -19,7 +19,7 @@
 struct epoll_object_block {
     int epfd;
     posix__boolean_t actived;
-    posix__pthread_t thread;
+    posix__pthread_t threadfd;
     int load; /* load of current thread */
 } ;
 
@@ -28,8 +28,8 @@ struct io_object_block {
     int divisions;
 };
 
-static objhld_t iohld_tcp = -1;
-static objhld_t iohld_udp = -1;
+static objhld_t tcphld = -1;
+static objhld_t udphld = -1;
 
 static void __iorun(struct epoll_event *evts, int sigcnt)
 {
@@ -160,7 +160,7 @@ static int __io_init(struct io_object_block *iobptr)
 
         /* active field as a judge of operational effectiveness, as well as a control symbol of operation  */
         epoptr->actived = 1;
-        if (posix__pthread_create(&epoptr->thread, &__epoll_proc, epoptr) < 0) {
+        if (posix__pthread_create(&epoptr->threadfd, &__epoll_proc, epoptr) < 0) {
             nis_call_ecr("[nshost.io.__io_init] fatal error occurred syscall pthread_create(3), error:%d", errno);
             close(epoptr->epfd);
             epoptr->epfd = -1;
@@ -186,7 +186,7 @@ static void __io_uninit(objhld_t hld, void *udata)
         epoptr = &iobptr->epoptr[i];
         if (epoptr->actived) {
             epoptr->actived = 0;
-           posix__pthread_join(&epoptr->thread, NULL);
+           posix__pthread_join(&epoptr->threadfd, NULL);
         }
 
         if (epoptr->epfd > 0){
@@ -197,30 +197,42 @@ static void __io_uninit(objhld_t hld, void *udata)
 
     free(iobptr->epoptr);
     iobptr->epoptr = NULL;
+
+    if (!__sync_bool_compare_and_swap(&tcphld, hld, -1)) {
+        __sync_bool_compare_and_swap(&udphld, hld, -1);
+    }
 }
 
 int io_init(int protocol)
 {
     int retval;
     struct io_object_block *iobptr;
-    objhld_t *hldptr;
+    objhld_t hld, *hldptr;
 
-    hldptr = ((kProtocolType_TCP ==protocol ) ? &iohld_tcp : ((kProtocolType_UDP == protocol ) ? &iohld_udp : NULL));
+    hldptr = ((kProtocolType_TCP ==protocol ) ? &tcphld : ((kProtocolType_UDP == protocol ) ? &udphld : NULL));
     if (!hldptr) {
         return -1;
     }
 
     if (*hldptr >= 0) {
-        return 0;
+        return EALREADY;
     }
 
-    *hldptr = objallo(sizeof(struct io_object_block), NULL, &__io_uninit, NULL, 0);
-    if (*hldptr < 0) {
+    hld = objallo(sizeof(struct io_object_block), NULL, &__io_uninit, NULL, 0);
+    if (hld < 0) {
         return -1;
+    }
+    if (-1 != posix__atomic_compare_xchange(hldptr, -1, hld)) {
+        objclos(hld);
+        return EALREADY;
     }
 
     iobptr = objrefr(*hldptr);
-    assert(iobptr);
+    if (!iobptr) {
+        /* in this case, mybe in uninit progress,
+                but return status MUST be fatal */
+        return -1;
+    }
 
     retval = __io_init(iobptr);
     objdefr(*hldptr);
@@ -229,14 +241,13 @@ int io_init(int protocol)
 
 void io_uninit(int protocol)
 {
-    if (kProtocolType_TCP ==protocol ) {
-        objclos(iohld_tcp);
-        iohld_tcp = -1;
-    }
+    objhld_t *hldptr;
 
-    if (kProtocolType_UDP == protocol ) {
-        objclos(iohld_udp);
-        iohld_udp = -1;
+    hldptr = ((kProtocolType_TCP ==protocol ) ? &tcphld : ((kProtocolType_UDP == protocol ) ? &udphld : NULL));
+    if (hldptr) {
+        if (*hldptr >= 0) {
+            objclos(*hldptr);
+        }
     }
 }
 
@@ -251,15 +262,16 @@ int io_attach(void *ncbptr, int mask)
     ncb = (ncb_t *)ncbptr;
     assert(ncb);
 
-    protocol = ncb->proto_type;
-    hld = ((kProtocolType_TCP == protocol ) ? iohld_tcp : ((kProtocolType_UDP == protocol ) ? iohld_udp : -1));
+    protocol = ncb->protocol;
+    hld = ((kProtocolType_TCP == protocol ) ? tcphld : ((kProtocolType_UDP == protocol ) ? udphld : -1));
     if (hld < 0) {
-        return -1;
+        return -ENOENT;
     }
 
     iobptr = objrefr(hld);
     if (!iobptr) {
-        return -1;
+        nis_call_ecr("[nshost.io.io_attach] failed reference assicoated io object block with handle:%lld", hld);
+        return -ENOENT;
     }
 
     memset(&e_evt, 0, sizeof(e_evt));

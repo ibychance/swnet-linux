@@ -7,7 +7,7 @@
 #include "io.h"
 
 static
-int __tcp_syn(ncb_t *ncb_server) 
+int __tcp_syn(ncb_t *ncb_server)
 {
     int fd_client;
     struct sockaddr_in addr_income;
@@ -75,7 +75,7 @@ int __tcp_syn(ncb_t *ncb_server)
         ncb_init(ncb_client);
         ncb_client->hld = hld_client;
         ncb_client->sockfd = fd_client;
-        ncb_client->proto_type = kProtocolType_TCP;
+        ncb_client->protocol = kProtocolType_TCP;
         ncb_client->nis_callback = ncb_server->nis_callback;
 
         /* save local and remote address struct */
@@ -136,7 +136,7 @@ int __tcp_syn(ncb_t *ncb_server)
     return 0;
 }
 
-int tcp_syn(ncb_t *ncb_server) 
+int tcp_syn(ncb_t *ncb_server)
 {
     int retval;
 
@@ -147,7 +147,7 @@ int tcp_syn(ncb_t *ncb_server)
 }
 
 static
-int __tcp_rx(ncb_t *ncb) 
+int __tcp_rx(ncb_t *ncb)
 {
     int recvcb;
     int overplus;
@@ -198,7 +198,7 @@ int __tcp_rx(ncb_t *ncb)
     return 0;
 }
 
-int tcp_rx(ncb_t *ncb) 
+int tcp_rx(ncb_t *ncb)
 {
     int retval;
 
@@ -209,7 +209,7 @@ int tcp_rx(ncb_t *ncb)
     return retval;
 }
 
-int tcp_txn(ncb_t *ncb, void *p) 
+int tcp_txn(ncb_t *ncb, void *p)
 {
     int wcb;
     int errcode;
@@ -255,7 +255,7 @@ int tcp_txn(ncb_t *ncb, void *p)
 }
 
 /* TCP sender proc */
-int tcp_tx(ncb_t *ncb) 
+int tcp_tx(ncb_t *ncb)
 {
     struct tx_node *node;
     struct tcp_info ktcp;
@@ -280,7 +280,7 @@ int tcp_tx(ncb_t *ncb)
     return 0;
 }
 
-static int __tcp_poll_syn(int sockfd, int *err) 
+static int __tcp_poll_syn(int sockfd, int *err)
 {
     struct pollfd pofd;
     socklen_t errlen;
@@ -317,7 +317,7 @@ static int __tcp_poll_syn(int sockfd, int *err)
 /*
  * tcp connect request asynchronous completed handler
  */
-int tcp_tx_syn(ncb_t *ncb) 
+int tcp_tx_syn(ncb_t *ncb)
 {
     int e;
     socklen_t addrlen;
@@ -373,7 +373,7 @@ int tcp_tx_syn(ncb_t *ncb)
 /*
  * tcp connect request asynchronous error handler
  */
-int tcp_rx_syn(ncb_t *ncb) 
+int tcp_rx_syn(ncb_t *ncb)
 {
     int error;
     socklen_t errlen;

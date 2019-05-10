@@ -50,7 +50,7 @@ int tcprefr( objhld_t hld, ncb_t **ncb )
 
     *ncb = objrefr( hld );
     if ( NULL != (*ncb) ) {
-        if ( (*ncb)->proto_type == kProtocolType_TCP ) {
+        if ( (*ncb)->protocol == kProtocolType_TCP ) {
             return 0;
         }
 
@@ -139,7 +139,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
         ncb_init(ncb);
         ncb->hld = hld;
         ncb->sockfd = fd;
-        ncb->proto_type = kProtocolType_TCP;
+        ncb->protocol = kProtocolType_TCP;
         ncb->nis_callback = user_callback;
         memcpy(&ncb->local_addr, &addrlocal, sizeof (addrlocal));
 

@@ -13,7 +13,7 @@ int udprefr( objhld_t hld, ncb_t **ncb ) {
 
     *ncb = objrefr( hld );
     if ( NULL != (*ncb) ) {
-        if ( (*ncb)->proto_type == kProtocolType_UDP ) {
+        if ( (*ncb)->protocol == kProtocolType_UDP ) {
             return 0;
         }
 
@@ -95,7 +95,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         ncb->nis_callback = user_callback;
         ncb->sockfd = fd;
         ncb->hld = hld;
-        ncb->proto_type = kProtocolType_UDP;
+        ncb->protocol = kProtocolType_UDP;
 
         /* must keep all file descriptor in asynchronous mode with ET mode */
         if (io_set_asynchronous(fd) < 0) {

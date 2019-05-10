@@ -40,11 +40,11 @@ struct _ncb {
     objhld_t hld;       /* the object handle of this ncb */
     int sockfd;         /* the file-descriptor of socket */
     int epfd;           /* the file-descriptor of epoll which binding with @sockfd */
-    enum ncb__protocol_type proto_type;
+    enum ncb__protocol_type protocol;
 
     /* the actually buffer for receive */
     unsigned char *packet;
-    
+
     /* fifo queue of pending packet for send */
     struct tx_fifo fifo;
 
@@ -54,16 +54,16 @@ struct _ncb {
 
     /* the user-specified nshost event handler */
     nis_callback_t nis_callback;
-    
+
     /* IO response routine */
     ncb_routine_t ncb_read;
     ncb_routine_t ncb_write;
     ncb_routine_t ncb_error;
-    
+
     /* save the timeout information/options */
     struct timeval rcvtimeo;
     struct timeval sndtimeo;
-    
+
     /* tos item in IP-head
      * Differentiated Services Field: Dirrerentiated Services Codepoint/Explicit Congestion Not fication
      *  */
@@ -73,15 +73,15 @@ struct _ncb {
         struct {
             /* TCP packet user-parse offset */
             int rx_parse_offset;
-            
+
             /* the actually buffer give to syscall @recv */
             unsigned char *rx_buffer;
-    
+
             /* the large-block information(TCP packets larger than 0x11000B but less than 50MB) */
             unsigned char* lbdata;   /* large-block data buffer */
             int lboffset;   /* save offset in @lbdata */
             int lbsize;     /* the total length include protocol-head */
-    
+
              /* template for make/build package */
             tst_t template;
 
@@ -91,7 +91,7 @@ struct _ncb {
             /* the attributes of TCP link */
             int attr;
         } tcp;
-        
+
         struct {
             /* mreq object for IP multicast */
             struct ip_mreq *mreq;
