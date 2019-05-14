@@ -1,7 +1,36 @@
 #include "tcp.h"
 #include "mxx.h"
 
-int tcp_parse_pkt(ncb_t *ncb, const unsigned char *data, int cpcb) 
+static int tcp_parse_marked_lb(ncb_t *ncb, const unsigned char *cpbuff, int cpcb)
+{
+    int overplus;
+
+    /* The arrival data are not enough to fill the large-block. */
+    if (cpcb + ncb->u.tcp.lboffset < ncb->u.tcp.lbsize) {
+        memcpy(ncb->u.tcp.lbdata + ncb->u.tcp.lboffset, cpbuff, cpcb);
+        ncb->u.tcp.lboffset += cpcb;
+        return 0;
+    }
+
+    /* The arrival data not enough to fill the large-block. */
+    overplus = ncb->u.tcp.lbsize - ncb->u.tcp.lboffset;
+    memcpy(ncb->u.tcp.lbdata + ncb->u.tcp.lboffset, cpbuff, overplus);
+
+    if (ncb->u.tcp.attr & LINKATTR_TCP_FULLY_RECEIVE) {
+        ncb_post_recvdata(ncb, ncb->u.tcp.lbsize, ncb->u.tcp.lbdata);
+    } else {
+        ncb_post_recvdata(ncb, ncb->u.tcp.lbsize - ncb->u.tcp.template.cb_, ncb->u.tcp.lbdata + ncb->u.tcp.template.cb_);
+    }
+
+    /* free the large-block buffer */
+    free(ncb->u.tcp.lbdata);
+    ncb->u.tcp.lbdata = NULL;
+    ncb->u.tcp.lboffset = 0;
+    ncb->u.tcp.lbsize = 0;
+    return (cpcb - overplus);
+}
+
+int tcp_parse_pkt(ncb_t *ncb, const unsigned char *data, int cpcb)
 {
     int used;
     int overplus;
@@ -25,29 +54,7 @@ int tcp_parse_pkt(ncb_t *ncb, const unsigned char *data, int cpcb)
 
     /* it is in the large-block status */
     if (ncb_lb_marked(ncb)) {
-        /* The arrival data are not enough to fill the large-block. */
-        if (cpcb + ncb->u.tcp.lboffset < ncb->u.tcp.lbsize) {
-            memcpy(ncb->u.tcp.lbdata + ncb->u.tcp.lboffset, cpbuff, cpcb);
-            ncb->u.tcp.lboffset += cpcb;
-            return 0;
-        }
-
-        /* The arrival data not enough to fill the large-block. */
-        overplus = ncb->u.tcp.lbsize - ncb->u.tcp.lboffset;
-        memcpy(ncb->u.tcp.lbdata + ncb->u.tcp.lboffset, cpbuff, overplus);
-
-        if (ncb->u.tcp.attr & LINKATTR_TCP_FULLY_RECEIVE) {
-            ncb_post_recvdata(ncb, ncb->u.tcp.lbsize, ncb->u.tcp.lbdata);
-        } else {
-            ncb_post_recvdata(ncb, ncb->u.tcp.lbsize - ncb->u.tcp.template.cb_, ncb->u.tcp.lbdata + ncb->u.tcp.template.cb_);
-        }
-
-        /* free the large-block buffer */
-        free(ncb->u.tcp.lbdata);
-        ncb->u.tcp.lbdata = NULL;
-        ncb->u.tcp.lboffset = 0;
-        ncb->u.tcp.lbsize = 0;
-        return (cpcb - overplus);
+        return tcp_parse_marked_lb(ncb, cpbuff, cpcb);
     }
 
     /* the length of data is not enough to constitute the protocol header.

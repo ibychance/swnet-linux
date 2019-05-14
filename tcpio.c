@@ -31,8 +31,7 @@ int __tcp_syn(ncb_t *ncb_server)
     errcode = errno;
     if (fd_client < 0) {
 
-        /* The system call was interrupted by a signal that was caught before a valid connection arrived, or
-            this connection has been aborted.
+        /* The system call was interrupted by a signal that was caught before a valid connection arrived, or this connection has been aborted.
             in these case , this round of operation ignore, try next round accept notified by epoll */
         if ((errcode == EINTR) || (ECONNABORTED == errcode) ) {
             return 0;
@@ -44,8 +43,7 @@ int __tcp_syn(ncb_t *ncb_server)
         }
 
         /* The per-process/system-wide limit on the number of open file descriptors has been reached, or
-            Not enough free memory, or
-            Firewall rules forbid connection.
+            Not enough free memory, or Firewall rules forbid connection.
             in these cases, this round of operation can fail, but the service link must be retain */
         if ((ENFILE == errcode) || (ENOBUFS == errcode) || (ENOMEM == errcode) || (EPERM == errcode)) {
             nis_call_ecr("[nshost.tcpio.__tcp_syn] non-fatal error occurred syscall accept(2), code:%d, link:%lld", errcode, ncb_server->hld);

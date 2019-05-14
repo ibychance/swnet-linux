@@ -104,6 +104,8 @@ static void *__epoll_proc(void *argv)
     static const int EP_TIMEDOUT = 100;
 
     epoptr = (struct epoll_object_block *)argv;
+    assert(NULL != epoptr);
+
     nis_call_ecr("[nshost.io.epoll] epfd:%d LWP:%u startup.", epoptr->epfd, posix__gettid());
 
     while (epoptr->actived) {
@@ -134,16 +136,16 @@ static void *__epoll_proc(void *argv)
     return NULL;
 }
 
-static int __io_init(struct io_object_block *iobptr)
+static int __io_init(struct io_object_block *iobptr, int nprocs)
 {
     int i;
     struct epoll_object_block *epoptr;
 
-    if (!iobptr) {
+    if (!iobptr || nprocs <= 0) {
         return -EINVAL;
     }
 
-    iobptr->divisions = posix__getnprocs();
+    iobptr->divisions = nprocs;
     iobptr->epoptr = (struct epoll_object_block *)malloc(sizeof(struct epoll_object_block) * iobptr->divisions);
     if (!iobptr->epoptr) {
         return -ENOMEM;
@@ -186,7 +188,7 @@ static void __io_uninit(objhld_t hld, void *udata)
         epoptr = &iobptr->epoptr[i];
         if (epoptr->actived) {
             epoptr->actived = 0;
-           posix__pthread_join(&epoptr->threadfd, NULL);
+            posix__pthread_join(&epoptr->threadfd, NULL);
         }
 
         if (epoptr->epfd > 0){
@@ -208,10 +210,11 @@ int io_init(int protocol)
     int retval;
     struct io_object_block *iobptr;
     objhld_t hld, *hldptr;
+    int nprocs;
 
     hldptr = ((kProtocolType_TCP ==protocol ) ? &tcphld : ((kProtocolType_UDP == protocol ) ? &udphld : NULL));
     if (!hldptr) {
-        return -EPROTOCOLTYPE;
+        return -EPROTOTYPE;
     }
 
     if (*hldptr >= 0) {
@@ -233,7 +236,11 @@ int io_init(int protocol)
         return -ENOENT;
     }
 
-    retval = __io_init(iobptr);
+    nprocs = (kProtocolType_TCP ==protocol ) ? posix__getnprocs() : (posix__getnprocs() >> 1);
+    if (nprocs <= 0) {
+        nprocs = 1;
+    }
+    retval = __io_init(iobptr, nprocs);
     objdefr(*hldptr);
     return retval;
 }
@@ -264,7 +271,7 @@ int io_attach(void *ncbptr, int mask)
     protocol = ncb->protocol;
     hld = ((kProtocolType_TCP == protocol ) ? tcphld : ((kProtocolType_UDP == protocol ) ? udphld : -1));
     if (hld < 0) {
-        return -EPROTOCOLTYPE;
+        return -EPROTOTYPE;
     }
 
     iobptr = objrefr(hld);
