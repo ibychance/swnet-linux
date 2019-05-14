@@ -40,10 +40,13 @@ static int __udp_update_opts(ncb_t *ncb) {
 }
 
 int udp_init() {
-    if (io_init(kProtocolType_UDP) >= 0) {
-        return wp_init(kProtocolType_UDP);
-    }
-    return -1;
+	int retval;
+	
+	retval = io_init(kProtocolType_UDP);
+	if (0 != retval) {
+		return retval;
+	}
+	return wp_init(kProtocolType_UDP);
 }
 
 void udp_uninit() {

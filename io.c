@@ -288,8 +288,8 @@ int io_attach(void *ncbptr, int mask)
 	ncb->epfd = iobptr->epoptr[ncb->hld % iobptr->divisions].epfd;
     if ( epoll_ctl(ncb->epfd, EPOLL_CTL_ADD, ncb->sockfd, &e_evt) < 0 &&
             errno != EEXIST ) {
-        nis_call_ecr("[nshost.io.io_attach] fatal error occurred syscall epoll_ctl(2) when add sockfd:%d upon epollfd:%d with mask:%d, error:%u,link:%lld",
-            ncb->sockfd, ncb->epfd, mask, errno, ncb->hld);
+        nis_call_ecr("[nshost.io.io_attach] fatal error occurred syscall epoll_ctl(2) when add link:%lld with sockfd:%d upon epollfd:%d with mask:%d, error:%u,",
+            ncb->hld, ncb->sockfd, ncb->epfd, mask, errno);
         ncb->epfd = -1;
 	} else {
         nis_call_ecr("[nshost.io.io_attach] success associate sockfd:%d with epfd:%d, link:%lld", ncb->sockfd, ncb->epfd, ncb->hld);
@@ -314,8 +314,8 @@ int io_modify(void *ncbptr, int mask )
 	e_evt.events |= mask;
 
     if ( epoll_ctl(ncb->epfd, EPOLL_CTL_MOD, ncb->sockfd, &e_evt) < 0 ) {
-        nis_call_ecr("[nshost.io.io_modify] fatal error occurred syscall epoll_ctl(2) when modify sockfd:%d upon epollfd:%d with mask:%d, error:%u, link:%lld",
-            ncb->sockfd, ncb->epfd, mask, errno, ncb->hld);
+        nis_call_ecr("[nshost.io.io_modify] fatal error occurred syscall epoll_ctl(2) when modify link:%lld with sockfd:%d upon epollfd:%d with mask:%d, error:%u, ",
+            ncb->hld, ncb->sockfd, ncb->epfd, mask, errno);
         return -1;
     }
 
@@ -330,8 +330,8 @@ void io_detach(void *ncbptr)
     ncb = (ncb_t *)ncbptr;
     if (ncb) {
         if (epoll_ctl(ncb->epfd, EPOLL_CTL_DEL, ncb->sockfd, &evt) < 0) {
-            nis_call_ecr("[nshost.io.io_detach] fatal error occurred syscall epoll_ctl(2) when remove sockfd:%d from epollfd:%d, error:%u, link:%lld",
-                ncb->sockfd, ncb->epfd, errno, ncb->hld);
+            nis_call_ecr("[nshost.io.io_detach] fatal error occurred syscall epoll_ctl(2) when remove link:%lld with sockfd:%d from epollfd:%d, error:%u",
+                ncb->hld, ncb->sockfd, ncb->epfd, errno);
         }
     }
 }

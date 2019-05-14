@@ -54,7 +54,7 @@ void ncb_uninit(objhld_t ignore, void *p)
 
     /* set callback function to ineffectiveness */
     ncb->nis_callback = NULL;
-    nis_call_ecr("[nshost.ncb.uninit] object:%lld finalization released",ncb->hld);
+    nis_call_ecr("[nshost.ncb.uninit] link:%lld finalization released",ncb->hld);
 }
 
 int ncb_set_rcvtimeo(const ncb_t *ncb, const struct timeval *timeo)

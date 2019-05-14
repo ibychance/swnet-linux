@@ -80,10 +80,14 @@ void tcp_update_opts(const ncb_t *ncb)
 /* tcp impls */
 int tcp_init()
 {
-    if (io_init(kProtocolType_TCP) >= 0) {
-        return wp_init(kProtocolType_TCP);
-    }
-    return -1;
+	int retval;
+	
+	retval = io_init(kProtocolType_TCP);
+	if (0 != retval) {
+		return retval;
+	}
+	
+	return wp_init(kProtocolType_TCP);
 }
 
 void tcp_uninit()
