@@ -19,7 +19,5 @@ extern
 void io_detach(void *ncbptr);
 extern
 void io_close(void *ncbptr);
-extern
-int io_set_asynchronous(int fd);
 
 #endif /* IO_H */

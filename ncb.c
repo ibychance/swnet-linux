@@ -106,16 +106,15 @@ void ncb_destructor(objhld_t ignore, void *p)
 
 int ncb_set_rcvtimeo(const ncb_t *ncb, const struct timeval *timeo)
 {
-    if (ncb && timeo){
-        return setsockopt(ncb->sockfd, SOL_SOCKET, SO_RCVTIMEO, (const void *)timeo, sizeof(struct timeval));
-    }
-    return -EINVAL;
+    return (ncb && timeo) ?
+            setsockopt(ncb->sockfd, SOL_SOCKET, SO_RCVTIMEO, (const void *)timeo, sizeof(struct timeval)) : -EINVAL;
 }
 
 int ncb_get_rcvtimeo(const ncb_t *ncb)
 {
-    if (ncb){
-         socklen_t optlen =sizeof(ncb->rcvtimeo);
+    socklen_t optlen;
+    if (ncb) {
+        optlen = sizeof(ncb->rcvtimeo);
         return getsockopt(ncb->sockfd, SOL_SOCKET, SO_RCVTIMEO, (void *__restrict)&ncb->rcvtimeo, &optlen);
     }
     return -EINVAL;
@@ -123,16 +122,16 @@ int ncb_get_rcvtimeo(const ncb_t *ncb)
 
 int ncb_set_sndtimeo(const ncb_t *ncb, const struct timeval *timeo)
 {
-    if (ncb && timeo) {
-        return setsockopt(ncb->sockfd, SOL_SOCKET, SO_SNDTIMEO, (const void *)timeo, sizeof(struct timeval));
-    }
-    return -EINVAL;
+    return (ncb && timeo) ?
+            setsockopt(ncb->sockfd, SOL_SOCKET, SO_SNDTIMEO, (const void *)timeo, sizeof(struct timeval)) : -EINVAL;
 }
 
 int ncb_get_sndtimeo(const ncb_t *ncb)
 {
-    if (ncb){
-        socklen_t optlen =sizeof(ncb->sndtimeo);
+    socklen_t optlen;
+
+    if (ncb) {
+        optlen = sizeof(ncb->sndtimeo);
         return getsockopt(ncb->sockfd, SOL_SOCKET, SO_SNDTIMEO, (void *__restrict)&ncb->sndtimeo, &optlen);
     }
     return -EINVAL;
@@ -141,7 +140,8 @@ int ncb_get_sndtimeo(const ncb_t *ncb)
 int ncb_set_iptos(const ncb_t *ncb, int tos)
 {
     unsigned char type_of_service = (unsigned char )tos;
-    if (ncb && type_of_service){
+
+    if (ncb && type_of_service) {
         return setsockopt(ncb->sockfd, SOL_IP, IP_TOS, (const void *)&type_of_service, sizeof(type_of_service));
     }
     return -EINVAL;
@@ -149,8 +149,9 @@ int ncb_set_iptos(const ncb_t *ncb, int tos)
 
 int ncb_get_iptos(const ncb_t *ncb)
 {
-    if (ncb){
-        socklen_t optlen =sizeof(ncb->iptos);
+    socklen_t optlen;
+    if (ncb) {
+        optlen = sizeof(ncb->iptos);
         return getsockopt(ncb->sockfd, SOL_IP, IP_TOS, (void *__restrict)&ncb->iptos, &optlen);
     }
     return -EINVAL;
@@ -158,20 +159,15 @@ int ncb_get_iptos(const ncb_t *ncb)
 
 int ncb_set_window_size(const ncb_t *ncb, int dir, int size)
 {
-    if (ncb){
-        return setsockopt(ncb->sockfd, SOL_SOCKET, dir, (const void *)&size, sizeof(size));
-    }
-
-     return -EINVAL;
+    return (NULL != ncb) ? setsockopt(ncb->sockfd, SOL_SOCKET, dir, (const void *)&size, sizeof(size)) : -EINVAL;
 }
 
 int ncb_get_window_size(const ncb_t *ncb, int dir, int *size)
 {
-    if (ncb && size){
-        socklen_t optlen = sizeof(int);
-        if (getsockopt(ncb->sockfd, SOL_SOCKET, dir, (void *__restrict)size, &optlen) < 0){
-            return -1;
-        }
+    socklen_t optlen;
+    if (ncb && size) {
+        optlen = sizeof(int);
+        return getsockopt(ncb->sockfd, SOL_SOCKET, dir, (void *__restrict)size, &optlen);
     }
 
      return -EINVAL;
@@ -193,17 +189,18 @@ int ncb_set_linger(const ncb_t *ncb, int onoff, int lin)
 int ncb_get_linger(const ncb_t *ncb, int *onoff, int *lin)
 {
     struct linger lgr;
-    socklen_t optlen = sizeof (lgr);
+    socklen_t optlen;
 
     if (!ncb) {
         return -EINVAL;
     }
 
+    optlen = sizeof (lgr);
     if (getsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (void *__restrict) & lgr, &optlen) < 0) {
         return -1;
     }
 
-    if (onoff){
+    if (onoff) {
         *onoff = lgr.l_onoff;
     }
 

@@ -212,7 +212,8 @@ int io_init(int protocol)
     objhld_t hld, *hldptr;
     int nprocs;
 
-    hldptr = ((kProtocolType_TCP ==protocol ) ? &tcphld : ((kProtocolType_UDP == protocol ) ? &udphld : NULL));
+    hldptr = ((kProtocolType_TCP ==protocol ) ? &tcphld :
+            ((kProtocolType_UDP == protocol ) ? &udphld : NULL));
     if (!hldptr) {
         return -EPROTOTYPE;
     }
@@ -236,7 +237,8 @@ int io_init(int protocol)
         return -ENOENT;
     }
 
-    nprocs = (kProtocolType_TCP ==protocol ) ? posix__getnprocs() : (posix__getnprocs() >> 1);
+    nprocs = (kProtocolType_TCP ==protocol ) ? posix__getnprocs() :
+                (posix__getnprocs() >> 1);
     if (nprocs <= 0) {
         nprocs = 1;
     }
@@ -249,12 +251,48 @@ void io_uninit(int protocol)
 {
     objhld_t *hldptr;
 
-    hldptr = ((kProtocolType_TCP ==protocol ) ? &tcphld : ((kProtocolType_UDP == protocol ) ? &udphld : NULL));
+    hldptr = ((kProtocolType_TCP ==protocol ) ? &tcphld :
+                ((kProtocolType_UDP == protocol ) ? &udphld : NULL));
     if (hldptr) {
         if (*hldptr >= 0) {
             objclos(*hldptr);
         }
     }
+}
+
+static
+int __io_set_asynchronous(int fd)
+{
+    int opt;
+
+    if (fd < 0) {
+        return -EINVAL;
+    }
+
+    opt = fcntl(fd, F_GETFL);
+    if (opt < 0) {
+        nis_call_ecr("[nshost.io.io_set_asynchronous] fatal error occurred syscall fcntl(2) with F_GETFL.error:%d", errno);
+        return -1;
+    }
+
+    if (fcntl(fd, F_SETFL, opt | O_NONBLOCK) < 0) {
+        nis_call_ecr("[nshost.io.io_set_asynchronous] fatal error occurred syscall fcntl(2) with F_SETFL.error:%d", errno);
+        return -1;
+    }
+
+    opt = fcntl(fd, F_GETFD);
+    if (opt < 0) {
+        nis_call_ecr("[nshost.io.io_set_asynchronous] fatal error occurred syscall fcntl(2) with F_GETFD.error:%d", errno);
+        return -1;
+    }
+
+    /* to disable the port inherit when fork/exec */
+    if (fcntl(fd, F_SETFD, opt | FD_CLOEXEC) < 0) {
+        nis_call_ecr("[nshost.io.io_set_asynchronous] fatal error occurred syscall fcntl(2) with F_SETFD.error:%d", errno);
+        return -1;
+    }
+
+    return 0;
 }
 
 int io_attach(void *ncbptr, int mask)
@@ -268,8 +306,13 @@ int io_attach(void *ncbptr, int mask)
     ncb = (ncb_t *)ncbptr;
     assert(ncb);
 
+    if (__io_set_asynchronous(ncb->sockfd) < 0) {
+        return -1;
+    }
+
     protocol = ncb->protocol;
-    hld = ((kProtocolType_TCP == protocol ) ? tcphld : ((kProtocolType_UDP == protocol ) ? udphld : -1));
+    hld = ((kProtocolType_TCP == protocol ) ? tcphld :
+            ((kProtocolType_UDP == protocol ) ? udphld : -1));
     if (hld < 0) {
         return -EPROTOTYPE;
     }
@@ -371,38 +414,4 @@ void io_close(void *ncbptr)
         close(ncb->sockfd);
         ncb->sockfd = -1;
     }
-}
-
-int io_set_asynchronous(int fd)
-{
-    int opt;
-
-    if (fd < 0) {
-        return -EINVAL;
-    }
-
-    opt = fcntl(fd, F_GETFL);
-    if (opt < 0) {
-        nis_call_ecr("[nshost.io.io_set_asynchronous] fatal error occurred syscall fcntl(2) with F_GETFL.error:%d", errno);
-        return -1;
-    }
-
-    if (fcntl(fd, F_SETFL, opt | O_NONBLOCK) < 0) {
-        nis_call_ecr("[nshost.io.io_set_asynchronous] fatal error occurred syscall fcntl(2) with F_SETFL.error:%d", errno);
-        return -1;
-    }
-
-    opt = fcntl(fd, F_GETFD);
-    if (opt < 0) {
-        nis_call_ecr("[nshost.io.io_set_asynchronous] fatal error occurred syscall fcntl(2) with F_GETFD.error:%d", errno);
-        return -1;
-    }
-
-    /* to disable the port inherit when fork/exec */
-    if (fcntl(fd, F_SETFD, opt | FD_CLOEXEC) < 0) {
-        nis_call_ecr("[nshost.io.io_set_asynchronous] fatal error occurred syscall fcntl(2) with F_SETFD.error:%d", errno);
-        return -1;
-    }
-
-    return 0;
 }

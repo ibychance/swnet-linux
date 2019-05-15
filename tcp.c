@@ -151,16 +151,14 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
         ncb_set_linger(ncb, 0, 0);
 
         /* allocate normal TCP package */
-        ncb->packet = (unsigned char *) malloc(TCP_BUFFER_SIZE);
-        if (!ncb->packet) {
+        if (NULL == (ncb->packet = (unsigned char *) malloc(TCP_BUFFER_SIZE))) {
             retval = -ENOMEM;
             break;
         }
 
         /* zeroization protocol head*/
         ncb->u.tcp.rx_parse_offset = 0;
-        ncb->u.tcp.rx_buffer = (unsigned char *) malloc(TCP_BUFFER_SIZE);
-        if (!ncb->u.tcp.rx_buffer) {
+        if (NULL == (ncb->u.tcp.rx_buffer = (unsigned char *) malloc(TCP_BUFFER_SIZE))) {
             retval = -ENOMEM;
             break;
         }
@@ -360,6 +358,16 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
             break;
         }
 
+        /* ensuer all file descriptor in asynchronous mode,
+           and than, queue object into epoll manager
+
+           on success, MUST attach this file descriptor to epoll as early as possible.
+           Even so, It is also possible a close message post to calling thread early then connected message  */
+        retval = io_attach(ncb, EPOLLIN);
+        if (retval >= 0) {
+            ncb_post_connected(ncb);
+        }
+
         /* set other options */
         tcp_update_opts(ncb);
 
@@ -372,15 +380,6 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
         ncb->ncb_read = &tcp_rx;
         ncb->ncb_write = &tcp_tx;
 
-        /* ensuer all file descriptor in asynchronous mode,
-           and than, queue object into epoll manager */
-        retval = io_set_asynchronous(ncb->sockfd);
-        if (retval >= 0) {
-            retval = io_attach(ncb, EPOLLIN);
-            if (retval >= 0) {
-                ncb_post_connected(ncb);
-            }
-        }
     }while( 0 );
 
     objdefr(lnk);
@@ -426,23 +425,24 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
         optval = 3;
         setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
 
-        /* queue object into epoll manage befor syscall @connect,
-           epoll_wait will get a EPOLLOUT signal when syn success.
-           so, file descriptor must be set to asynchronous now. */
-        if (io_set_asynchronous(ncb->sockfd) < 0) {
-            break;
-        }
-
-        /* attach MUST early than connect(2) call,
-            in some case, very short time after connect(2) called, the EPOLLRDHUP event has been arrived,
-            if attach not in time, error information maybe lost, then cause the file-descriptor leak.  */
-        if (io_attach(ncb, EPOLLOUT | EPOLLIN) < 0) {
-            break;
-        }
-
         ncb->remot_addr.sin_family = PF_INET;
         ncb->remot_addr.sin_port = htons(r_port);
         ncb->remot_addr.sin_addr.s_addr = inet_addr(r_ipstr);
+
+        /* queue object into epoll manage befor syscall @connect,
+           epoll_wait will get a EPOLLOUT signal when syn success.
+           so, file descriptor must be set to asynchronous now.
+
+           attach MUST early than connect(2) call,
+           in some case, very short time after connect(2) called, the EPOLLRDHUP event has been arrived,
+           if attach not in time, error information maybe lost, then cause the file-descriptor leak.
+
+           ncb object willbe destroy on fatal. */
+        retval = io_attach(ncb, EPOLLOUT | EPOLLIN);
+        if ( retval < 0) {
+            objclos(lnk);
+            break;
+        }
 
         do {
             retval = connect(ncb->sockfd, (const struct sockaddr *) &ncb->remot_addr, sizeof (struct sockaddr));
@@ -506,6 +506,13 @@ int tcp_listen(HTCPLINK lnk, int block)
         }
         ncb->ncb_write = NULL;
 
+        /* set file descriptor to asynchronous mode and attach to it's own epoll object,
+            ncb object willbe destroy on fatal. */
+        if (io_attach(ncb, EPOLLIN) < 0) {
+            objclos(lnk);
+            break;
+        }
+
         /* '/proc/sys/net/core/somaxconn' in POSIX.1 this value default to 128
            so,for ensure high concurrency performance in the establishment phase of the TCP connection,
            we will ignore the @block argument and use macro SOMAXCONN which defined in /usr/include/bits/socket.h anyway
@@ -516,15 +523,6 @@ int tcp_listen(HTCPLINK lnk, int block)
             break;
         }
 
-        /* file descriptor must set to asynchronous mode befor accept */
-        retval = io_set_asynchronous(ncb->sockfd);
-        if (retval < 0){
-            break;
-        }
-
-        if (io_attach(ncb, EPOLLIN) < 0) {
-            break;
-        }
         retval = 0;
     } while (0);
 
@@ -575,8 +573,7 @@ int tcp_write(HTCPLINK lnk, const void *origin, int cb, const nis_serializer_t s
         /* if template.builder is specified then use it, otherwise, indicate the packet size by input parameter @cb */
         if (!(*ncb->u.tcp.template.builder_) || (ncb->u.tcp.attr & LINKATTR_TCP_NO_BUILD)) {
             packet_length = cb;
-            buffer = (unsigned char *) malloc(packet_length);
-            if (!buffer) {
+            if (NULL == (buffer = (unsigned char *) malloc(packet_length))) {
                 retval = -ENOMEM;
                 break;
             }
@@ -593,8 +590,7 @@ int tcp_write(HTCPLINK lnk, const void *origin, int cb, const nis_serializer_t s
 
         } else {
             packet_length = cb + ncb->u.tcp.template.cb_;
-            buffer = (unsigned char *) malloc(packet_length);
-            if (!buffer) {
+            if (NULL == (buffer = (unsigned char *) malloc(packet_length))) {
                 retval = -ENOMEM;
                 break;
             }
@@ -616,8 +612,7 @@ int tcp_write(HTCPLINK lnk, const void *origin, int cb, const nis_serializer_t s
             }
         }
 
-        node = (struct tx_node *) malloc(sizeof (struct tx_node));
-        if (!node) {
+        if (NULL == (node = (struct tx_node *) malloc(sizeof (struct tx_node)))) {
             retval = -ENOMEM;
             break;
         }
@@ -679,20 +674,13 @@ int tcp_getaddr(HTCPLINK lnk, int type, uint32_t* ipv4, uint16_t* port)
     int retval;
     struct sockaddr_in *addr;
 
-    addr = NULL;
-
     retval = tcprefr(lnk, &ncb);
     if (retval < 0) {
         return retval;
     }
 
-    if (LINK_ADDR_LOCAL == type) {
-        addr = &ncb->local_addr;
-    }
-
-    if (LINK_ADDR_REMOTE == type) {
-        addr = &ncb->remot_addr;
-    }
+    addr = (LINK_ADDR_LOCAL == type) ? &ncb->local_addr :
+            ((LINK_ADDR_REMOTE == type) ? &ncb->remot_addr : NULL);
 
     if (addr) {
         if (ipv4) {
@@ -761,17 +749,15 @@ int tcp_save_info(const ncb_t *ncb, struct tcp_info *ktcp)
 
 int tcp_setmss(const ncb_t *ncb, int mss)
 {
-    if (ncb && mss > 0) {
-        return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_MAXSEG, (const void *) &mss, sizeof (mss));
-    }
-
-    return -EINVAL;
+    return (ncb && mss > 0) ?
+            setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_MAXSEG, (const void *) &mss, sizeof (mss)) : -EINVAL;
 }
 
 int tcp_getmss(const ncb_t *ncb)
 {
+    socklen_t lenmss;
     if (ncb) {
-        socklen_t lenmss = sizeof (ncb->u.tcp.mss);
+        lenmss = sizeof (ncb->u.tcp.mss);
         return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_MAXSEG, (void *__restrict) & ncb->u.tcp.mss, &lenmss);
     }
     return -EINVAL;
@@ -779,17 +765,15 @@ int tcp_getmss(const ncb_t *ncb)
 
 int tcp_set_nodelay(const ncb_t *ncb, int set)
 {
-    if (ncb) {
-        return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (const void *) &set, sizeof ( set));
-    }
-
-    return -EINVAL;
+    return ncb ? setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (const void *) &set, sizeof ( set)) : -EINVAL;
 }
 
 int tcp_get_nodelay(const ncb_t *ncb, int *set)
 {
+    socklen_t optlen;
+
     if (ncb && set) {
-        socklen_t optlen = sizeof (int);
+        optlen = sizeof (int);
         return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (void *__restrict)set, &optlen);
     }
     return -EINVAL;
@@ -797,17 +781,15 @@ int tcp_get_nodelay(const ncb_t *ncb, int *set)
 
 int tcp_set_cork(const ncb_t *ncb, int set)
 {
-    if (ncb) {
-        return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_CORK, (const void *) &set, sizeof ( set));
-    }
-
-    return -EINVAL;
+    return ncb ? setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_CORK, (const void *) &set, sizeof ( set)) : -EINVAL;
 }
 
 int tcp_get_cork(const ncb_t *ncb, int *set)
 {
+    socklen_t optlen;
+
     if (ncb && set) {
-        socklen_t optlen = sizeof (int);
+        optlen = sizeof (int);
         return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_CORK, (void *__restrict)set, &optlen);
     }
     return -EINVAL;
@@ -815,16 +797,15 @@ int tcp_get_cork(const ncb_t *ncb, int *set)
 
 int tcp_set_keepalive(const ncb_t *ncb, int enable)
 {
-    if (ncb) {
-        return setsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (const char *) &enable, sizeof ( enable));
-    }
-    return -EINVAL;
+    return ncb ? setsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (const char *) &enable, sizeof ( enable)) : -EINVAL;
 }
 
 int tcp_get_keepalive(const ncb_t *ncb, int *enabled)
 {
+    socklen_t optlen;
+
     if (ncb && enabled) {
-        socklen_t optlen = sizeof(int);
+        optlen = sizeof(int);
         return getsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (void *__restrict)enabled, &optlen);
     }
     return -EINVAL;

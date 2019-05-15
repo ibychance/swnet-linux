@@ -102,8 +102,7 @@ int tcp_parse_pkt(ncb_t *ncb, const unsigned char *data, int cpcb)
 
     /* If it is a large-block, then we should establish a large-block process.  */
     if (total_packet_length > TCP_BUFFER_SIZE) {
-        ncb->u.tcp.lbdata = (unsigned char *) malloc(total_packet_length);
-        if (!ncb->u.tcp.lbdata) {
+        if (NULL == (ncb->u.tcp.lbdata = (unsigned char *) malloc(total_packet_length))) {
             return -1;
         }
 

@@ -72,11 +72,6 @@ int __tcp_syn_dpc(ncb_t *ncb_server, ncb_t *ncb)
         return -EINVAL;
     }
 
-    /*all file descriptor must kept asynchronous with ET mode*/
-    if (io_set_asynchronous(ncb->sockfd) < 0) {
-        return -1;
-    }
-
     /* attach to epoll as early as it can to ensure the EPOLLRDHUP and EPOLLERR event not be lost,
         BUT do NOT allow the EPOLLIN event, because receive message should NOT early than accepted message */
     if (io_attach(ncb, 0) < 0) {
@@ -97,15 +92,13 @@ int __tcp_syn_dpc(ncb_t *ncb_server, ncb_t *ncb)
     ncb_set_linger(ncb, 1, 0);
 
     /* allocate memory for TCP normal package */
-    ncb->packet = (unsigned char *) malloc(TCP_BUFFER_SIZE);
-    if (!ncb->packet) {
+    if (NULL == (ncb->packet = (unsigned char *) malloc(TCP_BUFFER_SIZE))) {
         return -ENOMEM;
     }
 
     /* clear the protocol head */
     ncb->u.tcp.rx_parse_offset = 0;
-    ncb->u.tcp.rx_buffer = (unsigned char *) malloc(TCP_BUFFER_SIZE);
-    if (!ncb->u.tcp.rx_buffer) {
+    if (NULL == (ncb->u.tcp.rx_buffer = (unsigned char *) malloc(TCP_BUFFER_SIZE))) {
         return -ENOMEM;
     }
 

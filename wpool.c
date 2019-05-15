@@ -209,7 +209,8 @@ int wp_init(int protocol)
     struct wpool *wpptr;
     objhld_t hld, *hldptr;
 
-    hldptr = ((kProtocolType_TCP ==protocol ) ? &tcphld : ((kProtocolType_UDP == protocol ) ? &udphld : NULL));
+    hldptr = ((kProtocolType_TCP ==protocol ) ? &tcphld :
+                ((kProtocolType_UDP == protocol ) ? &udphld : NULL));
     if (!hldptr) {
         return -EPROTOTYPE;
     }
@@ -255,7 +256,8 @@ int wp_queued(void *ncbptr)
     }
 
     protocol = ncb->protocol;
-    hld = ((kProtocolType_TCP == protocol ) ? tcphld : ((kProtocolType_UDP == protocol ) ? udphld : -1));
+    hld = ((kProtocolType_TCP == protocol ) ? tcphld :
+                ((kProtocolType_UDP == protocol ) ? udphld : -1));
     if (hld < 0) {
         return -ENOENT;
     }

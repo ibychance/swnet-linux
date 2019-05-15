@@ -104,19 +104,13 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         ncb->hld = hld;
         ncb->protocol = kProtocolType_UDP;
 
-        /* must keep all file descriptor in asynchronous mode with ET mode */
-        if (io_set_asynchronous(fd) < 0) {
-            break;
-        }
-
         /* setsockopt */
         if (__udp_update_opts(ncb) < 0) {
             break;
         }
 
         /* allocate buffer for normal packet */
-        ncb->packet = (unsigned char *) malloc(MAX_UDP_UNIT);
-        if (!ncb->packet) {
+        if (NULL == (ncb->packet = (unsigned char *) malloc(MAX_UDP_UNIT))) {
             retval = -ENOMEM;
             break;
         }
@@ -192,8 +186,7 @@ int udp_write(HUDPLINK lnk, const void *origin, int cb, const char* r_ipstr, uin
     do {
         retval = -1;
 
-        buffer = (unsigned char *) malloc(cb);
-        if (!buffer) {
+        if (NULL == (buffer = (unsigned char *) malloc(cb))) {
             retval = -ENOMEM;
             break;
         }
@@ -207,9 +200,7 @@ int udp_write(HUDPLINK lnk, const void *origin, int cb, const char* r_ipstr, uin
             memcpy(buffer, origin, cb);
         }
 
-
-        node = (struct tx_node *) malloc(sizeof (struct tx_node));
-        if (!node) {
+        if (NULL == (node = (struct tx_node *) malloc(sizeof (struct tx_node)))) {
             retval = -ENOMEM;
             break;
         }
@@ -323,16 +314,15 @@ int udp_getopt(HUDPLINK lnk, int level, int opt, char *val, int *len)
 
 int udp_set_boardcast(ncb_t *ncb, int enable)
 {
-    if (ncb) {
-        return setsockopt(ncb->sockfd, SOL_SOCKET, SO_BROADCAST, (const void *) &enable, sizeof (enable));
-    }
-    return -EINVAL;
+    return ncb ? setsockopt(ncb->sockfd, SOL_SOCKET, SO_BROADCAST, (const void *) &enable, sizeof (enable)) : -EINVAL;
 }
 
 int udp_get_boardcast(ncb_t *ncb, int *enabled)
 {
+    socklen_t optlen;
+
     if (ncb && enabled) {
-        socklen_t optlen = sizeof (int);
+        optlen = sizeof (int);
         return getsockopt(ncb->sockfd, SOL_SOCKET, SO_BROADCAST, (void * __restrict)enabled, &optlen);
     }
     return -EINVAL;
@@ -387,7 +377,9 @@ int udp_joingrp(HUDPLINK lnk, const char *g_ipstr, uint16_t g_port)
 
         /* insert into multicast group */
         if (!ncb->u.udp.mreq){
-            ncb->u.udp.mreq = (struct ip_mreq *)malloc(sizeof(struct ip_mreq));
+            if (NULL == (ncb->u.udp.mreq = (struct ip_mreq *)malloc(sizeof(struct ip_mreq)))) {
+                break;
+            }
         }
         ncb->u.udp.mreq->imr_multiaddr.s_addr = inet_addr(g_ipstr);
         ncb->u.udp.mreq->imr_interface.s_addr = ncb->local_addr.sin_addr.s_addr;
