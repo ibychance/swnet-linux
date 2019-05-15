@@ -13,7 +13,6 @@ static pthread_mutex_t nl_head_locker = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 void ncb_uninit(int protocol)
 {
     ncb_t *ncb;
-    objhld_t hld;
     struct list_head *root, *pos, *n;
 
     root = &nl_head;
@@ -26,10 +25,10 @@ void ncb_uninit(int protocol)
             pthread_mutex_unlock(&nl_head_locker);
 
             INIT_LIST_HEAD(&ncb->nl_entry);
-            hld = ncb->hld;
+            nis_call_ecr("[nshost.ncb.ncb_uninit] link:%lld close by ncb uninit", ncb->hld);
+            objclos(ncb->hld);
 
-            nis_call_ecr("[nshost.ncb.ncb_uninit] link:%lld close by ncb uninit", hld);
-            objclos(hld);
+            pthread_mutex_lock(&nl_head_locker);
         }
     }
     pthread_mutex_unlock(&nl_head_locker);
