@@ -364,8 +364,9 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
            on success, MUST attach this file descriptor to epoll as early as possible.
            Even so, It is also possible a close message post to calling thread early then connected message  */
         retval = io_attach(ncb, EPOLLIN);
-        if (retval >= 0) {
-            ncb_post_connected(ncb);
+        if (retval < 0) {
+            objclos(lnk);
+            break;
         }
 
         /* set other options */
@@ -379,6 +380,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
         /* set handler function pointer to Rx/Tx */
         ncb->ncb_read = &tcp_rx;
         ncb->ncb_write = &tcp_tx;
+        ncb_post_connected(ncb);
 
     }while( 0 );
 
