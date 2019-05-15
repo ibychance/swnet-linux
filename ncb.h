@@ -41,6 +41,7 @@ struct _ncb {
     int sockfd;         /* the file-descriptor of socket */
     int epfd;           /* the file-descriptor of epoll which binding with @sockfd */
     enum ncb__protocol_type protocol;
+    struct list_head nl_entry;      /* the link entry of all ncb object */
 
     /* the actually buffer for receive */
     unsigned char *packet;
@@ -106,9 +107,11 @@ typedef struct _ncb ncb_t;
 #define ncb_lb_marked(ncb) ((ncb) ? ((NULL != ncb->u.tcp.lbdata) && (ncb->u.tcp.lbsize > 0)) : (0))
 
 extern
-int ncb_init(ncb_t *ncb);
+void ncb_uninit(int protocol);
 extern
-void ncb_uninit(objhld_t ignore, void */*ncb_t * */ncb);
+int ncb_allocator(void *udata, const void *ctx, int ctxcb);
+extern
+void ncb_destructor(objhld_t ignore, void */*ncb_t * */ncb);
 
 extern
 int ncb_set_rcvtimeo(const ncb_t *ncb, const struct timeval *timeo);

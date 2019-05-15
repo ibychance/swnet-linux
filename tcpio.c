@@ -7,15 +7,136 @@
 #include "io.h"
 
 static
-int __tcp_syn(ncb_t *ncb_server)
+int __tcp_syn_try(ncb_t *ncb_server, int *clientfd, int *ctrlcode)
 {
-    int fd_client;
     struct sockaddr_in addr_income;
     socklen_t addrlen;
-    ncb_t *ncb_client;
-    objhld_t hld_client;
-    int errcode;
+    int e;
+
+    if (!ncb_server || !clientfd || !ctrlcode) {
+        return -EINVAL;
+    }
+
+    addrlen = sizeof ( addr_income);
+    *clientfd = accept(ncb_server->sockfd, (struct sockaddr *) &addr_income, &addrlen);
+    e = errno;
+    if (*clientfd < 0) {
+        switch (e) {
+        /* The system call was interrupted by a signal that was caught before a valid connection arrived, or this connection has been aborted.
+            in these case , this round of operation ignore, try next round accept notified by epoll */
+            case EINTR:
+            case ECONNABORTED:
+                *ctrlcode = 0;
+                break;
+
+             /* no more data canbe read, waitting for next epoll edge trigger */
+            case EAGAIN:
+                *ctrlcode = EAGAIN;
+                break;
+
+        /* The per-process/system-wide limit on the number of open file descriptors has been reached, or
+            Not enough free memory, or Firewall rules forbid connection.
+            in these cases, this round of operation can fail, but the service link must be retain */
+            case ENFILE:
+            case ENOBUFS:
+            case ENOMEM:
+            case EPERM:
+                nis_call_ecr("[nshost.tcpio.__tcp_syn] non-fatal error occurred syscall accept(2), code:%d, link:%lld", e, ncb_server->hld);
+                *ctrlcode = e;
+                break;
+
+        /* ERRORs: (in the any of the following cases, the listening service link will be automatic destroy)
+            EBADFD      The sockfd is not an open file descriptor
+            EFAULT      The addr argument is not in a writable part of the user address space
+            EINVAL      Socket is not listening for connections, or addrlen is invalid (e.g., is negative), or invalid value in falgs
+            ENOTSOCK    The file descriptor sockfd does not refer to a socket
+            EOPNOTSUPP  The referenced socket is not of type SOCK_STREAM.
+            EPROTO      Protocol error. */
+            default:
+                nis_call_ecr("[nshost.tcpio.__tcp_syn] fatal error occurred syscall accept(2), error:%d, link:%lld", e, ncb_server->hld);
+                *ctrlcode = -1;
+                break;
+        }
+        return -1;
+    }
+
+    return 0;
+}
+
+static
+int __tcp_syn_dpc(ncb_t *ncb_server, ncb_t *ncb)
+{
+    socklen_t addrlen;
+
+    if (!ncb_server || !ncb) {
+        return -EINVAL;
+    }
+
+    /*all file descriptor must kept asynchronous with ET mode*/
+    if (io_set_asynchronous(ncb->sockfd) < 0) {
+        return -1;
+    }
+
+    /* attach to epoll as early as it can to ensure the EPOLLRDHUP and EPOLLERR event not be lost,
+        BUT do NOT allow the EPOLLIN event, because receive message should NOT early than accepted message */
+    if (io_attach(ncb, 0) < 0) {
+        return -1;
+    }
+
+    /* save local and remote address struct */
+    getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* remote */
+    getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* local */
+
+    /* set other options */
+    tcp_update_opts(ncb);
+
+    /* acquire save TCP Info and adjust linger in the accept phase.
+        l_onoff on and l_linger not zero, these settings means:
+        TCP drop any data cached in the kernel buffer of this socket file descriptor when close(2) called.
+        post a TCP-RST to peer, do not use FIN-FINACK, using this flag to avoid TIME_WAIT stauts */
+    ncb_set_linger(ncb, 1, 0);
+
+    /* allocate memory for TCP normal package */
+    ncb->packet = (unsigned char *) malloc(TCP_BUFFER_SIZE);
+    if (!ncb->packet) {
+        return -ENOMEM;
+    }
+
+    /* clear the protocol head */
+    ncb->u.tcp.rx_parse_offset = 0;
+    ncb->u.tcp.rx_buffer = (unsigned char *) malloc(TCP_BUFFER_SIZE);
+    if (!ncb->u.tcp.rx_buffer) {
+        return -ENOMEM;
+    }
+
+    /* specify data handler proc for client ncb object */
+    ncb->ncb_read = &tcp_rx;
+    ncb->ncb_write = &tcp_tx;
+
+    /* copy the context from listen fd to accepted one in needed */
+    if (ncb_server->u.tcp.attr & LINKATTR_TCP_UPDATE_ACCEPT_CONTEXT) {
+        ncb->u.tcp.attr = ncb_server->u.tcp.attr;
+        memcpy(&ncb->u.tcp.template, &ncb_server->u.tcp.template, sizeof(tst_t));
+    }
+
+    /* tell calling thread, link has been accepted.
+        user can rewrite some context in callback even if LINKATTR_TCP_UPDATE_ACCEPT_CONTEXT is set */
+    ncb_post_accepted(ncb_server, ncb->hld);
+
+    /* allow the EPOLLIN event to visit this file-descriptor */
+    io_modify(ncb, EPOLLIN);
+    return 0;
+}
+
+static
+int __tcp_syn(ncb_t *ncb_server)
+{
+    ncb_t *ncb;
+    objhld_t hld;
     struct tcp_info ktcp;
+    int retval;
+
+    retval = 0;
 
     /* get the socket status of tcp_info to check the socket tcp statues,
         it must be listen states when accept syscall */
@@ -26,112 +147,28 @@ int __tcp_syn(ncb_t *ncb_server)
         }
     }
 
-    addrlen = sizeof ( addr_income);
-    fd_client = accept(ncb_server->sockfd, (struct sockaddr *) &addr_income, &addrlen);
-    errcode = errno;
-    if (fd_client < 0) {
-
-        /* The system call was interrupted by a signal that was caught before a valid connection arrived, or this connection has been aborted.
-            in these case , this round of operation ignore, try next round accept notified by epoll */
-        if ((errcode == EINTR) || (ECONNABORTED == errcode) ) {
-            return 0;
-        }
-
-        /* no more data canbe read, waitting for next epoll edge trigger */
-        if ((errcode == EAGAIN) || (errcode == EWOULDBLOCK)) {
-            return EAGAIN;
-        }
-
-        /* The per-process/system-wide limit on the number of open file descriptors has been reached, or
-            Not enough free memory, or Firewall rules forbid connection.
-            in these cases, this round of operation can fail, but the service link must be retain */
-        if ((ENFILE == errcode) || (ENOBUFS == errcode) || (ENOMEM == errcode) || (EPERM == errcode)) {
-            nis_call_ecr("[nshost.tcpio.__tcp_syn] non-fatal error occurred syscall accept(2), code:%d, link:%lld", errcode, ncb_server->hld);
-            return errcode;
-        }
-
-        /* ERRORs: (in the any of the following cases, the listening service link will be automatic destroy)
-            EBADFD      The sockfd is not an open file descriptor
-            EFAULT      The addr argument is not in a writable part of the user address space
-            EINVAL      Socket is not listening for connections, or addrlen is invalid (e.g., is negative), or invalid value in falgs
-            ENOTSOCK    The file descriptor sockfd does not refer to a socket
-            EOPNOTSUPP  The referenced socket is not of type SOCK_STREAM.
-            EPROTO      Protocol error. */
-        nis_call_ecr("[nshost.tcpio.__tcp_syn] fatal error occurred syscall accept(2), error:%d, link:%lld", errcode, ncb_server->hld);
-        return -1;
-    }
-
-    /* allocate ncb object for client */
-    hld_client = objallo(sizeof ( ncb_t), NULL, &ncb_uninit, NULL, 0);
-    if (hld_client < 0) {
-        close(fd_client);
+    hld = objallo(sizeof ( ncb_t), &ncb_allocator, &ncb_destructor, NULL, 0);
+    if (hld < 0) {
         return 0;
     }
-    ncb_client = objrefr(hld_client);
+    ncb = objrefr(hld);
+    assert(ncb);
+    ncb->hld = hld;
 
-    do {
-        ncb_init(ncb_client);
-        ncb_client->hld = hld_client;
-        ncb_client->sockfd = fd_client;
-        ncb_client->protocol = kProtocolType_TCP;
-        ncb_client->nis_callback = ncb_server->nis_callback;
+    /* try syscall connect(2) once, if accept socket fatal, the ncb object willbe destroy */
+    if (__tcp_syn_try(ncb_server, &ncb->sockfd, &retval) < 0) {
+        objclos(hld);
+    } else {
+        ncb->protocol = kProtocolType_TCP;
+        ncb->nis_callback = ncb_server->nis_callback;
 
-        /* save local and remote address struct */
-        getpeername(fd_client, (struct sockaddr *) &ncb_client->remot_addr, &addrlen); /* remote */
-        getsockname(fd_client, (struct sockaddr *) &ncb_client->local_addr, &addrlen); /* local */
-
-        /*all file descriptor must kept asynchronous with ET mode*/
-        if (io_set_asynchronous(ncb_client->sockfd) < 0) {
-            break;
+        /* initial the client ncb object, link willbe destroy on fatal. */
+        if (__tcp_syn_dpc(ncb_server, ncb) < 0) {
+            objclos(hld);
         }
-
-        /* set other options */
-        tcp_update_opts(ncb_client);
-
-        /* acquire save TCP Info and adjust linger in the accept phase.
-            l_onoff on and l_linger not zero, these settings means:
-            TCP drop any data cached in the kernel buffer of this socket file descriptor when close(2) called.
-            post a TCP-RST to peer, do not use FIN-FINACK, using this flag to avoid TIME_WAIT stauts */
-        ncb_set_linger(ncb_client, 1, 0);
-
-        /* allocate memory for TCP normal package */
-        ncb_client->packet = (unsigned char *) malloc(TCP_BUFFER_SIZE);
-        if (!ncb_client->packet) {
-            break;
-        }
-
-        /* clear the protocol head */
-        ncb_client->u.tcp.rx_parse_offset = 0;
-        ncb_client->u.tcp.rx_buffer = (unsigned char *) malloc(TCP_BUFFER_SIZE);
-        if (!ncb_client->u.tcp.rx_buffer) {
-            break;
-        }
-
-        /* specify data handler proc for client ncb object */
-        ncb_client->ncb_read = &tcp_rx;
-        ncb_client->ncb_write = &tcp_tx;
-
-        /* copy the context from listen fd to accepted one in needed */
-        if (ncb_server->u.tcp.attr & LINKATTR_TCP_UPDATE_ACCEPT_CONTEXT) {
-            ncb_client->u.tcp.attr = ncb_server->u.tcp.attr;
-            memcpy(&ncb_client->u.tcp.template, &ncb_server->u.tcp.template, sizeof(tst_t));
-        }
-
-        /* tell calling thread, link has been accepted.
-            user can rewrite some context in callback even if LINKATTR_TCP_UPDATE_ACCEPT_CONTEXT is set */
-        ncb_post_accepted(ncb_server, hld_client);
-
-        if (io_attach(ncb_client, EPOLLIN) < 0) {
-            break;
-        }
-
-        objdefr(hld_client);
-        return 0;
-    } while (0);
-
-    objdefr(hld_client);
-    objclos(hld_client);
-    return 0;
+    }
+    objdefr(hld);
+    return retval;
 }
 
 int tcp_syn(ncb_t *ncb_server)

@@ -81,17 +81,18 @@ void tcp_update_opts(const ncb_t *ncb)
 int tcp_init()
 {
 	int retval;
-	
+
 	retval = io_init(kProtocolType_TCP);
 	if (0 != retval) {
 		return retval;
 	}
-	
+
 	return wp_init(kProtocolType_TCP);
 }
 
 void tcp_uninit()
 {
+    ncb_uninit(kProtocolType_TCP);
     io_uninit(kProtocolType_TCP);
     wp_uninit(kProtocolType_TCP);
 }
@@ -130,7 +131,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
         return -1;
     }
 
-    hld = objallo(sizeof(ncb_t), NULL, &ncb_uninit, NULL, 0);
+    hld = objallo(sizeof(ncb_t), &ncb_allocator, &ncb_destructor, NULL, 0);
     if (hld < 0) {
         nis_call_ecr("[nshost.tcp.create] insufficient resource for allocate inner object.");
         close(fd);
@@ -140,7 +141,6 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
     assert(ncb);
 
     do {
-        ncb_init(ncb);
         ncb->hld = hld;
         ncb->sockfd = fd;
         ncb->protocol = kProtocolType_TCP;
@@ -419,7 +419,6 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
             (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_read, NULL, &tcp_rx_syn)) ||
             (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_error, NULL, &tcp_rx_syn))) {
             nis_call_ecr("[nshost.tcp.connect2] link:%lld multithreading double call is not allowed.", lnk);
-            retval = -1;
             break;
         }
 
@@ -434,6 +433,13 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
             break;
         }
 
+        /* attach MUST early than connect(2) call,
+            in some case, very short time after connect(2) called, the EPOLLRDHUP event has been arrived,
+            if attach not in time, error information maybe lost, then cause the file-descriptor leak.  */
+        if (io_attach(ncb, EPOLLOUT | EPOLLIN) < 0) {
+            break;
+        }
+
         ncb->remot_addr.sin_family = PF_INET;
         ncb->remot_addr.sin_port = htons(r_port);
         ncb->remot_addr.sin_addr.s_addr = inet_addr(r_ipstr);
@@ -445,11 +451,12 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
 
         /* immediate success */
         if ( 0 == retval) {
+            nis_call_ecr("[nshost.tcp.connect2] asynchronous file descriptor but success immediate, link:%lld", link);
             break;
         }
 
         if (e == EINPROGRESS) {
-            retval = io_attach(ncb, EPOLLOUT | EPOLLIN);
+            retval = 0;
             break;
         }
 

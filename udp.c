@@ -6,7 +6,8 @@
 #include "wpool.h"
 
 static
-int udprefr( objhld_t hld, ncb_t **ncb ) {
+int udprefr( objhld_t hld, ncb_t **ncb )
+{
     if ( hld < 0 || !ncb) {
         return -ENOENT;
     }
@@ -25,7 +26,8 @@ int udprefr( objhld_t hld, ncb_t **ncb ) {
     return -ENOENT;
 }
 
-static int __udp_update_opts(ncb_t *ncb) {
+static int __udp_update_opts(ncb_t *ncb)
+{
     static const int RECV_BUFFER_SIZE = 0xFFFF;
     static const int SEND_BUFFER_SIZE = 0xFFFF;
 
@@ -39,9 +41,10 @@ static int __udp_update_opts(ncb_t *ncb) {
     return 0;
 }
 
-int udp_init() {
+int udp_init()
+{
 	int retval;
-	
+
 	retval = io_init(kProtocolType_UDP);
 	if (0 != retval) {
 		return retval;
@@ -49,12 +52,15 @@ int udp_init() {
 	return wp_init(kProtocolType_UDP);
 }
 
-void udp_uninit() {
+void udp_uninit()
+{
+    ncb_uninit(kProtocolType_UDP);
     io_uninit(kProtocolType_UDP);
     wp_uninit(kProtocolType_UDP);
 }
 
-HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16_t l_port, int flag) {
+HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16_t l_port, int flag)
+{
     int fd;
     struct sockaddr_in addrlocal;
     int retval;
@@ -82,7 +88,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
         return -1;
     }
 
-    hld = objallo(sizeof ( ncb_t), NULL, &ncb_uninit, NULL, 0);
+    hld = objallo(sizeof ( ncb_t), &ncb_allocator, &ncb_destructor, NULL, 0);
     if (hld < 0) {
         nis_call_ecr("[nshost.udp.create] insufficient resource for allocate inner object");
         close(fd);
@@ -92,8 +98,6 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
     assert(ncb);
 
     do {
-        ncb_init(ncb);
-
         /* copy initialize parameters */
         ncb->nis_callback = user_callback;
         ncb->sockfd = fd;
@@ -152,7 +156,8 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
     return -1;
 }
 
-void udp_destroy(HUDPLINK lnk) {
+void udp_destroy(HUDPLINK lnk)
+{
     ncb_t *ncb;
 
     /* it should be the last reference operation of this object no matter how many ref-count now. */
@@ -164,7 +169,8 @@ void udp_destroy(HUDPLINK lnk) {
     }
 }
 
-int udp_write(HUDPLINK lnk, const void *origin, int cb, const char* r_ipstr, uint16_t r_port, const nis_serializer_t serializer) {
+int udp_write(HUDPLINK lnk, const void *origin, int cb, const char* r_ipstr, uint16_t r_port, const nis_serializer_t serializer)
+{
     int retval;
     ncb_t *ncb;
     unsigned char *buffer;
@@ -262,7 +268,8 @@ int udp_write(HUDPLINK lnk, const void *origin, int cb, const char* r_ipstr, uin
     return retval;
 }
 
-int udp_getaddr(HUDPLINK lnk, uint32_t *ipv4, uint16_t *port) {
+int udp_getaddr(HUDPLINK lnk, uint32_t *ipv4, uint16_t *port)
+{
     ncb_t *ncb;
     int retval;
 
@@ -282,7 +289,8 @@ int udp_getaddr(HUDPLINK lnk, uint32_t *ipv4, uint16_t *port) {
     return retval;
 }
 
-int udp_setopt(HUDPLINK lnk, int level, int opt, const char *val, int len) {
+int udp_setopt(HUDPLINK lnk, int level, int opt, const char *val, int len)
+{
     ncb_t *ncb;
     int retval;
 
@@ -297,7 +305,8 @@ int udp_setopt(HUDPLINK lnk, int level, int opt, const char *val, int len) {
     return retval;
 }
 
-int udp_getopt(HUDPLINK lnk, int level, int opt, char *val, int *len) {
+int udp_getopt(HUDPLINK lnk, int level, int opt, char *val, int *len)
+{
     ncb_t *ncb;
     int retval;
 
@@ -312,14 +321,16 @@ int udp_getopt(HUDPLINK lnk, int level, int opt, char *val, int *len) {
     return retval;
 }
 
-int udp_set_boardcast(ncb_t *ncb, int enable) {
+int udp_set_boardcast(ncb_t *ncb, int enable)
+{
     if (ncb) {
         return setsockopt(ncb->sockfd, SOL_SOCKET, SO_BROADCAST, (const void *) &enable, sizeof (enable));
     }
     return -EINVAL;
 }
 
-int udp_get_boardcast(ncb_t *ncb, int *enabled) {
+int udp_get_boardcast(ncb_t *ncb, int *enabled)
+{
     if (ncb && enabled) {
         socklen_t optlen = sizeof (int);
         return getsockopt(ncb->sockfd, SOL_SOCKET, SO_BROADCAST, (void * __restrict)enabled, &optlen);
@@ -346,7 +357,8 @@ int udp_get_boardcast(ncb_t *ncb, int *enabled) {
  *  至于广播则和组播有一些相似，区别是路由器向子网内的每一个终端都投递一份数据包，不论这些终端是否乐于接收该数据包。UDP广播只能在内网（同一网段）有效，而组播可以较好实现跨网段群发数据。
  *   UDP组播是采用的无连接,数据报的连接方式，所以是不可靠的。也就是数据能不能到达接受端和数据到达的顺序都是不能保证的。但是由于UDP不用保证数据 的可靠性，所有数据的传送效率是很快的。
  */
-int udp_joingrp(HUDPLINK lnk, const char *g_ipstr, uint16_t g_port) {
+int udp_joingrp(HUDPLINK lnk, const char *g_ipstr, uint16_t g_port)
+{
     ncb_t *ncb;
     int retval;
 
@@ -390,7 +402,8 @@ int udp_joingrp(HUDPLINK lnk, const char *g_ipstr, uint16_t g_port) {
     return retval;
 }
 
-int udp_dropgrp(HUDPLINK lnk){
+int udp_dropgrp(HUDPLINK lnk)
+{
     ncb_t *ncb;
     int retval;
 
