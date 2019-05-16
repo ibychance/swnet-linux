@@ -24,7 +24,9 @@ void ncb_uninit(int protocol)
 
     root = &nl_head;
     hlds = NULL;
+    nl_count_proto = 0;
 
+    /* duplicate all pending objects, and than try to close it */
     pthread_mutex_lock(&nl_head_locker);
     do {
         if (nl_count <= 0 ) {
@@ -36,7 +38,6 @@ void ncb_uninit(int protocol)
             break;
         }
 
-        nl_count_proto = 0;
         list_for_each_safe(cursor, n, root) {
             ncb = containing_record(cursor, ncb_t, nl_entry);
             if (ncb->protocol == protocol) {
@@ -49,7 +50,7 @@ void ncb_uninit(int protocol)
     } while(0);
     pthread_mutex_unlock(&nl_head_locker);
 
-    if (hlds) {
+    if (hlds && nl_count_proto > 0) {
         for (i = 0 ; i < nl_count_proto; i++) {
             nis_call_ecr("[nshost.ncb.ncb_uninit] link:%lld close by ncb uninit", ncb->hld);
             objclos(hlds[i]);
@@ -184,7 +185,8 @@ int ncb_get_iptos(const ncb_t *ncb)
 
 int ncb_set_window_size(const ncb_t *ncb, int dir, int size)
 {
-    return (NULL != ncb) ? setsockopt(ncb->sockfd, SOL_SOCKET, dir, (const void *)&size, sizeof(size)) : -EINVAL;
+    return (NULL != ncb) ?
+            setsockopt(ncb->sockfd, SOL_SOCKET, dir, (const void *)&size, sizeof(size)) : -EINVAL;
 }
 
 int ncb_get_window_size(const ncb_t *ncb, int dir, int *size)

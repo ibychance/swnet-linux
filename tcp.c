@@ -484,8 +484,9 @@ int tcp_listen(HTCPLINK lnk, int block)
     ncb_t *ncb;
     int retval;
     struct tcp_info ktcp;
+    socklen_t addrlen;
 
-    if (block <= 0 || block >= 0x7FFF) {
+    if (block < 0 || block >= 0x7FFF) {
         return -EINVAL;
     }
 
@@ -529,6 +530,11 @@ int tcp_listen(HTCPLINK lnk, int block)
             nis_call_ecr("[nshost.tcp.listen] fatal error occurred syscall listen(2),error:%u", errno);
             break;
         }
+
+        /* allow application to listen on the random port,
+            therefor, framework MUST query the real address information for this file descriptor now */
+        addrlen = sizeof(struct sockaddr);
+        getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen);
 
         retval = 0;
     } while (0);
