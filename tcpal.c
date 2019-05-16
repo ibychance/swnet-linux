@@ -16,7 +16,7 @@ static int tcp_parse_marked_lb(ncb_t *ncb, const unsigned char *cpbuff, int cpcb
     overplus = ncb->u.tcp.lbsize - ncb->u.tcp.lboffset;
     memcpy(ncb->u.tcp.lbdata + ncb->u.tcp.lboffset, cpbuff, overplus);
 
-    if (ncb->u.tcp.attr & LINKATTR_TCP_FULLY_RECEIVE) {
+    if (ncb->attr & LINKATTR_TCP_FULLY_RECEIVE) {
         ncb_post_recvdata(ncb, ncb->u.tcp.lbsize, ncb->u.tcp.lbdata);
     } else {
         ncb_post_recvdata(ncb, ncb->u.tcp.lbsize - ncb->u.tcp.template.cb_, ncb->u.tcp.lbdata + ncb->u.tcp.template.cb_);
@@ -129,7 +129,7 @@ int tcp_parse_pkt(ncb_t *ncb, const unsigned char *data, int cpcb)
             (The total number of bytes consumed to build this package) */
         retcb = (overplus - (total_packet_length - ncb->u.tcp.rx_parse_offset));
 
-        if (ncb->u.tcp.attr & LINKATTR_TCP_FULLY_RECEIVE) {
+        if (ncb->attr & LINKATTR_TCP_FULLY_RECEIVE) {
             ncb_post_recvdata(ncb, user_data_size + ncb->u.tcp.template.cb_, ncb->packet);
         } else {
             ncb_post_recvdata(ncb, user_data_size, ncb->packet + ncb->u.tcp.template.cb_);

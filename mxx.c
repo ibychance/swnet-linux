@@ -8,13 +8,13 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <netdb.h>
-#include <ifaddrs.h>  
-#include <arpa/inet.h> 
+#include <ifaddrs.h>
+#include <arpa/inet.h>
 
 #include "nisdef.h"
 #include "ncb.h"
 
-int nis_getver(swnet_version_t *version) 
+int nis_getver(swnet_version_t *version)
 {
     if (!version) {
         return -1;
@@ -27,7 +27,7 @@ int nis_getver(swnet_version_t *version)
     return 0;
 }
 
-char *nis_lgethost(char *name, int cb) 
+char *nis_lgethost(char *name, int cb)
 {
     if (name && cb > 0) {
         if (0 == gethostname(name, cb)) {
@@ -39,7 +39,7 @@ char *nis_lgethost(char *name, int cb)
     return name;
 }
 
-int nis_gethost(const char *name, uint32_t *ipv4) 
+int nis_gethost(const char *name, uint32_t *ipv4)
 {
     struct hostent *remote, ret;
     struct in_addr addr;
@@ -49,25 +49,25 @@ int nis_gethost(const char *name, uint32_t *ipv4)
     if (!name || !ipv4) {
         return -EINVAL;
     }
-    
+
     *ipv4 = 0;
     remote = NULL;
 
     if (isalpha(name[0])) { /* host address is a name */
         gethostbyname_r(name, &ret, buf, sizeof(buf), &remote, &h_errnop);
     } else {
-        /* 
-        inet_aton() converts the Internet host address cp from the IPv4 numbers-and-dots notation into binary form (in network byte order) 
-                    and stores it in the structure that inp points to.  
+        /*
+        inet_aton() converts the Internet host address cp from the IPv4 numbers-and-dots notation into binary form (in network byte order)
+                    and stores it in the structure that inp points to.
         inet_aton() returns nonzero if the address is valid, zero if not.  The address supplied in cp can have one of the following forms:
         a.b.c.d   Each of the four numeric parts specifies a byte of the address; the bytes are assigned in left-to-right order to produce the binary address.
-        a.b.c     Parts a and b specify the first two bytes of the binary address.  
-                 Part c is interpreted as a 16-bit value that defines the rightmost two bytes of the binary address.  
+        a.b.c     Parts a and b specify the first two bytes of the binary address.
+                 Part c is interpreted as a 16-bit value that defines the rightmost two bytes of the binary address.
                  This  notation  is  suitable  for  specifying  (outmoded)  Class  B  network addresses.
         a.b       Part a specifies the first byte of the binary address.  Part b is interpreted as a 24-bit value that defines the rightmost three bytes of the binary address.  This notation is suitable for specifying (outmoded) Class A network addresses.
         a         The value a is interpreted as a 32-bit value that is stored directly into the binary address without any byte rearrangement.
-        In  all  of  the  above forms, components of the dotted address can be specified in decimal, octal (with a leading 0), or hexadecimal, with a leading 0X).  
-        Addresses in any of these forms are collectively termed IPV4 numbers-and-dots notation.  
+        In  all  of  the  above forms, components of the dotted address can be specified in decimal, octal (with a leading 0), or hexadecimal, with a leading 0X).
+        Addresses in any of these forms are collectively termed IPV4 numbers-and-dots notation.
         The form that uses exactly four decimal numbers is referred to as IPv4 dotted-decimal notation (or sometimes: IPv4 dotted-quad notation).
         inet_aton() returns 1 if the supplied string was successfully interpreted, or 0 if the string is invalid (errno is not set on error).
         */
@@ -79,7 +79,7 @@ int nis_gethost(const char *name, uint32_t *ipv4)
     if (!remote) {
         return -1;
     }
-    
+
     /* only IPv4 protocol supported */
     if (AF_INET != remote->h_addrtype) {
         return -EPROTONOSUPPORT;
@@ -101,7 +101,7 @@ int nis_gethost(const char *name, uint32_t *ipv4)
 /* manage ECR and it's calling */
 static nis_event_callback_t current_ecr = NULL;
 
-nis_event_callback_t nis_checr(const nis_event_callback_t ecr) 
+nis_event_callback_t nis_checr(const nis_event_callback_t ecr)
 {
     if (!ecr) {
         __sync_lock_release(&current_ecr);
@@ -110,12 +110,12 @@ nis_event_callback_t nis_checr(const nis_event_callback_t ecr)
     return __sync_lock_test_and_set(&current_ecr, ecr);
 }
 
-void nis_call_ecr(const char *fmt,...) 
+void nis_call_ecr(const char *fmt,...)
 {
     nis_event_callback_t ecr = NULL;
     nis_event_callback_t old;
     va_list ap;
-    char logstr[1280]; 
+    char logstr[1280];
     int retval;
 
     if (!current_ecr) {
@@ -137,7 +137,7 @@ void nis_call_ecr(const char *fmt,...)
     }
 }
 
-int nis_getifmisc(ifmisc_t *ifv, int *cbifv) 
+int nis_getifmisc(ifmisc_t *ifv, int *cbifv)
 {
     struct ifaddrs *ifa, *ifs;
     int count;
@@ -184,4 +184,43 @@ int nis_getifmisc(ifmisc_t *ifv, int *cbifv)
 
     freeifaddrs(ifs);
     return 0;
+}
+
+int nis_cntl(objhld_t lnk, int cmd, ...)
+{
+    ncb_t *ncb;
+    int retval;
+    va_list ap;
+    void *context;
+
+    ncb = objrefr(lnk);
+    if (!ncb) {
+        return -ENOENT;
+    }
+
+    retval = 0;
+
+    va_start(ap, cmd);
+    switch (cmd) {
+        case NI_SETATTR:
+            __sync_lock_test_and_set(&ncb->attr, va_arg(ap, int));
+            break;
+        case NI_GETATTR:
+            __sync_lock_test_and_set(&retval, ncb->attr);
+            break;
+        case NI_SETCTX:
+            context = va_arg(ap, void *);
+            ncb->previous = __sync_lock_test_and_set(&ncb->context, context);
+            break;
+        case NI_GETCTX:
+            ncb->previous = __sync_lock_test_and_set(&context, ncb->context);
+            *(va_arg(ap, void **) ) = context;
+            break;
+        default:
+            return -EINVAL;
+    }
+    va_end(ap);
+
+    objdefr(lnk);
+    return retval;
 }

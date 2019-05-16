@@ -107,8 +107,8 @@ int __tcp_syn_dpc(ncb_t *ncb_server, ncb_t *ncb)
     ncb->ncb_write = &tcp_tx;
 
     /* copy the context from listen fd to accepted one in needed */
-    if (ncb_server->u.tcp.attr & LINKATTR_TCP_UPDATE_ACCEPT_CONTEXT) {
-        ncb->u.tcp.attr = ncb_server->u.tcp.attr;
+    if (ncb_server->attr & LINKATTR_TCP_UPDATE_ACCEPT_CONTEXT) {
+        ncb->attr = ncb_server->attr;
         memcpy(&ncb->u.tcp.template, &ncb_server->u.tcp.template, sizeof(tst_t));
     }
 

@@ -49,7 +49,13 @@ int udp_init()
 	if (0 != retval) {
 		return retval;
 	}
-	return wp_init(kProtocolType_UDP);
+
+    retval = wp_init(kProtocolType_UDP);
+    if (retval < 0) {
+        io_uninit(kProtocolType_UDP);
+    }
+
+    return retval;
 }
 
 void udp_uninit()

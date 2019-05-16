@@ -7,31 +7,55 @@
 
 static LIST_HEAD(nl_head);
 static pthread_mutex_t nl_head_locker = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
+static int nl_count = 0;
+
+static void ncb_post_preclose(const ncb_t *ncb);
+static void ncb_post_closed(const ncb_t *ncb);
 
 /* ncb uninit proc will dereference all ncb object and try to going to close step.
  */
 void ncb_uninit(int protocol)
 {
     ncb_t *ncb;
-    struct list_head *root, *pos, *n;
+    struct list_head *root, *cursor, *n;
+    int i;
+    int nl_count_proto;
+    objhld_t *hlds;
 
     root = &nl_head;
+    hlds = NULL;
 
     pthread_mutex_lock(&nl_head_locker);
-    list_for_each_safe(pos, n, root) {
-        ncb = containing_record(pos, ncb_t, nl_entry);
-        if (ncb->protocol == protocol) {
-            list_del(&ncb->nl_entry);
-            pthread_mutex_unlock(&nl_head_locker);
-
-            INIT_LIST_HEAD(&ncb->nl_entry);
-            nis_call_ecr("[nshost.ncb.ncb_uninit] link:%lld close by ncb uninit", ncb->hld);
-            objclos(ncb->hld);
-
-            pthread_mutex_lock(&nl_head_locker);
+    do {
+        if (nl_count <= 0 ) {
+            break;
         }
-    }
+
+        hlds = (objhld_t *)malloc(nl_count * sizeof(objhld_t));
+        if (!hlds) {
+            break;
+        }
+
+        nl_count_proto = 0;
+        list_for_each_safe(cursor, n, root) {
+            ncb = containing_record(cursor, ncb_t, nl_entry);
+            if (ncb->protocol == protocol) {
+                list_del(&ncb->nl_entry);
+                INIT_LIST_HEAD(&ncb->nl_entry);
+                hlds[nl_count_proto] = ncb->hld;
+                nl_count_proto++;
+            }
+        }
+    } while(0);
     pthread_mutex_unlock(&nl_head_locker);
+
+    if (hlds) {
+        for (i = 0 ; i < nl_count_proto; i++) {
+            nis_call_ecr("[nshost.ncb.ncb_uninit] link:%lld close by ncb uninit", ncb->hld);
+            objclos(hlds[i]);
+        }
+        free(hlds);
+    }
 }
 
 int ncb_allocator(void *udata, const void *ctx, int ctxcb)
@@ -50,6 +74,7 @@ int ncb_allocator(void *udata, const void *ctx, int ctxcb)
     /* insert this ncb node into gloabl nl_head */
     pthread_mutex_lock(&nl_head_locker);
     list_add_tail(&ncb->nl_entry, &nl_head);
+    nl_count++;
     pthread_mutex_unlock(&nl_head_locker);
     return 0;
 }
@@ -65,9 +90,7 @@ void ncb_destructor(objhld_t ignore, void *p)
     }
 
     /* post pre close event to calling thread */
-    if (ncb->hld >= 0) {
-        ncb_post_preclose(ncb);
-    }
+    ncb_post_preclose(ncb);
 
     /* stop network service
      * cancel relation of epoll
@@ -87,19 +110,21 @@ void ncb_destructor(objhld_t ignore, void *p)
     /* clear all packages pending in send queue */
     fifo_uninit(ncb);
 
-    /* post close event to calling thread */
-    if (ncb->hld >= 0) {
-        ncb_post_close(ncb);
-    }
-
-    /* set callback function to ineffectiveness */
-    ncb->nis_callback = NULL;
-
     /* remove entry from global nl_head */
     pthread_mutex_lock(&nl_head_locker);
     list_del(&ncb->nl_entry);
-    pthread_mutex_unlock(&nl_head_locker);
     INIT_LIST_HEAD(&ncb->nl_entry);
+    assert(nl_count > 0);
+    if (nl_count > 0) {
+        nl_count--;
+    }
+    pthread_mutex_unlock(&nl_head_locker);
+
+    /* post close event to calling thread */
+    ncb_post_closed(ncb);
+
+    /* set callback function to ineffectiveness */
+    ncb->nis_callback = NULL;
 
     nis_call_ecr("[nshost.ncb.ncb_destructor] link:%lld finalization released",ncb->hld);
 }
@@ -211,7 +236,7 @@ int ncb_get_linger(const ncb_t *ncb, int *onoff, int *lin)
     return 0;
 }
 
-void ncb_post_preclose(const ncb_t *ncb)
+static void ncb_post_preclose(const ncb_t *ncb)
 {
     nis_event_t c_event;
     tcp_data_t c_data;
@@ -220,13 +245,13 @@ void ncb_post_preclose(const ncb_t *ncb)
         if (ncb->nis_callback) {
             c_event.Ln.Tcp.Link = ncb->hld;
             c_event.Event = EVT_PRE_CLOSE;
-            c_data.e.LinkOption.OptionLink = ncb->hld;
+            c_data.e.ContextPreClose.Context = ncb->context;
             ncb->nis_callback(&c_event, &c_data);
         }
     }
 }
 
-void ncb_post_close(const ncb_t *ncb)
+static void ncb_post_closed(const ncb_t *ncb)
 {
     nis_event_t c_event;
     tcp_data_t c_data;

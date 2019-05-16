@@ -70,6 +70,12 @@ struct _ncb {
      *  */
     int iptos;
 
+    /* user definition context pointer */
+    void *context;
+    void *previous;
+    /* the attributes of TCP link */
+    int attr;
+
     union {
         struct {
             /* TCP packet user-parse offset */
@@ -88,9 +94,6 @@ struct _ncb {
 
             /* MSS of tcp link */
             int mss;
-
-            /* the attributes of TCP link */
-            int attr;
         } tcp;
 
         struct {
@@ -137,10 +140,6 @@ int ncb_set_linger(const ncb_t *ncb, int onoff, int lin);
 extern
 int ncb_get_linger(const ncb_t *ncb, int *onoff, int *lin);
 
-extern
-void ncb_post_preclose(const ncb_t *ncb);
-extern
-void ncb_post_close(const ncb_t *ncb);
 extern
 void ncb_post_recvdata(const ncb_t *ncb,  int cb, const unsigned char *data);
 extern

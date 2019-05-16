@@ -87,7 +87,12 @@ int tcp_init()
 		return retval;
 	}
 
-	return wp_init(kProtocolType_TCP);
+	retval = wp_init(kProtocolType_TCP);
+    if (retval < 0) {
+        io_uninit(kProtocolType_TCP);
+    }
+
+    return retval;
 }
 
 void tcp_uninit()
@@ -573,7 +578,7 @@ int tcp_write(HTCPLINK lnk, const void *origin, int cb, const nis_serializer_t s
         }
 
         /* if template.builder is specified then use it, otherwise, indicate the packet size by input parameter @cb */
-        if (!(*ncb->u.tcp.template.builder_) || (ncb->u.tcp.attr & LINKATTR_TCP_NO_BUILD)) {
+        if (!(*ncb->u.tcp.template.builder_) || (ncb->attr & LINKATTR_TCP_NO_BUILD)) {
             packet_length = cb;
             if (NULL == (buffer = (unsigned char *) malloc(packet_length))) {
                 retval = -ENOMEM;
@@ -900,7 +905,7 @@ int tcp_setattr(HTCPLINK lnk, int attr, int enable)
         case LINKATTR_TCP_FULLY_RECEIVE:
         case LINKATTR_TCP_NO_BUILD:
         case LINKATTR_TCP_UPDATE_ACCEPT_CONTEXT:
-            (enable > 0) ? (ncb->u.tcp.attr |= attr) : (ncb->u.tcp.attr &= ~attr);
+            (enable > 0) ? (ncb->attr |= attr) : (ncb->attr &= ~attr);
             retval = 0;
             break;
         default:
@@ -922,7 +927,7 @@ int tcp_getattr(HTCPLINK lnk, int attr, int *enabled)
         return retval;
     }
 
-    if (ncb->u.tcp.attr & attr) {
+    if (ncb->attr & attr) {
         *enabled = 1;
     } else {
         *enabled = 0;
