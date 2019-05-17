@@ -72,7 +72,7 @@ struct _ncb {
 
     /* user definition context pointer */
     void *context;
-    void *previous;
+    void *prcontext;
     /* the attributes of TCP link */
     int attr;
 
@@ -91,6 +91,7 @@ struct _ncb {
 
              /* template for make/build package */
             tst_t template;
+            tst_t prtemplate;
 
             /* MSS of tcp link */
             int mss;

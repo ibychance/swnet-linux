@@ -177,7 +177,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
     return -1;
 }
 
-int tcp_settst(HTCPLINK lnk, const tst_t *tst)
+int tcp_settst(HTCPLINK link, const tst_t *tst)
 {
     ncb_t *ncb;
     int retval;
@@ -192,7 +192,7 @@ int tcp_settst(HTCPLINK lnk, const tst_t *tst)
         return -EINVAL;
     }
 
-    retval = tcprefr(lnk, &ncb);
+    retval = tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -200,11 +200,11 @@ int tcp_settst(HTCPLINK lnk, const tst_t *tst)
     ncb->u.tcp.template.cb_ = tst->cb_;
     ncb->u.tcp.template.builder_ = tst->builder_;
     ncb->u.tcp.template.parser_ = tst->parser_;
-    objdefr(lnk);
+    objdefr(link);
     return retval;
 }
 
-int tcp_gettst(HTCPLINK lnk, tst_t *tst)
+int tcp_settst_r(HTCPLINK link, tst_t *tst)
 {
     ncb_t *ncb;
     int retval;
@@ -213,7 +213,34 @@ int tcp_gettst(HTCPLINK lnk, tst_t *tst)
         return -EINVAL;
     }
 
-    retval = tcprefr(lnk, &ncb);
+     /* size of tcp template must be less or equal to 32 bytes */
+    if (tst->cb_ > TCP_MAXIMUM_TEMPLATE_SIZE) {
+        nis_call_ecr("[nshost.tcp.settst] tst size must less than 32 byte.");
+        return -EINVAL;
+    }
+
+    retval = tcprefr(link, &ncb);
+    if (retval < 0) {
+        return retval;
+    }
+
+    ncb->u.tcp.prtemplate.cb_ = __sync_lock_test_and_set(&ncb->u.tcp.template.cb_, tst->cb_);
+    ncb->u.tcp.prtemplate.builder_ = __sync_lock_test_and_set(&ncb->u.tcp.template.builder_, tst->builder_);
+    ncb->u.tcp.prtemplate.parser_ = __sync_lock_test_and_set(&ncb->u.tcp.template.parser_, tst->parser_);
+    objdefr(link);
+    return retval;
+}
+
+int tcp_gettst(HTCPLINK link, tst_t *tst)
+{
+    ncb_t *ncb;
+    int retval;
+
+    if (!tst) {
+        return -EINVAL;
+    }
+
+    retval = tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -221,7 +248,33 @@ int tcp_gettst(HTCPLINK lnk, tst_t *tst)
     tst->cb_ = ncb->u.tcp.template.cb_;
     tst->builder_ = ncb->u.tcp.template.builder_;
     tst->parser_ = ncb->u.tcp.template.parser_;
-    objdefr(lnk);
+    objdefr(link);
+    return retval;
+}
+
+int tcp_gettst_r(HTCPLINK link, tst_t *tst, tst_t *previous)
+{
+    ncb_t *ncb;
+    int retval;
+    tst_t local;
+
+    if (!tst) {
+        return -EINVAL;
+    }
+
+    retval = tcprefr(link, &ncb);
+    if (retval < 0) {
+        return retval;
+    }
+
+    local.cb_ = __sync_lock_test_and_set(&tst->cb_, ncb->u.tcp.template.cb_);
+    local.builder_ = __sync_lock_test_and_set(&tst->builder_, ncb->u.tcp.template.builder_);
+    local.parser_ = __sync_lock_test_and_set(&tst->parser_, ncb->u.tcp.template.parser_);
+    objdefr(link);
+
+    if (previous) {
+        memcpy(previous, &local, sizeof(local));
+    }
     return retval;
 }
 
@@ -229,16 +282,16 @@ int tcp_gettst(HTCPLINK lnk, tst_t *tst)
  * Object destruction operations may be intended to interrupt some blocking operations. just like @tcp_connect
  * so,close the file descriptor directly, destroy the object by the smart pointer.
  */
-void tcp_destroy(HTCPLINK lnk)
+void tcp_destroy(HTCPLINK link)
 {
     ncb_t *ncb;
 
     /* it should be the last reference operation of this object, no matter how many ref-count now. */
-    ncb = objreff(lnk);
+    ncb = objreff(link);
     if (ncb) {
         nis_call_ecr("[nshost.tcp.destroy] link:%lld order to destroy", ncb->hld);
         io_close(ncb);
-        objdefr(lnk);
+        objdefr(link);
     }
 }
 
@@ -313,7 +366,7 @@ static int __tcp_check_connection(int sockfd)
 
 #endif
 
-int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
+int tcp_connect(HTCPLINK link, const char* r_ipstr, uint16_t r_port)
 {
     ncb_t *ncb;
     int retval;
@@ -323,11 +376,11 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
     int optval;
     struct tcp_info ktcp;
 
-    if (lnk < 0 || !r_ipstr || 0 == r_port ) {
+    if (link < 0 || !r_ipstr || 0 == r_port ) {
         return -EINVAL;
     }
 
-    retval = tcprefr(lnk, &ncb);
+    retval = tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -338,7 +391,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
         /* get the socket status of tcp_info to check the socket tcp statues */
         if (tcp_save_info(ncb, &ktcp) >= 0) {
             if (ktcp.tcpi_state != TCP_CLOSE) {
-                nis_call_ecr("[nshost.tcp.connect] state illegal,link:%lld, kernel states:%s.", lnk, tcp_state2name(ktcp.tcpi_state));
+                nis_call_ecr("[nshost.tcp.connect] state illegal,link:%lld, kernel states:%s.", link, tcp_state2name(ktcp.tcpi_state));
                 break;
             }
         }
@@ -359,7 +412,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
 
         if (retval < 0) {
             /* if this socket is already connected, or it is in listening states, sys-call failed with error EISCONN  */
-            nis_call_ecr("[nshost.tcp.connect] fatal error occurred syscall connect(2), %s:%u, error:%u, link:%lld", r_ipstr, r_port, e, lnk);
+            nis_call_ecr("[nshost.tcp.connect] fatal error occurred syscall connect(2), %s:%u, error:%u, link:%lld", r_ipstr, r_port, e, link);
             break;
         }
 
@@ -370,7 +423,7 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
            Even so, It is also possible a close message post to calling thread early then connected message  */
         retval = io_attach(ncb, EPOLLIN);
         if (retval < 0) {
-            objclos(lnk);
+            objclos(link);
             break;
         }
 
@@ -389,11 +442,11 @@ int tcp_connect(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
 
     }while( 0 );
 
-    objdefr(lnk);
+    objdefr(link);
     return retval;
 }
 
-int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
+int tcp_connect2(HTCPLINK link, const char* r_ipstr, uint16_t r_port)
 {
     ncb_t *ncb;
     int retval;
@@ -401,11 +454,11 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
     int optval;
     struct tcp_info ktcp;
 
-    if (!r_ipstr || 0 == r_port || lnk < 0 ) {
+    if (!r_ipstr || 0 == r_port || link < 0 ) {
         return -EINVAL;
     }
 
-    retval = tcprefr(lnk, &ncb);
+    retval = tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -416,7 +469,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
         /* get the socket status of tcp_info to check the socket tcp statues */
         if (tcp_save_info(ncb, &ktcp) >= 0) {
             if (ktcp.tcpi_state != TCP_CLOSE) {
-                nis_call_ecr("[nshost.tcp.connect2] state illegal,link:%lld, kernel states:%s.", lnk, tcp_state2name(ktcp.tcpi_state));
+                nis_call_ecr("[nshost.tcp.connect2] state illegal,link:%lld, kernel states:%s.", link, tcp_state2name(ktcp.tcpi_state));
                 break;
             }
         }
@@ -424,7 +477,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
         if ((NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_write, NULL, &tcp_tx_syn)) ||
             (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_read, NULL, &tcp_rx_syn)) ||
             (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_error, NULL, &tcp_rx_syn))) {
-            nis_call_ecr("[nshost.tcp.connect2] link:%lld multithreading double call is not allowed.", lnk);
+            nis_call_ecr("[nshost.tcp.connect2] link:%lld multithreading double call is not allowed.", link);
             break;
         }
 
@@ -447,7 +500,7 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
            ncb object willbe destroy on fatal. */
         retval = io_attach(ncb, EPOLLOUT | EPOLLIN);
         if ( retval < 0) {
-            objclos(lnk);
+            objclos(link);
             break;
         }
 
@@ -470,16 +523,16 @@ int tcp_connect2(HTCPLINK lnk, const char* r_ipstr, uint16_t r_port)
         if (EAGAIN == e) {
             nis_call_ecr("[nshost.tcp.connect2] Insufficient entries in the routing cache, link:%lld", link);
         } else {
-            nis_call_ecr("[nshost.tcp.connect2] fatal error occurred syscall connect(2) to target endpoint %s:%u, error:%d, link:%lld", r_ipstr, r_port, e, lnk);
+            nis_call_ecr("[nshost.tcp.connect2] fatal error occurred syscall connect(2) to target endpoint %s:%u, error:%d, link:%lld", r_ipstr, r_port, e, link);
         }
 
     } while (0);
 
-    objdefr(lnk);
+    objdefr(link);
     return retval;
 }
 
-int tcp_listen(HTCPLINK lnk, int block)
+int tcp_listen(HTCPLINK link, int block)
 {
     ncb_t *ncb;
     int retval;
@@ -490,7 +543,7 @@ int tcp_listen(HTCPLINK lnk, int block)
         return -EINVAL;
     }
 
-    retval = tcprefr(lnk, &ncb);
+    retval = tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -501,14 +554,14 @@ int tcp_listen(HTCPLINK lnk, int block)
         /* get the socket status of tcp_info to check the socket tcp statues */
         if (tcp_save_info(ncb, &ktcp) >= 0) {
             if (ktcp.tcpi_state != TCP_CLOSE) {
-                nis_call_ecr("[nshost.tcp.listen] state illegal,link:%lld, kernel states:%s.", lnk, tcp_state2name(ktcp.tcpi_state));
+                nis_call_ecr("[nshost.tcp.listen] state illegal,link:%lld, kernel states:%s.", link, tcp_state2name(ktcp.tcpi_state));
                 break;
             }
         }
 
         /* this NCB object is readonly， and it must be used for accept */
         if (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_read, NULL, &tcp_syn)) {
-            nis_call_ecr("[nshost.tcp.tcp_listen] multithreading double call is not allowed,link:%lld", lnk);
+            nis_call_ecr("[nshost.tcp.tcp_listen] multithreading double call is not allowed,link:%lld", link);
             retval = -1;
             break;
         }
@@ -517,7 +570,7 @@ int tcp_listen(HTCPLINK lnk, int block)
         /* set file descriptor to asynchronous mode and attach to it's own epoll object,
             ncb object willbe destroy on fatal. */
         if (io_attach(ncb, EPOLLIN) < 0) {
-            objclos(lnk);
+            objclos(link);
             break;
         }
 
@@ -539,11 +592,11 @@ int tcp_listen(HTCPLINK lnk, int block)
         retval = 0;
     } while (0);
 
-    objdefr(lnk);
+    objdefr(link);
     return retval;
 }
 
-int tcp_write(HTCPLINK lnk, const void *origin, int cb, const nis_serializer_t serializer)
+int tcp_write(HTCPLINK link, const void *origin, int cb, const nis_serializer_t serializer)
 {
     ncb_t *ncb;
     unsigned char *buffer;
@@ -552,14 +605,14 @@ int tcp_write(HTCPLINK lnk, const void *origin, int cb, const nis_serializer_t s
     struct tx_node *node;
     int retval;
 
-    if ( lnk < 0 || cb <= 0 || cb > TCP_MAXIMUM_PACKET_SIZE || !origin) {
+    if ( link < 0 || cb <= 0 || cb > TCP_MAXIMUM_PACKET_SIZE || !origin) {
         return -EINVAL;
     }
 
     buffer = NULL;
     node = NULL;
 
-    retval = tcprefr(lnk, &ncb);
+    retval = tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -578,7 +631,7 @@ int tcp_write(HTCPLINK lnk, const void *origin, int cb, const nis_serializer_t s
         /* get the socket status of tcp_info to check the socket tcp statues */
         if (tcp_save_info(ncb, &ktcp) >= 0) {
             if (ktcp.tcpi_state != TCP_ESTABLISHED) {
-                nis_call_ecr("[nshost.tcp.write] state illegal,link:%lld, kernel states:%s.", lnk, tcp_state2name(ktcp.tcpi_state));
+                nis_call_ecr("[nshost.tcp.write] state illegal,link:%lld, kernel states:%s.", link, tcp_state2name(ktcp.tcpi_state));
                 break;
             }
         }
@@ -665,7 +718,7 @@ int tcp_write(HTCPLINK lnk, const void *origin, int cb, const nis_serializer_t s
             break;
         }
 
-        objdefr(lnk);
+        objdefr(link);
         return 0;
     } while (0);
 
@@ -677,17 +730,17 @@ int tcp_write(HTCPLINK lnk, const void *origin, int cb, const nis_serializer_t s
         free(node);
     }
 
-    objdefr(lnk);
+    objdefr(link);
     return retval;
 }
 
-int tcp_getaddr(HTCPLINK lnk, int type, uint32_t* ipv4, uint16_t* port)
+int tcp_getaddr(HTCPLINK link, int type, uint32_t* ipv4, uint16_t* port)
 {
     ncb_t *ncb;
     int retval;
     struct sockaddr_in *addr;
 
-    retval = tcprefr(lnk, &ncb);
+    retval = tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -706,16 +759,16 @@ int tcp_getaddr(HTCPLINK lnk, int type, uint32_t* ipv4, uint16_t* port)
         retval = -EINVAL;
     }
 
-    objdefr(lnk);
+    objdefr(link);
     return retval;
 }
 
-int tcp_setopt(HTCPLINK lnk, int level, int opt, const char *val, int len)
+int tcp_setopt(HTCPLINK link, int level, int opt, const char *val, int len)
 {
     ncb_t *ncb;
     int retval;
 
-    retval = tcprefr(lnk, &ncb);
+    retval = tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -725,16 +778,16 @@ int tcp_setopt(HTCPLINK lnk, int level, int opt, const char *val, int len)
         nis_call_ecr("[nshost.tcp.tcp_setopt] fatal error occurred syscall setsockopt(2) with level:%d optname:%d,error:%d", level, opt, errno);
     }
 
-    objdefr(lnk);
+    objdefr(link);
     return retval;
 }
 
-int tcp_getopt(HTCPLINK lnk, int level, int opt, char *__restrict val, int *len)
+int tcp_getopt(HTCPLINK link, int level, int opt, char *__restrict val, int *len)
 {
     ncb_t *ncb;
     int retval;
 
-    retval = tcprefr(lnk, &ncb);
+    retval = tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -744,7 +797,7 @@ int tcp_getopt(HTCPLINK lnk, int level, int opt, char *__restrict val, int *len)
         nis_call_ecr("[nshost.tcp.tcp_setopt] fatal error occurred syscall getsockopt(2) with level:%d optname:%d,error:%d", level, opt, errno);
     }
 
-    objdefr(lnk);
+    objdefr(link);
     return retval;
 }
 
@@ -897,12 +950,12 @@ int tcp_get_keepalive_value(const ncb_t *ncb,int *idle, int *interval, int *prob
     return -1;
 }
 
-int tcp_setattr(HTCPLINK lnk, int attr, int enable)
+int tcp_setattr(HTCPLINK link, int attr, int enable)
 {
     ncb_t *ncb;
     int retval;
 
-    retval = tcprefr(lnk, &ncb);
+    retval = tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -919,16 +972,16 @@ int tcp_setattr(HTCPLINK lnk, int attr, int enable)
             break;
     }
 
-    objdefr(lnk);
+    objdefr(link);
     return retval;
 }
 
-int tcp_getattr(HTCPLINK lnk, int attr, int *enabled)
+int tcp_getattr(HTCPLINK link, int attr, int *enabled)
 {
     ncb_t *ncb;
     int retval;
 
-    retval = tcprefr(lnk, &ncb);
+    retval = tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -939,6 +992,6 @@ int tcp_getattr(HTCPLINK lnk, int attr, int *enabled)
         *enabled = 0;
     }
 
-    objdefr(lnk);
+    objdefr(link);
     return retval;
 }

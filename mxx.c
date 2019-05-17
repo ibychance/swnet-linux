@@ -14,6 +14,8 @@
 #include "nisdef.h"
 #include "ncb.h"
 
+#include "tcp.h"
+
 int nis_getver(swnet_version_t *version)
 {
     if (!version) {
@@ -186,14 +188,14 @@ int nis_getifmisc(ifmisc_t *ifv, int *cbifv)
     return 0;
 }
 
-int nis_cntl(objhld_t lnk, int cmd, ...)
+int nis_cntl(objhld_t link, int cmd, ...)
 {
     ncb_t *ncb;
     int retval;
     va_list ap;
     void *context;
 
-    ncb = objrefr(lnk);
+    ncb = objrefr(link);
     if (!ncb) {
         return -ENOENT;
     }
@@ -210,17 +212,23 @@ int nis_cntl(objhld_t lnk, int cmd, ...)
             break;
         case NI_SETCTX:
             context = va_arg(ap, void *);
-            ncb->previous = __sync_lock_test_and_set(&ncb->context, context);
+            ncb->prcontext = __sync_lock_test_and_set(&ncb->context, context);
             break;
         case NI_GETCTX:
-            ncb->previous = __sync_lock_test_and_set(&context, ncb->context);
+            ncb->prcontext = __sync_lock_test_and_set(&context, ncb->context);
             *(va_arg(ap, void **) ) = context;
+            break;
+        case NI_SETTST:
+            retval = tcp_settst_r(link, va_arg(ap, void *));
+            break;
+        case NI_GETTST:
+            retval = tcp_gettst_r(link, va_arg(ap, void *), NULL);
             break;
         default:
             return -EINVAL;
     }
     va_end(ap);
 
-    objdefr(lnk);
+    objdefr(link);
     return retval;
 }
