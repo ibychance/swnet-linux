@@ -90,8 +90,10 @@ void ncb_destructor(objhld_t ignore, void *p)
         return;
     }
 
-    /* post pre close event to calling thread */
+    /* post pre close event to calling thread, and than,
+        Invalidate the user context pointer, trust calling has been already handled and free @ncb->context  */
     ncb_post_preclose(ncb);
+    ncb->context = NULL;
 
     /* stop network service
      * cancel relation of epoll
@@ -250,7 +252,6 @@ static void ncb_post_preclose(const ncb_t *ncb)
             c_data.e.ContextPreClose.Context = ncb->context;
             ncb->nis_callback(&c_event, &c_data);
         }
-        ncb->context = NULL;
     }
 }
 
