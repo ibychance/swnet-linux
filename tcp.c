@@ -42,7 +42,7 @@ const char *TCP_KERNEL_STATE_NAME[TCP_KERNEL_STATE_LIST_SIZE] = {
 };
 
 static
-int tcprefr( objhld_t hld, ncb_t **ncb )
+int __tcprefr( objhld_t hld, ncb_t **ncb )
 {
     if ( hld < 0 || !ncb) {
         return -ENOENT;
@@ -115,7 +115,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
         return INVALID_HTCPLINK;
     }
 
-    fd = socket(AF_INET, SOCK_STREAM, 0);
+    fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (fd < 0) {
         nis_call_ecr("[nshost.tcp.create] fatal error occurred syscall socket(2),error:%d", errno);
         return -1;
@@ -192,7 +192,7 @@ int tcp_settst(HTCPLINK link, const tst_t *tst)
         return -EINVAL;
     }
 
-    retval = tcprefr(link, &ncb);
+    retval = __tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -219,7 +219,7 @@ int tcp_settst_r(HTCPLINK link, tst_t *tst)
         return -EINVAL;
     }
 
-    retval = tcprefr(link, &ncb);
+    retval = __tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -240,7 +240,7 @@ int tcp_gettst(HTCPLINK link, tst_t *tst)
         return -EINVAL;
     }
 
-    retval = tcprefr(link, &ncb);
+    retval = __tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -262,7 +262,7 @@ int tcp_gettst_r(HTCPLINK link, tst_t *tst, tst_t *previous)
         return -EINVAL;
     }
 
-    retval = tcprefr(link, &ncb);
+    retval = __tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -380,7 +380,7 @@ int tcp_connect(HTCPLINK link, const char* r_ipstr, uint16_t r_port)
         return -EINVAL;
     }
 
-    retval = tcprefr(link, &ncb);
+    retval = __tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -458,7 +458,7 @@ int tcp_connect2(HTCPLINK link, const char* r_ipstr, uint16_t r_port)
         return -EINVAL;
     }
 
-    retval = tcprefr(link, &ncb);
+    retval = __tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -543,7 +543,7 @@ int tcp_listen(HTCPLINK link, int block)
         return -EINVAL;
     }
 
-    retval = tcprefr(link, &ncb);
+    retval = __tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -612,7 +612,7 @@ int tcp_write(HTCPLINK link, const void *origin, int cb, const nis_serializer_t 
     buffer = NULL;
     node = NULL;
 
-    retval = tcprefr(link, &ncb);
+    retval = __tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -740,7 +740,7 @@ int tcp_getaddr(HTCPLINK link, int type, uint32_t* ipv4, uint16_t* port)
     int retval;
     struct sockaddr_in *addr;
 
-    retval = tcprefr(link, &ncb);
+    retval = __tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -768,7 +768,7 @@ int tcp_setopt(HTCPLINK link, int level, int opt, const char *val, int len)
     ncb_t *ncb;
     int retval;
 
-    retval = tcprefr(link, &ncb);
+    retval = __tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -787,7 +787,7 @@ int tcp_getopt(HTCPLINK link, int level, int opt, char *__restrict val, int *len
     ncb_t *ncb;
     int retval;
 
-    retval = tcprefr(link, &ncb);
+    retval = __tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -955,7 +955,7 @@ int tcp_setattr(HTCPLINK link, int attr, int enable)
     ncb_t *ncb;
     int retval;
 
-    retval = tcprefr(link, &ncb);
+    retval = __tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -981,7 +981,7 @@ int tcp_getattr(HTCPLINK link, int attr, int *enabled)
     ncb_t *ncb;
     int retval;
 
-    retval = tcprefr(link, &ncb);
+    retval = __tcprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }

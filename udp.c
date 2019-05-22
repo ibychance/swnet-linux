@@ -6,7 +6,7 @@
 #include "wpool.h"
 
 static
-int udprefr( objhld_t hld, ncb_t **ncb )
+int __udprefr( objhld_t hld, ncb_t **ncb )
 {
     if ( hld < 0 || !ncb) {
         return -ENOENT;
@@ -75,7 +75,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
     socklen_t addrlen;
     ncb_t *ncb;
 
-    fd = socket(AF_INET, SOCK_DGRAM, 0);
+    fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (fd < 0) {
         nis_call_ecr("[nshost.udp.create] fatal error occurred syscall socket(2), error:%d", errno);
         return -1;
@@ -184,7 +184,7 @@ int udp_write(HUDPLINK link, const void *origin, int cb, const char* r_ipstr, ui
     buffer = NULL;
     node = NULL;
 
-    retval = udprefr(link, &ncb);
+    retval = __udprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -270,7 +270,7 @@ int udp_getaddr(HUDPLINK link, uint32_t *ipv4, uint16_t *port)
     ncb_t *ncb;
     int retval;
 
-    retval = udprefr(link, &ncb);
+    retval = __udprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -291,7 +291,7 @@ int udp_setopt(HUDPLINK link, int level, int opt, const char *val, int len)
     ncb_t *ncb;
     int retval;
 
-    retval = udprefr(link, &ncb);
+    retval = __udprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -307,7 +307,7 @@ int udp_getopt(HUDPLINK link, int level, int opt, char *val, int *len)
     ncb_t *ncb;
     int retval;
 
-    retval = udprefr(link, &ncb);
+    retval = __udprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -362,7 +362,7 @@ int udp_joingrp(HUDPLINK link, const char *g_ipstr, uint16_t g_port)
         return -EINVAL;
     }
 
-    retval = udprefr(link, &ncb);
+    retval = __udprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
@@ -405,7 +405,7 @@ int udp_dropgrp(HUDPLINK link)
     ncb_t *ncb;
     int retval;
 
-    retval = udprefr(link, &ncb);
+    retval = __udprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
