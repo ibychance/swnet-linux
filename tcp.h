@@ -20,6 +20,10 @@ extern
 int tcp_settst_r(HTCPLINK link, tst_t *tst);
 extern
 int tcp_gettst_r(HTCPLINK link, tst_t *tst, tst_t *previous);
+extern
+void tcp_setattr_r(ncb_t *ncb, int attr);
+extern
+int tcp_getattr_r(ncb_t *ncb, int *attr);
 
 /* tcp io */
 extern

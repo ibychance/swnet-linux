@@ -20,5 +20,9 @@ int udp_set_boardcast(ncb_t *ncb, int enable);
 extern
 int udp_get_boardcast(ncb_t *ncb, int *enabled);
 
+extern
+int udp_setattr_r(ncb_t *ncb, int attr);
+extern
+int udp_getattr_r(ncb_t *ncb, int *attr);
 
 #endif

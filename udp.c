@@ -65,7 +65,7 @@ void udp_uninit()
     wp_uninit(kProtocolType_UDP);
 }
 
-HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16_t l_port, int flag)
+HUDPLINK udp_create(udp_io_callback_t callback, const char* ipstr, uint16_t port, int flag)
 {
     int fd;
     struct sockaddr_in addrlocal;
@@ -84,12 +84,12 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
     optval = 1;
     retval = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof ( optval));
 
-    addrlocal.sin_addr.s_addr = l_ipstr ? inet_addr(l_ipstr) : INADDR_ANY;
+    addrlocal.sin_addr.s_addr = ipstr ? inet_addr(ipstr) : INADDR_ANY;
     addrlocal.sin_family = AF_INET;
-    addrlocal.sin_port = htons(l_port);
+    addrlocal.sin_port = htons(port);
     retval = bind(fd, (struct sockaddr *) &addrlocal, sizeof ( struct sockaddr));
     if (retval < 0) {
-        nis_call_ecr("[nshost.udp.create] fatal error occurred syscall bind(2),local endpoint %s:%u, error:%d,", (l_ipstr ? l_ipstr : "0.0.0.0"), l_port, errno);
+        nis_call_ecr("[nshost.udp.create] fatal error occurred syscall bind(2),local endpoint %s:%u, error:%d,", (ipstr ? ipstr : "0.0.0.0"), port, errno);
         close(fd);
         return -1;
     }
@@ -105,7 +105,7 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
 
     do {
         /* copy initialize parameters */
-        ncb->nis_callback = user_callback;
+        ncb->nis_callback = callback;
         ncb->sockfd = fd;
         ncb->hld = hld;
         ncb->protocol = kProtocolType_UDP;
@@ -126,10 +126,10 @@ HUDPLINK udp_create(udp_io_callback_t user_callback, const char* l_ipstr, uint16
             if (udp_set_boardcast(ncb, 1) < 0) {
                 break;
             }
-            ncb->u.udp.flag |= UDP_FLAG_BROADCAST;
+            ncb->attr |= UDP_FLAG_BROADCAST;
         } else {
             if (flag & UDP_FLAG_MULTICAST) {
-                ncb->u.udp.flag |= UDP_FLAG_MULTICAST;
+                ncb->attr |= UDP_FLAG_MULTICAST;
             }
         }
 
@@ -169,14 +169,14 @@ void udp_destroy(HUDPLINK link)
     }
 }
 
-int udp_write(HUDPLINK link, const void *origin, int cb, const char* r_ipstr, uint16_t r_port, const nis_serializer_t serializer)
+int udp_write(HUDPLINK link, const void *origin, int cb, const char* ipstr, uint16_t port, const nis_serializer_t serializer)
 {
     int retval;
     ncb_t *ncb;
     unsigned char *buffer;
     struct tx_node *node;
 
-    if ( !r_ipstr || (0 == r_port) || (cb <= 0) || (link < 0) || (cb > MAX_UDP_UNIT) || !origin) {
+    if ( !ipstr || (0 == port) || (cb <= 0) || (link < 0) || (cb > MAX_UDP_UNIT) || !origin) {
         return -EINVAL;
     }
 
@@ -215,8 +215,8 @@ int udp_write(HUDPLINK link, const void *origin, int cb, const char* r_ipstr, ui
         node->wcb = cb;
         node->offset = 0;
         node->udp_target.sin_family = AF_INET;
-        node->udp_target.sin_addr.s_addr = inet_addr(r_ipstr);
-        node->udp_target.sin_port = htons(r_port);
+        node->udp_target.sin_addr.s_addr = inet_addr(ipstr);
+        node->udp_target.sin_port = htons(port);
 
         if (!fifo_is_blocking(ncb)) {
             retval = udp_txn(ncb, node);
@@ -353,12 +353,12 @@ int udp_get_boardcast(ncb_t *ncb, int *enabled)
  *  至于广播则和组播有一些相似，区别是路由器向子网内的每一个终端都投递一份数据包，不论这些终端是否乐于接收该数据包。UDP广播只能在内网（同一网段）有效，而组播可以较好实现跨网段群发数据。
  *   UDP组播是采用的无连接,数据报的连接方式，所以是不可靠的。也就是数据能不能到达接受端和数据到达的顺序都是不能保证的。但是由于UDP不用保证数据 的可靠性，所有数据的传送效率是很快的。
  */
-int udp_joingrp(HUDPLINK link, const char *g_ipstr, uint16_t g_port)
+int udp_joingrp(HUDPLINK link, const char *ipstr, uint16_t port)
 {
     ncb_t *ncb;
     int retval;
 
-    if (link < 0 || !g_ipstr || 0 == g_port) {
+    if (link < 0 || !ipstr || 0 == port) {
         return -EINVAL;
     }
 
@@ -370,7 +370,7 @@ int udp_joingrp(HUDPLINK link, const char *g_ipstr, uint16_t g_port)
     do {
         retval = -1;
 
-        if (!(ncb->u.udp.flag & UDP_FLAG_MULTICAST)) {
+        if (!(ncb->attr & UDP_FLAG_MULTICAST)) {
             break;
         }
 
@@ -387,7 +387,7 @@ int udp_joingrp(HUDPLINK link, const char *g_ipstr, uint16_t g_port)
                 break;
             }
         }
-        ncb->u.udp.mreq->imr_multiaddr.s_addr = inet_addr(g_ipstr);
+        ncb->u.udp.mreq->imr_multiaddr.s_addr = inet_addr(ipstr);
         ncb->u.udp.mreq->imr_interface.s_addr = ncb->local_addr.sin_addr.s_addr;
         retval = setsockopt(ncb->sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const void *)ncb->u.udp.mreq, sizeof(struct ip_mreq));
         if (retval < 0){
@@ -413,7 +413,7 @@ int udp_dropgrp(HUDPLINK link)
     do{
         retval = -1;
 
-        if (!(ncb->u.udp.flag & UDP_FLAG_MULTICAST) || !ncb->u.udp.mreq) {
+        if (!(ncb->attr & UDP_FLAG_MULTICAST) || !ncb->u.udp.mreq) {
             break;
         }
 
@@ -431,4 +431,19 @@ int udp_dropgrp(HUDPLINK link)
 
     objdefr(link);
     return retval;
+}
+
+int udp_setattr_r(ncb_t *ncb, int attr)
+{
+    __sync_lock_test_and_set(&ncb->attr, attr);
+    if (ncb->attr & LINKATTR_UDP_BAORDCAST) {
+        return udp_set_boardcast(ncb, 1);
+    } else {
+        return udp_set_boardcast(ncb, 0);
+    }
+}
+
+int udp_getattr_r(ncb_t *ncb, int *attr)
+{
+    return __sync_lock_test_and_set(attr, ncb->attr);
 }

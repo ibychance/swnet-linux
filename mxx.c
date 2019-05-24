@@ -15,6 +15,7 @@
 #include "ncb.h"
 
 #include "tcp.h"
+#include "udp.h"
 
 int nis_getver(swnet_version_t *version)
 {
@@ -205,10 +206,12 @@ int nis_cntl(objhld_t link, int cmd, ...)
     va_start(ap, cmd);
     switch (cmd) {
         case NI_SETATTR:
-            __sync_lock_test_and_set(&ncb->attr, va_arg(ap, int));
+            ncb->protocol == kProtocolType_TCP ? tcp_setattr_r(ncb, va_arg(ap, int)) :
+                (ncb->protocol == kProtocolType_UDP ? udp_setattr_r(ncb, va_arg(ap, int)) : 0);
             break;
         case NI_GETATTR:
-            __sync_lock_test_and_set(&retval, ncb->attr);
+            ncb->protocol == kProtocolType_TCP ? tcp_getattr_r(ncb, &retval) :
+                (ncb->protocol == kProtocolType_UDP ? udp_getattr_r(ncb, &retval) : 0);
             break;
         case NI_SETCTX:
             context = va_arg(ap, void *);

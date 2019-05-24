@@ -102,7 +102,7 @@ void tcp_uninit()
     wp_uninit(kProtocolType_TCP);
 }
 
-HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16_t l_port)
+HTCPLINK tcp_create(tcp_io_callback_t callback, const char* ipstr, uint16_t port)
 {
     int fd;
     struct sockaddr_in addrlocal;
@@ -110,10 +110,6 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
     int optval;
     ncb_t *ncb;
     objhld_t hld;
-
-    if (!user_callback) {
-        return INVALID_HTCPLINK;
-    }
 
     fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (fd < 0) {
@@ -126,12 +122,12 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
     retval = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof ( optval));
 
     /* binding address, and then allocate NCB object */
-    addrlocal.sin_addr.s_addr = l_ipstr ? inet_addr(l_ipstr) : INADDR_ANY;
+    addrlocal.sin_addr.s_addr = ipstr ? inet_addr(ipstr) : INADDR_ANY;
     addrlocal.sin_family = AF_INET;
-    addrlocal.sin_port = htons(l_port);
+    addrlocal.sin_port = htons(port);
     retval = bind(fd, (struct sockaddr *) &addrlocal, sizeof ( struct sockaddr));
     if (retval < 0) {
-        nis_call_ecr("[nshost.tcp.create] fatal error occurred syscall bind(2), local endpoint %s:%u, error:%d", (l_ipstr ? l_ipstr : "0.0.0.0"), l_port, errno);
+        nis_call_ecr("[nshost.tcp.create] fatal error occurred syscall bind(2), local endpoint %s:%u, error:%d", (ipstr ? ipstr : "0.0.0.0"), port, errno);
         close(fd);
         return -1;
     }
@@ -149,7 +145,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
         ncb->hld = hld;
         ncb->sockfd = fd;
         ncb->protocol = kProtocolType_TCP;
-        ncb->nis_callback = user_callback;
+        ncb->nis_callback = callback;
         memcpy(&ncb->local_addr, &addrlocal, sizeof (addrlocal));
 
         /* acquire save TCP Info and adjust linger in the creation phase. */
@@ -174,7 +170,7 @@ HTCPLINK tcp_create(tcp_io_callback_t user_callback, const char* l_ipstr, uint16
 
     objdefr(hld);
     objclos(hld);
-    return -1;
+    return retval;
 }
 
 int tcp_settst(HTCPLINK link, const tst_t *tst)
@@ -366,7 +362,7 @@ static int __tcp_check_connection(int sockfd)
 
 #endif
 
-int tcp_connect(HTCPLINK link, const char* r_ipstr, uint16_t r_port)
+int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
 {
     ncb_t *ncb;
     int retval;
@@ -376,7 +372,7 @@ int tcp_connect(HTCPLINK link, const char* r_ipstr, uint16_t r_port)
     int optval;
     struct tcp_info ktcp;
 
-    if (link < 0 || !r_ipstr || 0 == r_port ) {
+    if (link < 0 || !ipstr || 0 == port ) {
         return -EINVAL;
     }
 
@@ -401,8 +397,8 @@ int tcp_connect(HTCPLINK link, const char* r_ipstr, uint16_t r_port)
         setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
 
         addr_to.sin_family = PF_INET;
-        addr_to.sin_port = htons(r_port);
-        addr_to.sin_addr.s_addr = inet_addr(r_ipstr);
+        addr_to.sin_port = htons(port);
+        addr_to.sin_addr.s_addr = inet_addr(ipstr);
 
         /* syscall @connect can be interrupted by other signal. */
         do {
@@ -412,7 +408,7 @@ int tcp_connect(HTCPLINK link, const char* r_ipstr, uint16_t r_port)
 
         if (retval < 0) {
             /* if this socket is already connected, or it is in listening states, sys-call failed with error EISCONN  */
-            nis_call_ecr("[nshost.tcp.connect] fatal error occurred syscall connect(2), %s:%u, error:%u, link:%lld", r_ipstr, r_port, e, link);
+            nis_call_ecr("[nshost.tcp.connect] fatal error occurred syscall connect(2), %s:%u, error:%u, link:%lld", ipstr, port, e, link);
             break;
         }
 
@@ -446,7 +442,7 @@ int tcp_connect(HTCPLINK link, const char* r_ipstr, uint16_t r_port)
     return retval;
 }
 
-int tcp_connect2(HTCPLINK link, const char* r_ipstr, uint16_t r_port)
+int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
 {
     ncb_t *ncb;
     int retval;
@@ -454,7 +450,7 @@ int tcp_connect2(HTCPLINK link, const char* r_ipstr, uint16_t r_port)
     int optval;
     struct tcp_info ktcp;
 
-    if (!r_ipstr || 0 == r_port || link < 0 ) {
+    if (!ipstr || 0 == port || link < 0 ) {
         return -EINVAL;
     }
 
@@ -486,8 +482,8 @@ int tcp_connect2(HTCPLINK link, const char* r_ipstr, uint16_t r_port)
         setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
 
         ncb->remot_addr.sin_family = PF_INET;
-        ncb->remot_addr.sin_port = htons(r_port);
-        ncb->remot_addr.sin_addr.s_addr = inet_addr(r_ipstr);
+        ncb->remot_addr.sin_port = htons(port);
+        ncb->remot_addr.sin_addr.s_addr = inet_addr(ipstr);
 
         /* queue object into epoll manage befor syscall @connect,
            epoll_wait will get a EPOLLOUT signal when syn success.
@@ -523,7 +519,7 @@ int tcp_connect2(HTCPLINK link, const char* r_ipstr, uint16_t r_port)
         if (EAGAIN == e) {
             nis_call_ecr("[nshost.tcp.connect2] Insufficient entries in the routing cache, link:%lld", link);
         } else {
-            nis_call_ecr("[nshost.tcp.connect2] fatal error occurred syscall connect(2) to target endpoint %s:%u, error:%d, link:%lld", r_ipstr, r_port, e, link);
+            nis_call_ecr("[nshost.tcp.connect2] fatal error occurred syscall connect(2) to target endpoint %s:%u, error:%d, link:%lld", ipstr, port, e, link);
         }
 
     } while (0);
@@ -994,4 +990,14 @@ int tcp_getattr(HTCPLINK link, int attr, int *enabled)
 
     objdefr(link);
     return retval;
+}
+
+void tcp_setattr_r(ncb_t *ncb, int attr)
+{
+    __sync_lock_test_and_set(&ncb->attr, attr);
+}
+
+int tcp_getattr_r(ncb_t *ncb, int *attr)
+{
+    return __sync_lock_test_and_set(attr, ncb->attr);
 }

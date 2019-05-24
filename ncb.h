@@ -72,11 +72,12 @@ struct _ncb {
      *  */
     int iptos;
 
+    /* the attributes of TCP link */
+    int attr;
+
     /* user definition context pointer */
     void *context;
     void *prcontext;
-    /* the attributes of TCP link */
-    int attr;
 
     union {
         struct {
@@ -102,9 +103,6 @@ struct _ncb {
         struct {
             /* mreq object for IP multicast */
             struct ip_mreq *mreq;
-
-            /* object flags for UDP link */
-            int flag;
         } udp;
     } u;
 };
