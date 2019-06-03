@@ -212,8 +212,8 @@ int io_init(int protocol)
     objhld_t hld, *hldptr;
     int nprocs;
 
-    hldptr = ((kProtocolType_TCP ==protocol ) ? &tcphld :
-            ((kProtocolType_UDP == protocol ) ? &udphld : NULL));
+    hldptr = ((IPPROTO_TCP ==protocol ) ? &tcphld :
+            ((IPPROTO_UDP == protocol ) ? &udphld : NULL));
     if (!hldptr) {
         return -EPROTOTYPE;
     }
@@ -237,7 +237,8 @@ int io_init(int protocol)
         return -ENOENT;
     }
 
-    nprocs = (kProtocolType_TCP ==protocol ) ? posix__getnprocs() :
+    /* less IO threads for UDP business */
+    nprocs = (IPPROTO_TCP ==protocol ) ? posix__getnprocs() :
                 (posix__getnprocs() >> 1);
     if (nprocs <= 0) {
         nprocs = 1;
@@ -251,8 +252,8 @@ void io_uninit(int protocol)
 {
     objhld_t *hldptr;
 
-    hldptr = ((kProtocolType_TCP ==protocol ) ? &tcphld :
-                ((kProtocolType_UDP == protocol ) ? &udphld : NULL));
+    hldptr = ((IPPROTO_TCP ==protocol ) ? &tcphld :
+                ((IPPROTO_UDP == protocol ) ? &udphld : NULL));
     if (hldptr) {
         if (*hldptr >= 0) {
             objclos(*hldptr);
@@ -311,8 +312,8 @@ int io_attach(void *ncbptr, int mask)
     }
 
     protocol = ncb->protocol;
-    hld = ((kProtocolType_TCP == protocol ) ? tcphld :
-            ((kProtocolType_UDP == protocol ) ? udphld : -1));
+    hld = ((IPPROTO_TCP == protocol ) ? tcphld :
+            ((IPPROTO_UDP == protocol ) ? udphld : -1));
     if (hld < 0) {
         return -EPROTOTYPE;
     }

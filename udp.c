@@ -9,12 +9,12 @@ static
 int __udprefr( objhld_t hld, ncb_t **ncb )
 {
     if ( hld < 0 || !ncb) {
-        return -ENOENT;
+        return -EINVAL;
     }
 
     *ncb = objrefr( hld );
     if ( NULL != (*ncb) ) {
-        if ( (*ncb)->protocol == kProtocolType_UDP ) {
+        if ( (*ncb)->protocol == IPPROTO_UDP ) {
             return 0;
         }
 
@@ -45,14 +45,14 @@ int udp_init()
 {
 	int retval;
 
-	retval = io_init(kProtocolType_UDP);
+	retval = io_init(IPPROTO_UDP);
 	if (0 != retval) {
 		return retval;
 	}
 
-    retval = wp_init(kProtocolType_UDP);
+    retval = wp_init(IPPROTO_UDP);
     if (retval < 0) {
-        io_uninit(kProtocolType_UDP);
+        io_uninit(IPPROTO_UDP);
     }
 
     return retval;
@@ -60,9 +60,9 @@ int udp_init()
 
 void udp_uninit()
 {
-    ncb_uninit(kProtocolType_UDP);
-    io_uninit(kProtocolType_UDP);
-    wp_uninit(kProtocolType_UDP);
+    ncb_uninit(IPPROTO_UDP);
+    io_uninit(IPPROTO_UDP);
+    wp_uninit(IPPROTO_UDP);
 }
 
 HUDPLINK udp_create(udp_io_callback_t callback, const char* ipstr, uint16_t port, int flag)
@@ -108,7 +108,7 @@ HUDPLINK udp_create(udp_io_callback_t callback, const char* ipstr, uint16_t port
         ncb->nis_callback = callback;
         ncb->sockfd = fd;
         ncb->hld = hld;
-        ncb->protocol = kProtocolType_UDP;
+        ncb->protocol = IPPROTO_UDP;
 
         /* setsockopt */
         if (__udp_update_opts(ncb) < 0) {

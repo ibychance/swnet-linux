@@ -22,12 +22,6 @@
 #include "object.h"
 #include "posix_thread.h"
 
-enum ncb__protocol_type {
-    kProtocolType_Unknown = 0,
-    kProtocolType_TCP,
-    kProtocolType_UDP,
-};
-
 struct tx_fifo {
     int blocking;
     int size;
@@ -35,15 +29,21 @@ struct tx_fifo {
     struct list_head head;
 };
 
-struct _ncb;
-typedef int (*ncb_routine_t)(struct _ncb *);
-
 struct _ncb {
-    objhld_t hld;       /* the object handle of this ncb */
-    int sockfd;         /* the file-descriptor of socket */
-    int epfd;           /* the file-descriptor of epoll which binding with @sockfd */
-    enum ncb__protocol_type protocol;
-    struct list_head nl_entry;      /* the link entry of all ncb object */
+    /* the object handle of this ncb */
+    objhld_t hld;
+
+    /* the file-descriptor of socket of this ncb */
+    int sockfd;
+
+    /* the file-descriptor of epoll object which binding with @sockfd */
+    int epfd;
+
+    /* the IP protocol type of this ncb, only support these two types:IPPROTO_TCP/IPPROTO_UDP */
+    int protocol;
+
+    /* the link entry of all ncb object */
+    struct list_head nl_entry;
 
     /* the actually buffer for receive */
     unsigned char *packet;
@@ -59,17 +59,16 @@ struct _ncb {
     nis_callback_t nis_callback;
 
     /* IO response routine */
-    ncb_routine_t ncb_read;
-    ncb_routine_t ncb_write;
-    ncb_routine_t ncb_error;
+    int (*ncb_read)(struct _ncb *);
+    int (*ncb_write)(struct _ncb *);
+    int (*ncb_error)(struct _ncb *);
 
     /* save the timeout information/options */
     struct timeval rcvtimeo;
     struct timeval sndtimeo;
 
     /* tos item in IP-head
-     * Differentiated Services Field: Dirrerentiated Services Codepoint/Explicit Congestion Not fication
-     *  */
+     * Differentiated Services Field: Dirrerentiated Services Codepoint/Explicit Congestion Not fication */
     int iptos;
 
     /* the attributes of TCP link */
@@ -81,13 +80,13 @@ struct _ncb {
 
     union {
         struct {
-            /* TCP packet user-parse offset */
+            /* TCP packet user-parse offset when receving */
             int rx_parse_offset;
 
             /* the actually buffer give to syscall @recv */
             unsigned char *rx_buffer;
 
-            /* the large-block information(TCP packets larger than 0x11000B but less than 50MB) */
+            /* the large-block information(TCP packets larger than 0x11000 Bytes but less than 50MBytes) */
             unsigned char* lbdata;   /* large-block data buffer */
             int lboffset;   /* save offset in @lbdata */
             int lbsize;     /* the total length include protocol-head */

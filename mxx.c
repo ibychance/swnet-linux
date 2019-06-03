@@ -206,12 +206,12 @@ int nis_cntl(objhld_t link, int cmd, ...)
     va_start(ap, cmd);
     switch (cmd) {
         case NI_SETATTR:
-            ncb->protocol == kProtocolType_TCP ? tcp_setattr_r(ncb, va_arg(ap, int)) :
-                (ncb->protocol == kProtocolType_UDP ? udp_setattr_r(ncb, va_arg(ap, int)) : 0);
+            ncb->protocol == IPPROTO_TCP ? tcp_setattr_r(ncb, va_arg(ap, int)) :
+                (ncb->protocol == IPPROTO_UDP ? udp_setattr_r(ncb, va_arg(ap, int)) : 0);
             break;
         case NI_GETATTR:
-            ncb->protocol == kProtocolType_TCP ? tcp_getattr_r(ncb, &retval) :
-                (ncb->protocol == kProtocolType_UDP ? udp_getattr_r(ncb, &retval) : 0);
+            ncb->protocol == IPPROTO_TCP ? tcp_getattr_r(ncb, &retval) :
+                (ncb->protocol == IPPROTO_UDP ? udp_getattr_r(ncb, &retval) : 0);
             break;
         case NI_SETCTX:
             context = va_arg(ap, void *);

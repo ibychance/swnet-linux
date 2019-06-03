@@ -1,7 +1,7 @@
 #include "tcp.h"
 #include "mxx.h"
 
-static int tcp_parse_marked_lb(ncb_t *ncb, const unsigned char *cpbuff, int cpcb)
+static int __tcp_parse_marked_lb(ncb_t *ncb, const unsigned char *cpbuff, int cpcb)
 {
     int overplus;
 
@@ -54,7 +54,7 @@ int tcp_parse_pkt(ncb_t *ncb, const unsigned char *data, int cpcb)
 
     /* it is in the large-block status */
     if (ncb_lb_marked(ncb)) {
-        return tcp_parse_marked_lb(ncb, cpbuff, cpcb);
+        return __tcp_parse_marked_lb(ncb, cpbuff, cpcb);
     }
 
     /* the length of data is not enough to constitute the protocol header.

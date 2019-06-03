@@ -152,7 +152,7 @@ int __tcp_syn(ncb_t *ncb_server)
     if (__tcp_syn_try(ncb_server, &ncb->sockfd, &retval) < 0) {
         objclos(hld);
     } else {
-        ncb->protocol = kProtocolType_TCP;
+        ncb->protocol = IPPROTO_TCP;
         ncb->nis_callback = ncb_server->nis_callback;
 
         /* initial the client ncb object, link willbe destroy on fatal. */
@@ -204,7 +204,7 @@ int __tcp_rx(ncb_t *ncb)
     /* a stream socket peer has performed an orderly shutdown */
     if (0 == recvcb) {
         nis_call_ecr("[nshost.tcpio.__tcp_rx] fatal error occurred syscall recv(2), the return value equal to zero, link:%lld", ncb->hld );
-        return -1;
+        return -ECONNRESET;
     }
 
     /* ECONNRESET 104 Connection reset by peer */
@@ -223,6 +223,7 @@ int __tcp_rx(ncb_t *ncb)
         nis_call_ecr("[nshost.tcpio.__tcp_rx] fatal error occurred syscall recv(2), error:%d, link:%lld", errcode, ncb->hld );
         return -1;
     }
+
     return 0;
 }
 
@@ -231,9 +232,8 @@ int tcp_rx(ncb_t *ncb)
     int retval;
 
     /* read receive buffer until it's empty */
-    do {
-        retval = __tcp_rx(ncb);
-    } while (0 == retval);
+    while (0 == (retval = __tcp_rx(ncb)))
+        ;
     return retval;
 }
 

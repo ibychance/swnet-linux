@@ -45,12 +45,12 @@ static
 int __tcprefr( objhld_t hld, ncb_t **ncb )
 {
     if ( hld < 0 || !ncb) {
-        return -ENOENT;
+        return -EINVAL;
     }
 
     *ncb = objrefr( hld );
     if ( NULL != (*ncb) ) {
-        if ( (*ncb)->protocol == kProtocolType_TCP ) {
+        if ( (*ncb)->protocol == IPPROTO_TCP ) {
             return 0;
         }
 
@@ -82,14 +82,14 @@ int tcp_init()
 {
 	int retval;
 
-	retval = io_init(kProtocolType_TCP);
+	retval = io_init(IPPROTO_TCP);
 	if (0 != retval) {
 		return retval;
 	}
 
-	retval = wp_init(kProtocolType_TCP);
+	retval = wp_init(IPPROTO_TCP);
     if (retval < 0) {
-        io_uninit(kProtocolType_TCP);
+        io_uninit(IPPROTO_TCP);
     }
 
     return retval;
@@ -97,9 +97,9 @@ int tcp_init()
 
 void tcp_uninit()
 {
-    ncb_uninit(kProtocolType_TCP);
-    io_uninit(kProtocolType_TCP);
-    wp_uninit(kProtocolType_TCP);
+    ncb_uninit(IPPROTO_TCP);
+    io_uninit(IPPROTO_TCP);
+    wp_uninit(IPPROTO_TCP);
 }
 
 HTCPLINK tcp_create(tcp_io_callback_t callback, const char* ipstr, uint16_t port)
@@ -144,7 +144,7 @@ HTCPLINK tcp_create(tcp_io_callback_t callback, const char* ipstr, uint16_t port
     do {
         ncb->hld = hld;
         ncb->sockfd = fd;
-        ncb->protocol = kProtocolType_TCP;
+        ncb->protocol = IPPROTO_TCP;
         ncb->nis_callback = callback;
         memcpy(&ncb->local_addr, &addrlocal, sizeof (addrlocal));
 
