@@ -258,14 +258,12 @@ static void ncb_post_preclose(const ncb_t *ncb)
 static void ncb_post_closed(const ncb_t *ncb)
 {
     nis_event_t c_event;
-    tcp_data_t c_data;
 
     if (ncb) {
         if (ncb->nis_callback) {
             c_event.Ln.Tcp.Link = ncb->hld;
             c_event.Event = EVT_CLOSED;
-            c_data.e.PreClose.Context = NULL;
-            ncb->nis_callback(&c_event, &c_data);
+            ncb->nis_callback(&c_event, NULL);
         }
     }
 }
@@ -304,14 +302,12 @@ void ncb_post_accepted(const ncb_t *ncb, HTCPLINK link)
 void ncb_post_connected(const ncb_t *ncb)
 {
     nis_event_t c_event;
-    tcp_data_t c_data;
 
     if (ncb) {
         if (ncb->nis_callback) {
             c_event.Event = EVT_TCP_CONNECTED;
             c_event.Ln.Tcp.Link = ncb->hld;
-            memset(&c_data, 0, sizeof(c_data));
-            ncb->nis_callback(&c_event, &c_data);
+            ncb->nis_callback(&c_event, NULL);
         }
     }
 }

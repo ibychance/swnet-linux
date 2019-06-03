@@ -154,7 +154,7 @@ static int __io_init(struct io_object_block *iobptr, int nprocs)
     for (i = 0; i < iobptr->divisions; i++) {
         epoptr = &iobptr->epoptr[i];
         epoptr->load = 0;
-        epoptr->epfd = epoll_create(EPOLL_SIZE);
+        epoptr->epfd = epoll_create(EPOLL_SIZE); /* kernel don't care about the parameter @size, but request it MUST be large than zero */
         if (epoptr->epfd < 0) {
             nis_call_ecr("[nshost.io.__io_init] fatal error occurred syscall epoll_create(2), error:%d", errno);
             continue;

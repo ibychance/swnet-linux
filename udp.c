@@ -335,24 +335,45 @@ int udp_get_boardcast(ncb_t *ncb, int *enabled)
 }
 
 /*
- * 组播报文的目的地址使用D类IP地址， D类地址不能出现在IP报文的源IP地址字段。单播数据传输过程中，一个数据包传输的路径是从源地址路由到目的地址，利用“逐跳”的原理[路由选择]在IP网络中传输。
- * 然而在ip组播环中，数据包的目的地址不是一个，而是一组，形成组地址。所有的信息接收者都加入到一个组内，并且一旦加入之后，流向组地址的数据立即开始向接收者传输，组中的所有成员都能接收到数据包。
- * 组播组中的成员是动态的，主机可以在任何时刻加入和离开组播组。
- *         用同一个IP多播地址接收多播数据包的所有主机构成了一个主机组，也称为多播组。一个多播组的成员是随时变动的，一台主机可以随时加入或离开多播组，多播组成员的数目和所在的地理位置也不受限制，一台主机也可以属于几个多播组。
- * 此外，不属于某一个多播组的主机也可以向该多播组发送数据包。
- *
- * 组播地址
- * 组播组可以是永久的也可以是临时的。组播组地址中，有一部分由官方分配的，称为永久组播组。
- * 永久组播组保持不变的是它的ip地址，组中的成员构成可以发生变化。永久组播组中成员的数量都可以是任意的，甚至可以为零。那些没有保留下来供永久组播组使用的ip组播地址，可以被临时组播组利用。
- *      224.0.0.0～224.0.0.255为预留的组播地址（永久组地址），地址224.0.0.0保留不做分配，其它地址供路由协议使用
- *      224.0.1.0～224.0.1.255是公用组播地址，可以用于Internet
- *      224.0.2.0～238.255.255.255为用户可用的组播地址（临时组地址），全网范围内有效
- *      239.0.0.0～239.255.255.255为本地管理组播地址，仅在特定的本地范围内有效
- *
- *  组播是一对多的传输方式，其中有个组播组的 概念，发送端将数据向一个组内发送，网络中的路由器通过底层的IGMP协议自动将数据发送到所有监听这个组的终端。
- *  至于广播则和组播有一些相似，区别是路由器向子网内的每一个终端都投递一份数据包，不论这些终端是否乐于接收该数据包。UDP广播只能在内网（同一网段）有效，而组播可以较好实现跨网段群发数据。
- *   UDP组播是采用的无连接,数据报的连接方式，所以是不可靠的。也就是数据能不能到达接受端和数据到达的顺序都是不能保证的。但是由于UDP不用保证数据 的可靠性，所有数据的传送效率是很快的。
- */
+* The destination address of multicast message uses Class D IP address. Class D address cannot appear in the source IP address field of IP message.
+* In the process of unicast data transmission, a data packet transmission path is routed from the source address to the destination address,
+* which is transmitted in the IP network using the "hop-by-hop" principle.
+*
+* However, in the IP multicast ring, the destination address of the packet is not one, but a group, forming a group address.
+* All information receivers join a group, and once they join, the data flowing to the group address begins to be transmitted to the receivers immediately,
+* and all members of the group can receive the data packet.
+*
+* The members of multicast group are dynamic, and the host can join and leave the multicast group at any time.
+*
+* All hosts receiving multicast packets with the same IP multicast address constitute a host group, also known as multicast group.
+* The membership of a multicast group changes at any time. A host can join or leave the multiple group at any time.
+* The number and location of the members of the multicast group are unrestricted. A host can also belong to several multiple groups.
+*
+* In addition, hosts that do not belong to a multicast group can also send data packets to the multicast group.
+*
+* multicast addressing:
+* Multicast groups can be permanent or temporary. In multicast group addresses, some of them are officially assigned, which is called permanent multicast group.
+*
+* Permanent multicast group keeps its IP address unchanged, and its membership can change.
+* The number of members in a permanent multicast group can be arbitrary or even zero.
+* IP multicast addresses that are not reserved for permanent multicast groups can be used by temporary multicast groups.
+*       224.0.0.0-224.0.0.255 is the reserved multicast address (permanent group address). The address 224.0.0.0 is reserved without allocation.
+*                                Other addresses are used by routing protocols.
+*       224.0.1.0-224.0.1.255 is a public multicast address that can be used on the Internet.
+*       224.0.2.0-238.255.255.255 is user-available multicast address (temporary group address), which is valid throughout the network.
+*       239.0.0.0-239.255.255.255 is a locally managed multicast address, which is valid only within a specific local range.
+*
+* Multicast is a one-to-many transmission mode, in which there is a concept of multicast group.
+* The sender sends data to a group. The router in the network automatically sends data to all terminals listening to the group through the underlying IGMP protocol.
+*
+* As for broadcasting, there are some similarities with multicast.
+* The difference is that the router sends a packet to every terminal in the subnet, whether or not these terminals are willing to receive the packet.
+* UDP broadcasting can only be effective in the intranet (the same network segment), while multicast can better achieve cross-network segment mass data.
+*
+* UDP multicast is a connectionless and datagram connection mode, so it is unreliable.
+* That is to say, whether the data can reach the receiving end and the order of data arrival are not guaranteed.
+* But because UDP does not guarantee the reliability of data, all data transmission efficiency is very fast.
+*/
 int udp_joingrp(HUDPLINK link, const char *ipstr, uint16_t port)
 {
     ncb_t *ncb;

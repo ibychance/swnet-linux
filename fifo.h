@@ -20,6 +20,7 @@ extern int fifo_queue(ncb_t *ncb, struct tx_node *node);
 
 /* get front item of current fifo */
 extern int fifo_top(ncb_t *ncb, struct tx_node **node);
+#define fifo_top fifo_front
 
 /* pop the front item from current fifo, option, you can get the top one
  * when the last item have been pop from the fifo, the io blocking status will be automatic recover to 0,
