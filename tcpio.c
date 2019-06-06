@@ -79,6 +79,7 @@ int __tcp_syn_dpc(ncb_t *ncb_server, ncb_t *ncb)
     }
 
     /* save local and remote address struct */
+    addrlen = sizeof(struct sockaddr);
     getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* remote */
     getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* local */
 
