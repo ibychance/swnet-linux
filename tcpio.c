@@ -320,7 +320,7 @@ static int __tcp_poll_syn(int sockfd, int *err)
     errlen = sizeof(error);
 
     if (!err) {
-        return RE_ERROR(EINVAL);
+        return -EINVAL;
     }
 
     do {

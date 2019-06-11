@@ -18,7 +18,7 @@
 
 struct epoll_object_block {
     int epfd;
-    posix__boolean_t actived;
+    boolean_t actived;
     posix__pthread_t threadfd;
     int load; /* load of current thread */
 } ;
@@ -108,14 +108,14 @@ static void *__epoll_proc(void *argv)
 
     nis_call_ecr("[nshost.io.epoll] epfd:%d LWP:%u startup.", epoptr->epfd, posix__gettid());
 
-    while (epoptr->actived) {
+    while (YES == epoptr->actived) {
         sigcnt = epoll_wait(epoptr->epfd, evts, EPOLL_SIZE, EP_TIMEDOUT);
         if (sigcnt < 0) {
             errcode = errno;
 
-	    /* The call was interrupted by a signal handler before either :
-	     * (1) any of the requested events occurred or
-	     * (2) the timeout expired; */
+    	    /* The call was interrupted by a signal handler before either :
+    	     * (1) any of the requested events occurred or
+    	     * (2) the timeout expired; */
             if (EINTR == errcode) {
                 continue;
             }
@@ -161,12 +161,12 @@ static int __io_init(struct io_object_block *iobptr, int nprocs)
         }
 
         /* active field as a judge of operational effectiveness, as well as a control symbol of operation  */
-        epoptr->actived = 1;
+        epoptr->actived = YES;
         if (posix__pthread_create(&epoptr->threadfd, &__epoll_proc, epoptr) < 0) {
             nis_call_ecr("[nshost.io.__io_init] fatal error occurred syscall pthread_create(3), error:%d", errno);
             close(epoptr->epfd);
             epoptr->epfd = -1;
-            epoptr->actived = 0;
+            epoptr->actived = NO;
         }
     }
 
@@ -186,8 +186,8 @@ static void __io_uninit(objhld_t hld, void *udata)
 
     for (i = 0; i < iobptr->divisions; i++) {
         epoptr = &iobptr->epoptr[i];
-        if (epoptr->actived) {
-            epoptr->actived = 0;
+        if (YES == epoptr->actived) {
+            epoptr->actived = NO;
             posix__pthread_join(&epoptr->threadfd, NULL);
         }
 
@@ -273,24 +273,24 @@ int __io_set_asynchronous(int fd)
     opt = fcntl(fd, F_GETFL);
     if (opt < 0) {
         nis_call_ecr("[nshost.io.io_set_asynchronous] fatal error occurred syscall fcntl(2) with F_GETFL.error:%d", errno);
-        return -1;
+        return posix__makeerror(errno);
     }
 
     if (fcntl(fd, F_SETFL, opt | O_NONBLOCK) < 0) {
         nis_call_ecr("[nshost.io.io_set_asynchronous] fatal error occurred syscall fcntl(2) with F_SETFL.error:%d", errno);
-        return -1;
+        return posix__makeerror(errno);
     }
 
     opt = fcntl(fd, F_GETFD);
     if (opt < 0) {
         nis_call_ecr("[nshost.io.io_set_asynchronous] fatal error occurred syscall fcntl(2) with F_GETFD.error:%d", errno);
-        return -1;
+        return posix__makeerror(errno);
     }
 
     /* to disable the port inherit when fork/exec */
     if (fcntl(fd, F_SETFD, opt | FD_CLOEXEC) < 0) {
         nis_call_ecr("[nshost.io.io_set_asynchronous] fatal error occurred syscall fcntl(2) with F_SETFD.error:%d", errno);
-        return -1;
+        return posix__makeerror(errno);
     }
 
     return 0;
@@ -303,12 +303,14 @@ int io_attach(void *ncbptr, int mask)
     struct epoll_event e_evt;
     int protocol;
     ncb_t *ncb;
+    int retval;
 
     ncb = (ncb_t *)ncbptr;
     assert(ncb);
 
-    if (__io_set_asynchronous(ncb->sockfd) < 0) {
-        return -1;
+    retval = __io_set_asynchronous(ncb->sockfd);
+    if ( retval < 0) {
+        return retval;
     }
 
     protocol = ncb->protocol;
@@ -360,7 +362,7 @@ int io_modify(void *ncbptr, int mask )
     if ( epoll_ctl(ncb->epfd, EPOLL_CTL_MOD, ncb->sockfd, &e_evt) < 0 ) {
         nis_call_ecr("[nshost.io.io_modify] fatal error occurred syscall epoll_ctl(2) when modify link:%lld with sockfd:%d upon epollfd:%d with mask:%d, error:%u, ",
             ncb->hld, ncb->sockfd, ncb->epfd, mask, errno);
-        return -1;
+        return posix__makeerror(errno);
     }
 
     return 0;

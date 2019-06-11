@@ -151,15 +151,15 @@ int nis_getifmisc(ifmisc_t *ifv, int *cbifv)
     count = 0;
 
     if (!cbifv) {
-        return posix__mkerror(EINVAL);
+        return -EINVAL;
     }
 
     if (*cbifv > 0 && !ifv) {
-        return posix__mkerror(EINVAL);
+        return -EINVAL;
     }
 
     if (getifaddrs(&ifs) < 0) {
-        return posix__mkerror(errno);
+        return posix__makeerror(errno);
     }
 
     for (ifa = ifs; ifa != NULL; ifa = ifa->ifa_next) {
@@ -171,7 +171,7 @@ int nis_getifmisc(ifmisc_t *ifv, int *cbifv)
     cbacquire = count * sizeof(ifmisc_t);
     if (*cbifv < cbacquire) {
         *cbifv = cbacquire;
-        return posix__mkerror(EAGAIN);
+        return -EAGAIN;
     }
 
     i = 0;
