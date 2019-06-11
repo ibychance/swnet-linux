@@ -665,7 +665,7 @@ int tcp_write(HTCPLINK link, const void *origin, int cb, const nis_serializer_t 
 
             /* serialize data into packet or direct use data pointer by @origin */
             if (serializer) {
-                if ((*serializer)(buffer + ncb->u.tcp.template.cb_, origin, cb - ncb->u.tcp.template.cb_) < 0 ) {
+                if ((*serializer)(buffer + ncb->u.tcp.template.cb_, origin, cb) < 0 ) {
                     nis_call_ecr("[nshost.tcp.write] fatal usrcall serializer.");
                     break;
                 }
