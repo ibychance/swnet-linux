@@ -5,7 +5,6 @@ INSTALL_DIR=
 SRC_EXT=c
 SYS_WIDTH=$(shell getconf LONG_BIT)
 
-#SRCS=$(wildcard *.$(SRC_EXT))
 SRCS=./fifo.c \
 		./io.c \
 		./mxx.c \
@@ -17,7 +16,6 @@ SRCS=./fifo.c \
 		./udpio.c \
 		./wpool.c
 
-#SRCS+=$(wildcard ../libnsp/com/*.$(SRC_EXT))
 SRCS+=../libnsp/com/avltree.c \
 		../libnsp/com/logger.c \
 		../libnsp/com/posix_ifos.c \
@@ -31,7 +29,7 @@ SRCS+=../libnsp/com/avltree.c \
 
 OBJS=$(patsubst %.$(SRC_EXT),%.o,$(SRCS))
 
-CFLAGS+=-I ../libnsp/icom -fPIC -Wall -std=gnu99
+CFLAGS+=-I ../libnsp/icom -fPIC -Wall -std=c89 -ansi -D_GNU_SOURCE
 LDFLAGS=-shared -lcrypt
 
 ifeq ($(build),debug)
@@ -50,12 +48,12 @@ ifeq ($(arch),arm)
 	INSTALL_DIR+=/usr/local/lib/
 else
 	ifeq ($(arch), i686)
-		CC=gcc
+		#CC=gcc
 		CFLAGS+=-m32
 		LDFLAGS+=-m32
 		INSTALL_DIR+=/usr/local/lib/
 	else
-		CC=gcc
+		#CC=gcc
 		INSTALL_DIR+=/usr/local/lib64/
 	endif
 endif
