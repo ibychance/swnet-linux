@@ -30,6 +30,12 @@ int __arp_rx(ncb_t *ncb)
             c_event.Ln.Udp.Link = ncb->hld;
             c_event.Event = EVT_RECEIVEDATA;
             memcpy(&c_data.e.Packet, arp, sizeof(struct Address_Resolution_Protocol));
+
+            /* keep little-endian, keep compatibility */
+            c_data.e.Packet.Arp_Sender_Ip = ntohl(c_data.e.Packet.Arp_Sender_Ip);
+            c_data.e.Packet.Arp_Target_Ip = ntohl(c_data.e.Packet.Arp_Target_Ip);
+
+            /* callback to arp reply */
             ncb->nis_callback(&c_event, &c_data);
         }
     }
