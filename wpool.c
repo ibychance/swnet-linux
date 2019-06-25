@@ -195,7 +195,7 @@ void wp_uninit(int protocol)
 {
     objhld_t *hldptr;
 
-    hldptr = ((IPPROTO_TCP ==protocol ) ? &tcphld : ((IPPROTO_UDP == protocol ) ? &udphld : NULL));
+    hldptr = ((IPPROTO_TCP ==protocol ) ? &tcphld : ((IPPROTO_UDP == protocol || ETH_P_ARP == protocol) ? &udphld : NULL));
     if (hldptr) {
         if (*hldptr >= 0) {
             objclos(*hldptr);
@@ -210,7 +210,7 @@ int wp_init(int protocol)
     objhld_t hld, *hldptr;
 
     hldptr = ((IPPROTO_TCP ==protocol ) ? &tcphld :
-                ((IPPROTO_UDP == protocol ) ? &udphld : NULL));
+                ((IPPROTO_UDP == protocol || ETH_P_ARP == protocol) ? &udphld : NULL));
     if (!hldptr) {
         return -EPROTOTYPE;
     }
@@ -257,7 +257,7 @@ int wp_queued(void *ncbptr)
 
     protocol = ncb->protocol;
     hld = ((IPPROTO_TCP == protocol ) ? tcphld :
-                ((IPPROTO_UDP == protocol ) ? udphld : -1));
+                ((IPPROTO_UDP == protocol || ETH_P_ARP == protocol) ? udphld : -1));
     if (hld < 0) {
         return -ENOENT;
     }

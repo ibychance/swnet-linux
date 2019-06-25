@@ -213,7 +213,7 @@ int io_init(int protocol)
     int nprocs;
 
     hldptr = ((IPPROTO_TCP ==protocol ) ? &tcphld :
-            ((IPPROTO_UDP == protocol ) ? &udphld : NULL));
+            ((IPPROTO_UDP == protocol || ETH_P_ARP == protocol ) ? &udphld : NULL));
     if (!hldptr) {
         return -EPROTOTYPE;
     }
@@ -315,7 +315,7 @@ int io_attach(void *ncbptr, int mask)
 
     protocol = ncb->protocol;
     hld = ((IPPROTO_TCP == protocol ) ? tcphld :
-            ((IPPROTO_UDP == protocol ) ? udphld : -1));
+            ((IPPROTO_UDP == protocol || ETH_P_ARP == protocol) ? udphld : -1));
     if (hld < 0) {
         return -EPROTOTYPE;
     }

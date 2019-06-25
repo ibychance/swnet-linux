@@ -21,6 +21,9 @@ int __arp_rx(ncb_t *ncb)
     recvcb = recvfrom(ncb->sockfd, ncb->packet, NIS_P_ARP_SIZE, 0, (struct sockaddr *) &remote, &addrlen);
     errcode = errno;
     if (recvcb > 0) {
+	if (recvcb < NIS_P_ARP_SIZE) {
+		return 0;
+	}
         eth = (struct Ethernet_Head  *)ncb->packet;
         arp = (struct Address_Resolution_Protocol *)&ncb->packet[sizeof(struct Ethernet_Head)];
         if (eth->Eth_Layer_Type == htons(ETH_P_ARP) && arp->Arp_Op_Code == htons(ARP_OP_REPLY) && ncb->nis_callback) {
