@@ -108,6 +108,12 @@ struct _ncb {
             /* mreq object for IP multicast */
             struct ip_mreq *mreq;
         } udp;
+
+        struct {
+            unsigned int source;
+            unsigned int ifindex;
+            unsigned char source_phyaddr[6];
+        } arp;
     } u;
 };
 typedef struct _ncb ncb_t;

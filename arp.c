@@ -32,12 +32,43 @@ int __arprefr( objhld_t hld, ncb_t **ncb )
     return -ENOENT;
 }
 
-HARPLINK arp_create(arp_io_callback_t callback)
+static int arp_bindsource(const char *source, ncb_t *ncb)
+{
+    struct ifaddrs *ifa, *ifs, *ifsrc;
+    uint32_t src_ip;
+
+    src_ip = inet_addr(source);
+
+    ifsrc = NULL;
+
+    if (getifaddrs(&ifs) < 0) {
+        return posix__makeerror(errno);
+    }
+
+    for (ifa = ifs; ifa != NULL; ifa = ifa->ifa_next) {
+        if (((struct sockaddr_in *)ifa->ifa_addr)->sin_addr.s_addr == src_ip) {
+            ifsrc = ifa;
+            break;
+        }
+    }
+
+    if (!ifsrc) {
+        return -ENOENT;
+    }
+
+    ncb->u.arp.source = src_ip;
+    ncb->u.arp.ifindex = if_nametoindex(ifsrc->ifa_name);
+    nis_getifmac(ifsrc->ifa_name, ncb->u.arp.source_phyaddr);
+    return 0;
+}
+
+HARPLINK arp_create(arp_io_callback_t callback, const char *source)
 {
     int fd;
     HARPLINK hld;
     ncb_t *ncb;
     int retval;
+
 
     fd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ARP));
     if (fd < 0) {
@@ -60,6 +91,10 @@ HARPLINK arp_create(arp_io_callback_t callback)
         ncb->sockfd = fd;
         ncb->hld = hld;
         ncb->protocol = ETH_P_ARP;
+
+        if ((retval = arp_bindsource(source, ncb)) < 0) {
+            break;
+        }
 
         /* allocate buffer for normal packet */
         if (NULL == (ncb->packet = (unsigned char *) malloc(sizeof(struct Ethernet_Head ) + sizeof(union arp_layer)))) {
@@ -99,48 +134,26 @@ void arp_destroy(HARPLINK link)
     }
 }
 
-int arp_request(HARPLINK link, const char *source, const char *target)
+int arp_nrequest(HARPLINK link, uint32_t target)
 {
-    static const unsigned char boardcast_address[6] = {0xff,0xff,0xff,0xff,0xff,0xff};  /* boardcast address */
+    static const unsigned char BOARDCAST_PHYADDR[6] = {0xff,0xff,0xff,0xff,0xff,0xff};  /* boardcast pyhsical address */
 
     struct tx_node *node;
     unsigned char *arp_request;
     struct Ethernet_Head  *eth;
     struct Address_Resolution_Protocol *arp;
-    struct ifaddrs *ifa, *ifs, *ifsrc;
-    unsigned char local_mac[6] = {0};
     int retval;
     ncb_t *ncb;
-    uint32_t src_ip, dest_ip;
 
     retval = __arprefr(link, &ncb);
     if (retval < 0) {
         return retval;
     }
 
-    src_ip = inet_addr(source);
-    dest_ip = inet_addr(target);
     arp_request = NULL;
-    ifsrc = NULL;
+    node = NULL;
 
     do {
-        if (getifaddrs(&ifs) < 0) {
-            retval = posix__makeerror(errno);
-            break;
-        }
-
-        for (ifa = ifs; ifa != NULL; ifa = ifa->ifa_next) {
-            if (((struct sockaddr_in *)ifa->ifa_addr)->sin_addr.s_addr == src_ip) {
-                ifsrc = ifa;
-                break;
-            }
-        }
-
-        if (!ifsrc) {
-            retval = -ENOENT;
-            break;
-        }
-
         if (NULL == (arp_request = (unsigned char *)malloc(NIS_P_ARP_SIZE))) {
             retval = -ENOMEM;
             break;
@@ -148,9 +161,8 @@ int arp_request(HARPLINK link, const char *source, const char *target)
 
         /* fill Ethernet layer */
         eth = (struct Ethernet_Head  *)arp_request;
-        memcpy(eth->Eth_Dest_Mac, boardcast_address, 6);
-        nis_getifmac(ifsrc->ifa_name, local_mac);
-        memcpy(eth->Eth_Srce_Mac, local_mac, 6);
+        memcpy(eth->Eth_Dest_Mac, BOARDCAST_PHYADDR, sizeof(BOARDCAST_PHYADDR));
+        memcpy(eth->Eth_Srce_Mac, ncb->u.arp.source_phyaddr, sizeof(ncb->u.arp.source_phyaddr));
         eth->Eth_Layer_Type = htons(ETH_P_ARP);
 
         /* fill arp layer */
@@ -160,10 +172,10 @@ int arp_request(HARPLINK link, const char *source, const char *target)
         arp->Arp_Hardware_Size  = 6;
         arp->Arp_Protocol_Size = 4;
         arp->Arp_Op_Code = htons(ARP_OP_REQ);
-        memcpy(arp->Arp_Sender_Mac, local_mac, 6);
-        memcpy(&arp->Arp_Sender_Ip, &src_ip, sizeof(src_ip));
-        memcpy(arp->Arp_Target_Mac, boardcast_address, 6);
-        memcpy(&arp->Arp_Target_Ip, &dest_ip, sizeof(dest_ip));
+        memcpy(arp->Arp_Sender_Mac, ncb->u.arp.source_phyaddr, sizeof(ncb->u.arp.source_phyaddr));
+        memcpy(&arp->Arp_Sender_Ip, &ncb->u.arp.source, sizeof(ncb->u.arp.source));
+        memcpy(arp->Arp_Target_Mac, BOARDCAST_PHYADDR, sizeof(BOARDCAST_PHYADDR));
+        memcpy(&arp->Arp_Target_Ip, &target, sizeof(target));
 
         /* create tx node, and use this node to send */
         if (NULL == (node = (struct tx_node *) malloc(sizeof (struct tx_node)))) {
@@ -175,7 +187,7 @@ int arp_request(HARPLINK link, const char *source, const char *target)
         node->wcb = NIS_P_ARP_SIZE;
         node->offset = 0;
         node->arp_target.sll_family = PF_PACKET;
-        node->arp_target.sll_ifindex = if_nametoindex(ifa->ifa_name);
+        node->arp_target.sll_ifindex = ncb->u.arp.ifindex;
 
         if (!fifo_is_blocking(ncb)) {
             retval = arp_txn(ncb, node);
@@ -202,4 +214,9 @@ int arp_request(HARPLINK link, const char *source, const char *target)
 
     objdefr(link);
     return retval;
+}
+
+int arp_request(HARPLINK link, const char *target)
+{
+    return arp_nrequest(link, inet_addr(target));
 }
