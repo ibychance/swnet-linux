@@ -11,11 +11,16 @@
 
 #include <sys/socket.h>
 #include <sys/epoll.h>
+#include <sys/ioctl.h>
 
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 
 #include <arpa/inet.h>
+
+#include <linux/if.h>
+#include <linux/if_packet.h>
+#include <linux/if_ether.h>     /* ETH_P_ARP */
 
 #include "nis.h"
 #include "clist.h"

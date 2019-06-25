@@ -235,3 +235,19 @@ int nis_cntl(objhld_t link, int cmd, ...)
     objdefr(link);
     return retval;
 }
+
+int nis_getifmac(char *eth_name, unsigned char *pyhaddr)
+{
+    struct ifreq ifr;
+    int fd;
+
+    fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if(fd > 0) {
+        strncpy(ifr.ifr_name, (char *)eth_name, sizeof(ifr.ifr_name) );
+        if(ioctl(fd, SIOCGIFHWADDR, &ifr) >= 0) {
+            memcpy(pyhaddr, ifr.ifr_hwaddr.sa_data, 6);
+        }
+        close(fd);
+    }
+    return posix__makeerror(errno);
+}

@@ -14,6 +14,8 @@ SRCS=./fifo.c \
 		./tcpio.c \
 		./udp.c \
 		./udpio.c \
+		./arp.c \
+		./arpio.c \
 		./wpool.c
 
 SRCS+=../libnsp/com/avltree.c \

@@ -8,6 +8,7 @@ struct tx_node {
     int wcb; /* the total count of bytes need to write */
     int offset; /* the current offset of success written */
     struct sockaddr_in udp_target; /* the Tx target address, UDP only */
+    struct sockaddr_ll arp_target; /* the Tx target address, ARP only */
     struct list_head link;
 };
 
