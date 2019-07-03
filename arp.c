@@ -68,7 +68,7 @@ HARPLINK arp_create(arp_io_callback_t callback, const char *source)
     HARPLINK hld;
     ncb_t *ncb;
     int retval;
-
+    int hdrincl;
 
     fd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ARP));
     if (fd < 0) {
@@ -91,6 +91,9 @@ HARPLINK arp_create(arp_io_callback_t callback, const char *source)
         ncb->sockfd = fd;
         ncb->hld = hld;
         ncb->protocol = ETH_P_ARP;
+
+        hdrincl = 1;
+        setsockopt(fd, IPPROTO_IP, IP_HDRINCL, (const char *)&hdrincl, sizeof(hdrincl));
 
         if ((retval = arp_bindsource(source, ncb)) < 0) {
             break;
@@ -128,7 +131,7 @@ void arp_destroy(HARPLINK link)
     /* it should be the last reference operation of this object no matter how many ref-count now. */
     ncb = objreff(link);
     if (ncb) {
-        nis_call_ecr("[nshost.udp.destroy] link:%lld order to destroy", ncb->hld);
+        nis_call_ecr("[nshost.arp.destroy] link:%lld order to destroy", ncb->hld);
         io_close(ncb);
         objdefr(link);
     }

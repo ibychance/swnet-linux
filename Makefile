@@ -44,6 +44,15 @@ else
 	endif
 endif
 
+MIN_GCC_VERSION = "4.9"
+GCC_VERSION := "`$(CC) -dumpversion`"
+IS_GCC_ABOVE_MIN_VERSION := $(shell expr "$(GCC_VERSION)" ">=" "$(MIN_GCC_VERSION)")
+ifeq "$(IS_GCC_ABOVE_MIN_VERSION)" "1"
+    CFLAGS += -fstack-protector-strong
+else
+    CFLAGS += -fstack-protector
+endif
+
 ifeq ($(arch),arm)
 	CC=arm-linux-gnueabihf-gcc
 	CFLAGS+=-mfloat-abi=hard -mfpu=neon
