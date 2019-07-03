@@ -105,9 +105,17 @@ void ncb_destructor(objhld_t ignore, void *p)
         free(ncb->packet);
         ncb->packet = NULL;
     }
-    if (ncb->u.tcp.rx_buffer) {
+
+    if (ncb->u.tcp.rx_buffer && ncb->protocol == IPPROTO_TCP) {
         free(ncb->u.tcp.rx_buffer);
         ncb->u.tcp.rx_buffer = NULL;
+
+        if (ncb_lb_marked(ncb)) {
+            free(ncb->u.tcp.lbdata);
+        }
+        ncb->u.tcp.lbdata = NULL;
+        ncb->u.tcp.lbsize = 0;
+        ncb->u.tcp.lboffset = 0;
     }
 
     /* clear all packages pending in send queue */
