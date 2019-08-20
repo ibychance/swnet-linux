@@ -17,6 +17,8 @@ int __tcp_syn_try(ncb_t *ncb_server, int *clientfd, int *ctrlcode)
         return -EINVAL;
     }
 
+    *ctrlcode = 1;
+
     addrlen = sizeof ( addr_income);
     *clientfd = accept(ncb_server->sockfd, (struct sockaddr *) &addr_income, &addrlen);
     e = errno;
@@ -129,8 +131,11 @@ int __tcp_syn(ncb_t *ncb_server)
     objhld_t hld;
     struct tcp_info ktcp;
     int retval;
+    int clientfd;
+    int ctrlcode;
 
     retval = 0;
+    clientfd = -1;
 
     /* get the socket status of tcp_info to check the socket tcp statues,
         it must be listen states when accept syscall */
@@ -141,18 +146,18 @@ int __tcp_syn(ncb_t *ncb_server)
         }
     }
 
-    hld = objallo(sizeof ( ncb_t), &ncb_allocator, &ncb_destructor, NULL, 0);
-    if (hld < 0) {
-        return 0;
-    }
-    ncb = objrefr(hld);
-    assert(ncb);
-    ncb->hld = hld;
-
     /* try syscall connect(2) once, if accept socket fatal, the ncb object willbe destroy */
-    if (__tcp_syn_try(ncb_server, &ncb->sockfd, &retval) < 0) {
-        objclos(hld);
-    } else {
+    if ( (retval = __tcp_syn_try(ncb_server, &clientfd, &ctrlcode)) >= 0) {
+        hld = objallo(sizeof ( ncb_t), &ncb_allocator, &ncb_destructor, NULL, 0);
+        if (hld < 0) {
+            close(clientfd);
+            return 0;
+        }
+        ncb = objrefr(hld);
+        assert(ncb);
+        ncb->sockfd = clientfd;
+        ncb->hld = hld;
+
         ncb->protocol = IPPROTO_TCP;
         ncb->nis_callback = ncb_server->nis_callback;
 
@@ -160,9 +165,9 @@ int __tcp_syn(ncb_t *ncb_server)
         if (__tcp_syn_dpc(ncb_server, ncb) < 0) {
             objclos(hld);
         }
+        objdefr(hld);
     }
-    objdefr(hld);
-    return retval;
+    return ctrlcode;
 }
 
 int tcp_syn(ncb_t *ncb_server)
