@@ -585,6 +585,7 @@ int tcp_listen(HTCPLINK link, int block)
         addrlen = sizeof(struct sockaddr);
         getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen);
 
+        nis_call_ecr("[nshost.tcp.listen] success listen on link:%lld", link);
         retval = 0;
     } while (0);
 

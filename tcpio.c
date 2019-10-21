@@ -62,6 +62,7 @@ int __tcp_syn_try(ncb_t *ncb_server, int *clientfd, int *ctrlcode)
         return -1;
     }
 
+    nis_call_ecr("[nshost.tcpio.__tcp_syn_try] accepted socket:%d", *clientfd);
     return 0;
 }
 
@@ -72,12 +73,6 @@ int __tcp_syn_dpc(ncb_t *ncb_server, ncb_t *ncb)
 
     if (!ncb_server || !ncb) {
         return -EINVAL;
-    }
-
-    /* attach to epoll as early as it can to ensure the EPOLLRDHUP and EPOLLERR event not be lost,
-        BUT do NOT allow the EPOLLIN event, because receive message should NOT early than accepted message */
-    if (io_attach(ncb, 0) < 0) {
-        return -1;
     }
 
     /* save local and remote address struct */
@@ -113,6 +108,12 @@ int __tcp_syn_dpc(ncb_t *ncb_server, ncb_t *ncb)
     if (ncb_server->attr & LINKATTR_TCP_UPDATE_ACCEPT_CONTEXT) {
         ncb->attr = ncb_server->attr;
         memcpy(&ncb->u.tcp.template, &ncb_server->u.tcp.template, sizeof(tst_t));
+    }
+
+    /* attach to epoll as early as it can to ensure the EPOLLRDHUP and EPOLLERR event not be lost,
+        BUT do NOT allow the EPOLLIN event, because receive message should NOT early than accepted message */
+    if (io_attach(ncb, 0) < 0) {
+        return -1;
     }
 
     /* tell calling thread, link has been accepted.
@@ -166,7 +167,9 @@ int __tcp_syn(ncb_t *ncb_server)
             objclos(hld);
         }
         objdefr(hld);
+        return 0;
     }
+
     return ctrlcode;
 }
 
