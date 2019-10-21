@@ -137,6 +137,7 @@ int __tcp_syn(ncb_t *ncb_server)
 
     retval = 0;
     clientfd = -1;
+    ctrlcode = -1;
 
     /* get the socket status of tcp_info to check the socket tcp statues,
         it must be listen states when accept syscall */
@@ -177,6 +178,7 @@ int tcp_syn(ncb_t *ncb_server)
 {
     int retval;
 
+    retval = 0;
     do {
         retval = __tcp_syn(ncb_server);
     } while (0 == retval);
