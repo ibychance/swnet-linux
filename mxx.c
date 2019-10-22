@@ -214,15 +214,14 @@ int nis_cntl(objhld_t link, int cmd, ...)
                 (ncb->protocol == IPPROTO_UDP ? udp_getattr_r(ncb, &retval) : 0);
             break;
         case NI_SETCTX:
-            context = va_arg(ap, void *);
-            ncb->prcontext = __sync_lock_test_and_set(&ncb->context, context);
+            ncb->prcontext = __sync_lock_test_and_set(&ncb->context, va_arg(ap, const void *));
             break;
         case NI_GETCTX:
             ncb->prcontext = __sync_lock_test_and_set(&context, ncb->context);
             *(va_arg(ap, void **) ) = context;
             break;
         case NI_SETTST:
-            retval = tcp_settst_r(link, va_arg(ap, void *));
+            retval = tcp_settst_r(link, va_arg(ap, const void *));
             break;
         case NI_GETTST:
             retval = tcp_gettst_r(link, va_arg(ap, void *), NULL);

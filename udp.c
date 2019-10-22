@@ -232,7 +232,7 @@ int udp_write(HUDPLINK link, const void *origin, int cb, const char* ipstr, uint
 
         /*
          * when the IO blocking is existed, we can't send data immediately,
-         * only way to handler this situation is queued data into @wpool.
+         * only way to handle this situation is queued data into @wpool.
          * otherwise, the wrong operation may broken the output sequence
          *
          * in case of -EAGAIN return by @udp_txn, means the write operation cannot be complete right now,

@@ -17,7 +17,7 @@ void tcp_update_opts(const ncb_t *ncb);
 
 /* inner function for thread safty */
 extern
-int tcp_settst_r(HTCPLINK link, tst_t *tst);
+int tcp_settst_r(HTCPLINK link, const tst_t *tst);
 extern
 int tcp_gettst_r(HTCPLINK link, tst_t *tst, tst_t *previous);
 extern

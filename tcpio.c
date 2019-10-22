@@ -178,7 +178,6 @@ int tcp_syn(ncb_t *ncb_server)
 {
     int retval;
 
-    retval = 0;
     do {
         retval = __tcp_syn(ncb_server);
     } while (0 == retval);

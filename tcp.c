@@ -200,7 +200,7 @@ int tcp_settst(HTCPLINK link, const tst_t *tst)
     return retval;
 }
 
-int tcp_settst_r(HTCPLINK link, tst_t *tst)
+int tcp_settst_r(HTCPLINK link, const tst_t *tst)
 {
     ncb_t *ncb;
     int retval;
