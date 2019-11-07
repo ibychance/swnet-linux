@@ -35,13 +35,9 @@ CFLAGS+=-I ../libnsp/icom -fPIC -Wall -std=c89 -ansi -D_GNU_SOURCE
 LDFLAGS=-shared -lcrypt
 
 ifeq ($(build),debug)
-	CFLAGS+=-g
+	CFLAGS+=-g3
 else
-	ifeq ($(build),gdb)
-		CFLAGS+=-ggdb3
-	else
-		CFLAGS+=-O2
-	endif
+	CFLAGS+=-O2
 endif
 
 MIN_GCC_VERSION = "4.9"
