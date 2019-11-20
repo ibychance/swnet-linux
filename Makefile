@@ -49,13 +49,13 @@ else
     CFLAGS += -fstack-protector
 endif
 
-INSTALL_DIR+=/usr/local/lib64/
+INSTALL_DIR=/usr/local/lib64/
 ifeq ($(arch),arm)
 	CC=arm-linux-gnueabihf-gcc
 	CFLAGS+=-mfloat-abi=hard -mfpu=neon
-	INSTALL_DIR+=/usr/local/lib/
+	INSTALL_DIR=/usr/local/lib/
 endif
-	
+
 ifeq ($(arch), i686)
 	#CC=gcc
 	CFLAGS+=-m32
