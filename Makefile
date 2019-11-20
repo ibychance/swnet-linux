@@ -1,7 +1,9 @@
-TARGET=nshost.so.9.8.3
-build=automatic
-arch=x86_64
-INSTALL_DIR=
+PROGRAM=nshost.so
+VERSION=9.8.3
+
+TARGET=$(PROGRAM).$(VERSION)
+build=release
+arch=ia64
 SRC_EXT=c
 SYS_WIDTH=$(shell getconf LONG_BIT)
 
@@ -50,6 +52,7 @@ else
 endif
 
 INSTALL_DIR=/usr/local/lib64/
+
 ifeq ($(arch),arm)
 	CC=arm-linux-gnueabihf-gcc
 	CFLAGS+=-mfloat-abi=hard -mfpu=neon
@@ -57,7 +60,6 @@ ifeq ($(arch),arm)
 endif
 
 ifeq ($(arch), i686)
-	#CC=gcc
 	CFLAGS+=-m32
 	LDFLAGS+=-m32
 	INSTALL_DIR=/usr/local/lib/
@@ -78,10 +80,10 @@ $(TARGET):$(OBJS)
 	$(CC) -c $< $(CFLAGS)  -o $@
 
 clean:
-	$(RM) $(OBJS) nshost.so*
+	$(RM) $(OBJS) $(PROGRAM)*
 
 install:
 	install -m644 $(TARGET) $(INSTALL_DIR)
-	ln -sf $(INSTALL_DIR)$(TARGET) $(INSTALL_DIR)nshost.so
+	ln -sf $(INSTALL_DIR)$(TARGET) $(INSTALL_DIR)$(PROGRAM)
 
 .PHONY:clean all install
