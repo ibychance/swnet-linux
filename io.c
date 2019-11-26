@@ -31,18 +31,57 @@ struct io_object_block {
 static objhld_t tcphld = -1;
 static objhld_t udphld = -1;
 
+/*
+EPOLL enevts define in and copy form: /usr/include/x86_64-linux-gnu/sys/epoll.h
+enum EPOLL_EVENTS
+  {
+    EPOLLIN = 0x001,
+#define EPOLLIN EPOLLIN
+    EPOLLPRI = 0x002,
+#define EPOLLPRI EPOLLPRI
+    EPOLLOUT = 0x004,
+#define EPOLLOUT EPOLLOUT
+    EPOLLRDNORM = 0x040,
+#define EPOLLRDNORM EPOLLRDNORM
+    EPOLLRDBAND = 0x080,
+#define EPOLLRDBAND EPOLLRDBAND
+    EPOLLWRNORM = 0x100,
+#define EPOLLWRNORM EPOLLWRNORM
+    EPOLLWRBAND = 0x200,
+#define EPOLLWRBAND EPOLLWRBAND
+    EPOLLMSG = 0x400,
+#define EPOLLMSG EPOLLMSG
+    EPOLLERR = 0x008,
+#define EPOLLERR EPOLLERR
+    EPOLLHUP = 0x010,
+#define EPOLLHUP EPOLLHUP
+    EPOLLRDHUP = 0x2000,
+#define EPOLLRDHUP EPOLLRDHUP
+    EPOLLEXCLUSIVE = 1u << 28,
+#define EPOLLEXCLUSIVE EPOLLEXCLUSIVE
+    EPOLLWAKEUP = 1u << 29,
+#define EPOLLWAKEUP EPOLLWAKEUP
+    EPOLLONESHOT = 1u << 30,
+#define EPOLLONESHOT EPOLLONESHOT
+    EPOLLET = 1u << 31
+#define EPOLLET EPOLLET
+  };
+*/
+
 static void __iorun(struct epoll_event *evts, int sigcnt)
 {
     int i;
     ncb_t *ncb;
     objhld_t hld;
+    int (*ncb_read)(struct _ncb *);
 
     for (i = 0; i < sigcnt; i++) {
         hld = (objhld_t)evts[i].data.u64;
 
-        /* disconnect/error happend */
-        if (evts[i].events & EPOLLRDHUP) {
-            nis_call_ecr("[nshost.io.__iorun] event EPOLLRDHUP on link:%lld", hld);
+        /* disconnect/error/reset socket states have been detect,
+         * in this case, ncb it's NOT necessary */
+        if ( (evts[i].events & EPOLLRDHUP) || (evts[i].events & EPOLLERR) ) {
+            nis_call_ecr("[nshost.io.__iorun] EPOLL event:%d detect on link:%lld", hld);
 	        objclos(hld);
             continue;
         }
@@ -52,32 +91,11 @@ static void __iorun(struct epoll_event *evts, int sigcnt)
             continue;
         }
 
-        if (evts[i].events & EPOLLERR) {
-            if (ncb->ncb_error) {
-                ncb->ncb_error(ncb);
-            }
-            nis_call_ecr("[nshost.io.__iorun] event EPOLLERR on link:%lld", hld);
-            objdefr(hld);
-            objclos(hld);
-            continue;
-        }
-
-    	/* concern but not deal with EPOLLHUP
-    	 * every connect request should trigger a EPOLLHUP event, no matter successful or failed
-         *   EPOLLHUP
-         *    Hang up happened on the associated file descriptor.  epoll_wait(2) will always wait for this event; it is not necessary to set it in events.
-         *
-         *    Note  that  when  reading from a channel such as a pipe or a stream socket, this event merely indicates that the peer closed its end of the channel.
-         *    Subsequent reads from the channel will return 0 (end of file) only after all outstanding data in
-         *    the channel has been consumed. */
-    	if ( evts[i].events & EPOLLHUP ) {
-    	    ;
-    	}
-
-        /* IN event by epoll */
+        /* system width input cache change from empty to readable */
         if (evts[i].events & EPOLLIN) {
-            if (ncb->ncb_read) {
-                if (ncb->ncb_read(ncb) < 0) {
+            posix__atomic_get(ncb->ncb_read, ncb_read);
+            if (ncb_read) {
+                if (ncb_read(ncb) < 0) {
                     nis_call_ecr("[nshost.io.__iorun] ncb read function return fatal error, this will cause link close, link:%lld", hld);
                     objclos(ncb->hld);
                 }
@@ -86,9 +104,32 @@ static void __iorun(struct epoll_event *evts, int sigcnt)
             }
         }
 
-        /* OUT event by epoll */
+        /* system width output cache change from full to writeable */
         if (evts[i].events & EPOLLOUT) {
-            wp_queued(ncb);
+
+            /* concern but not deal with EPOLLHUP
+             * every connect request should trigger a EPOLLHUP event, no matter successful or failed
+             * EPOLLHUP
+             * Hang up happened on the associated file descriptor.  epoll_wait(2) will always wait for this event; it is not necessary to set it in events.
+             *
+             * Notes: that when reading from a channel such as a pipe or a stream socket,
+             *  this event merely indicates that the peer closed its end of the channel.
+             * Subsequent reads from the channel will return 0 (end of file) only after all outstanding data in
+             *   the channel has been consumed.
+             *
+             * EPOLLOUT adn EPOLLHUP for asynchronous connect(2)
+             * 1.When the connect function is not called locally, but the socket is attach to epoll for detection,
+             *   epoll will generate an EPOLLOUT | EPOLLHUP, that is, an event with a value of 0x14
+             * 2.When the local connect event occurs, but the connection fails to be established,
+             *   epoll will generate EPOLLIN | EPOLLERR | EPOLLHUP, that is, an event with a value of 0x19
+             * 3.When the connect function is also called and the connection is successfully established,
+             *   epoll will generate EPOLLOUT once, with a value of 0x4, indicating that the socket is writable
+             */
+            if ( 0 == (evts[i].events & EPOLLHUP) ) {
+                 wp_queued(ncb);
+            } else {
+                nis_call_ecr("[nshost.io.__iorun] EPOLLOUT with event:%d, link:%lld", evts[i].events, hld);
+            }
         }
 
         objdefr(hld);
@@ -261,8 +302,7 @@ void io_uninit(int protocol)
     }
 }
 
-static
-int __io_set_asynchronous(int fd)
+int io_fcntl(int fd)
 {
     int opt;
 
@@ -272,27 +312,29 @@ int __io_set_asynchronous(int fd)
 
     opt = fcntl(fd, F_GETFL);
     if (opt < 0) {
-        nis_call_ecr("[nshost.io.io_set_asynchronous] fatal error occurred syscall fcntl(2) with F_GETFL.error:%d", errno);
+        nis_call_ecr("[nshost.io.io_fcntl] fatal error occurred syscall fcntl(2) with F_GETFL.error:%d", errno);
         return posix__makeerror(errno);
     }
-
-    if (fcntl(fd, F_SETFL, opt | O_NONBLOCK) < 0) {
-        nis_call_ecr("[nshost.io.io_set_asynchronous] fatal error occurred syscall fcntl(2) with F_SETFL.error:%d", errno);
-        return posix__makeerror(errno);
+    if ( 0 == (opt & O_NONBLOCK )) {
+        if (fcntl(fd, F_SETFL, opt | O_NONBLOCK) < 0) {
+            nis_call_ecr("[nshost.io.io_fcntl] fatal error occurred syscall fcntl(2) with F_SETFL.error:%d", errno);
+            return posix__makeerror(errno);
+        }
     }
 
     opt = fcntl(fd, F_GETFD);
     if (opt < 0) {
-        nis_call_ecr("[nshost.io.io_set_asynchronous] fatal error occurred syscall fcntl(2) with F_GETFD.error:%d", errno);
+        nis_call_ecr("[nshost.io.io_fcntl] fatal error occurred syscall fcntl(2) with F_GETFD.error:%d", errno);
         return posix__makeerror(errno);
     }
 
     /* to disable the port inherit when fork/exec */
-    if (fcntl(fd, F_SETFD, opt | FD_CLOEXEC) < 0) {
-        nis_call_ecr("[nshost.io.io_set_asynchronous] fatal error occurred syscall fcntl(2) with F_SETFD.error:%d", errno);
-        return posix__makeerror(errno);
+    if (0 == (opt & FD_CLOEXEC)) {
+        if (fcntl(fd, F_SETFD, opt | FD_CLOEXEC) < 0) {
+            nis_call_ecr("[nshost.io.io_fcntl] fatal error occurred syscall fcntl(2) with F_SETFD.error:%d", errno);
+            return posix__makeerror(errno);
+        }
     }
-
     return 0;
 }
 
@@ -308,7 +350,7 @@ int io_attach(void *ncbptr, int mask)
     ncb = (ncb_t *)ncbptr;
     assert(ncb);
 
-    retval = __io_set_asynchronous(ncb->sockfd);
+    retval = io_fcntl(ncb->sockfd);
     if ( retval < 0) {
         return retval;
     }

@@ -41,6 +41,16 @@ if (evts[i].events & EPOLLIN) {
 }
 
 /*
+ * EPOLLOUT检查异步连接的返回状态
+ * 因为epoll本身没有明确提出当异步connect成功之后会返回什么样的信号，通过测试有如下结果：
+ * 1，当本地还没调用connect函数，却将套接字送交epoll检测，epoll会产生一次 EPOLLOUT | EPOLLHUP， 也就是产生一个值为0x14的events.
+ * 2，当本地connect事件发生了，但建立连接失败，则epoll会产生一次 EPOLLIN | EPOLLERR | EPOLLHUP， 也就是一个值为0x19的events.
+ * 3，当connect函数也调用了，而且连接也顺利建立了，则epoll会产生一次 EPOLLOUT， 值为0x4，即表明套接字已经可写。
+*/
+
+
+
+/*
  * ET模式下，EPOLLOUT触发条件有：
  *   1.缓冲区满-->缓冲区非满；
  *		TCP 写缓冲区 cat /proc/sys/net/ipv4/tcp_wmem

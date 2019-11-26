@@ -6,6 +6,8 @@
 #include "fifo.h"
 #include "io.h"
 
+#include "posix_atomic.h"
+
 static
 int __tcp_syn_try(ncb_t *ncb_server, int *clientfd, int *ctrlcode)
 {
@@ -101,8 +103,8 @@ int __tcp_syn_dpc(ncb_t *ncb_server, ncb_t *ncb)
     }
 
     /* specify data handler proc for client ncb object */
-    ncb->ncb_read = &tcp_rx;
-    ncb->ncb_write = &tcp_tx;
+    posix__atomic_set(ncb->ncb_read, &tcp_rx);
+    posix__atomic_set(ncb->ncb_write, &tcp_tx);
 
     /* copy the context from listen fd to accepted one in needed */
     if (ncb_server->attr & LINKATTR_TCP_UPDATE_ACCEPT_CONTEXT) {
@@ -318,6 +320,7 @@ int tcp_tx(ncb_t *ncb)
     return 0;
 }
 
+#if 0
 static int __tcp_poll_syn(int sockfd, int *err)
 {
     struct pollfd pofd;
@@ -342,14 +345,28 @@ static int __tcp_poll_syn(int sockfd, int *err)
         }
 
         *err = error;
-
-        /* success only when SOL_ERROR return 0 */
         return ((0 == error) ? (0) : (-1));
 
     } while (0);
 
     *err = errno;
     return -1;
+}
+#endif
+
+static int __tcp_check_syn_result(int sockfd, int *err)
+{
+    socklen_t errlen;
+    int error;
+
+    error = 0;
+    errlen = sizeof(error);
+    if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, &errlen) < 0) {
+        error = errno;
+    }
+
+    *err = error;
+    return ((0 == error) ? (0) : (-1));
 }
 
 /*
@@ -359,38 +376,29 @@ int tcp_tx_syn(ncb_t *ncb)
 {
     int e;
     socklen_t addrlen;
-    struct tcp_info ktcp;
 
     while (1) {
-        if( 0 == __tcp_poll_syn(ncb->sockfd, &e)) {
-
-            /* in 3.4 kernel, when socket file-descriptor attach to epoll with EPOLLOUT flag, a EPOLLOUT event will happen immediately.
-                this situation can be avoided by judging the kernel-tcp-state
-                the connection is considered successful only when the state is switched to TCP_ESTABLISHED */
-            if (tcp_save_info(ncb, &ktcp) >= 0) {
-                if (ktcp.tcpi_state != TCP_ESTABLISHED) {
-                    nis_call_ecr("[nshost.tcp.tcp_tx_syn] state illegal,link:%lld, kernel states:%s.", ncb->hld, tcp_state2name(ktcp.tcpi_state));
-                    break;
-                }
-            }
-
-            /* set other options */
+        if( 0 == __tcp_check_syn_result(ncb->sockfd, &e)) {
             tcp_update_opts(ncb);
 
+            /* get peer address information */
             addrlen = sizeof (struct sockaddr);
             getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* remote address information */
             getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* local address information */
 
-            /* follow tcp rx/tx event */
-            ncb->ncb_read = &tcp_rx;
-            ncb->ncb_write = &tcp_tx;
-            ncb->ncb_error = NULL;
+            /* focus EPOLLIN only */
             if (io_modify(ncb, EPOLLIN) < 0) {
                 objclos(ncb->hld);
                 return -1;
             }
 
             ncb_post_connected(ncb);
+            nis_call_ecr("[nshost.tcp.tcp_tx_syn] link:%lld connection established.", ncb->hld);
+
+            /* follow tcp rx/tx event */
+            posix__atomic_set(ncb->ncb_read, &tcp_rx);
+            posix__atomic_set(ncb->ncb_write, &tcp_tx);
+
             return 0;
         }
 

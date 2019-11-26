@@ -8,6 +8,8 @@
 #include "wpool.h"
 #include "mxx.h"
 
+#include "posix_atomic.h"
+
 #undef __USE_MISC
 #include <net/if.h>
 
@@ -106,8 +108,8 @@ HARPLINK arp_create(arp_io_callback_t callback, const char *source)
         }
 
         /* set data handler function pointer for Rx/Tx */
-        ncb->ncb_read = &arp_rx;
-        ncb->ncb_write = &arp_tx;
+        posix__atomic_set(ncb->ncb_read, &arp_rx);
+        posix__atomic_set(ncb->ncb_write, &arp_tx);
 
         /* attach to epoll */
         retval = io_attach(ncb, EPOLLIN);

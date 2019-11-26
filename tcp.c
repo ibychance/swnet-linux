@@ -66,6 +66,10 @@ void tcp_update_opts(const ncb_t *ncb)
 {
     if (ncb) {
 #if 0
+        /* define in:
+         /proc/sys/net/ipv4/tcp_me
+         /proc/sys/net/ipv4/tcp_wmem
+         /proc/sys/net/ipv4/tcp_rmem */
         ncb_set_window_size(ncb, SO_RCVBUF, TCP_BUFFER_SIZE);
         ncb_set_window_size(ncb, SO_SNDBUF, TCP_BUFFER_SIZE);
 #endif
@@ -413,11 +417,12 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
             break;
         }
 
-        /* ensuer all file descriptor in asynchronous mode,
-           and than, queue object into epoll manager
-
-           on success, MUST attach this file descriptor to epoll as early as possible.
-           Even so, It is also possible a close message post to calling thread early then connected message  */
+        /*
+         * ensuer all file descriptor in asynchronous mode,
+         * and than, queue object into epoll manager
+         *
+         * on success, MUST attach this file descriptor to epoll as early as possible.
+         * Even so, It is also possible a close message post to calling thread early then connected message  */
         retval = io_attach(ncb, EPOLLIN);
         if (retval < 0) {
             objclos(link);
@@ -432,10 +437,12 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
         getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* remote address information */
         getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* local address information */
 
-        /* set handler function pointer to Rx/Tx */
-        ncb->ncb_read = &tcp_rx;
-        ncb->ncb_write = &tcp_tx;
+        /* render the connected event to up-level */
         ncb_post_connected(ncb);
+
+        /* set handler function pointer to Rx/Tx */
+        posix__atomic_set(ncb->ncb_read, &tcp_rx);
+        posix__atomic_set(ncb->ncb_write, &tcp_tx);
 
     }while( 0 );
 
@@ -463,18 +470,8 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
     do {
         retval = -1;
 
-        /* queue object into epoll manage befor syscall @connect,
-           epoll_wait will get a EPOLLOUT signal when syn success.
-           so, file descriptor must be set to asynchronous now.
-
-           attach MUST early than connect(2) call,
-           in some case, very short time after connect(2) called, the EPOLLRDHUP event has been arrived,
-           if attach not in time, error information maybe lost, then cause the file-descriptor leak.
-
-           ncb object willbe destroy on fatal. */
-        retval = io_attach(ncb, EPOLLOUT);
-        if ( retval < 0) {
-            objclos(link);
+        /* for asynchronous connect, set file-descriptor to non-blocked mode first */
+        if (io_fcntl(ncb->sockfd) < 0) {
             break;
         }
 
@@ -505,14 +502,37 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
             e = errno;
         }while((EINTR == e) && (retval < 0));
 
-        /* immediate success */
+        /* immediate success, some BSD/SystemV maybe happen */
         if ( 0 == retval) {
             nis_call_ecr("[nshost.tcp.connect2] asynchronous file descriptor but success immediate, link:%lld", link);
+            tcp_tx_syn(ncb);
             break;
         }
 
+        /*
+         *  queue object into epoll manage befor syscall @connect,
+         *  epoll_wait will get a EPOLLOUT signal when syn success.
+         *  so, file descriptor must be set to asynchronous now.
+         *
+         *  attach MUST early than connect(2) call,
+         *  in some case, very short time after connect(2) called, the EPOLLRDHUP event has been arrived,
+         *  if attach not in time, error information maybe lost, then cause the file-descriptor leak.
+         *
+         *  ncb object willbe destroy on fatal.
+         *
+         *  EPOLLOUT adn EPOLLHUP for asynchronous connect(2):
+         *  1.When the connect function is not called locally, but the socket is attach to epoll for detection,
+         *       epoll will generate an EPOLLOUT | EPOLLHUP, that is, an event with a value of 0x14
+         *   2.When the local connect event occurs, but the connection fails to be established,
+         *       epoll will generate EPOLLIN | EPOLLERR | EPOLLHUP, that is, an event with a value of 0x19
+         *   3.When the connect function is also called and the connection is successfully established,
+         *       epoll will generate EPOLLOUT once, with a value of 0x4, indicating that the socket is writable
+        */
         if (e == EINPROGRESS) {
-            retval = 0;
+            retval = io_attach(ncb, EPOLLOUT);
+            if ( retval < 0) {
+                objclos(link);
+            }
             break;
         }
 
@@ -555,33 +575,34 @@ int tcp_listen(HTCPLINK link, int block)
             }
         }
 
-        /* this NCB object is readonly， and it must be used for accept */
-        if (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_read, NULL, &tcp_syn)) {
-            nis_call_ecr("[nshost.tcp.tcp_listen] multithreading double call is not allowed,link:%lld", link);
-            retval = -1;
-            break;
-        }
-        ncb->ncb_write = NULL;
-
-        /* set file descriptor to asynchronous mode and attach to it's own epoll object,
-            ncb object willbe destroy on fatal. */
-        if (io_attach(ncb, EPOLLIN) < 0) {
-            objclos(link);
-            break;
-        }
-
-        /* '/proc/sys/net/core/somaxconn' in POSIX.1 this value default to 128
-           so,for ensure high concurrency performance in the establishment phase of the TCP connection,
-           we will ignore the @block argument and use macro SOMAXCONN which defined in /usr/include/bits/socket.h anyway
-         */
+        /*
+         * '/proc/sys/net/core/somaxconn' in POSIX.1 this value default to 128
+         *  so,for ensure high concurrency performance in the establishment phase of the TCP connection,
+         *  we will ignore the @block argument and use macro SOMAXCONN which defined in /usr/include/bits/socket.h anyway */
         retval = listen(ncb->sockfd, ((0 == block) || (block > SOMAXCONN)) ? SOMAXCONN : block);
         if (retval < 0) {
             nis_call_ecr("[nshost.tcp.listen] fatal error occurred syscall listen(2),error:%u", errno);
             break;
         }
 
-        /* allow application to listen on the random port,
-            therefor, framework MUST query the real address information for this file descriptor now */
+        /* this NCB object is readonly， and it must be used for accept */
+        if (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_read, NULL, &tcp_syn)) {
+            nis_call_ecr("[nshost.tcp.tcp_listen] multithreading double call is not allowed,link:%lld", link);
+            retval = -1;
+            break;
+        }
+        posix__atomic_set(ncb->ncb_write, NULL);
+
+        /* set file descriptor to asynchronous mode and attach to it's own epoll object,
+         *  ncb object willbe destroy on fatal. */
+        if (io_attach(ncb, EPOLLIN) < 0) {
+            objclos(link);
+            break;
+        }
+
+        /*
+         * allow application to listen on the random port,
+         * therefor, framework MUST query the real address information for this file descriptor now */
         addrlen = sizeof(struct sockaddr);
         getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen);
 

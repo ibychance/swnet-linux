@@ -62,6 +62,7 @@ static int __wp_exec(struct wptask *task)
 {
     int retval;
     ncb_t *ncb;
+    int (*ncb_write)(struct _ncb *);
 
     assert(NULL != task);
 
@@ -72,7 +73,8 @@ static int __wp_exec(struct wptask *task)
         return -ENOENT;
     }
 
-    if (ncb->ncb_write) {
+    posix__atomic_get(ncb->ncb_write, ncb_write);
+    if (ncb_write) {
         /*
          * if the return value of @ncb_write equal to -1, that means system call maybe error, this link will be close
          *
@@ -86,7 +88,7 @@ static int __wp_exec(struct wptask *task)
          * if the return value of @ncb_write greater than zero, it means the data segment have been written to system kernel
          * @retval is the total bytes that have been written
          */
-        retval = ncb->ncb_write(ncb);
+        retval = ncb_write(ncb);
 
         /* fatal error cause by syscall, close this link */
         if(-1 == retval) {
