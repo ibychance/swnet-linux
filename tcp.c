@@ -65,9 +65,10 @@ int __tcprefr( objhld_t hld, ncb_t **ncb )
 void tcp_update_opts(const ncb_t *ncb)
 {
     if (ncb) {
+#if 0
         ncb_set_window_size(ncb, SO_RCVBUF, TCP_BUFFER_SIZE);
         ncb_set_window_size(ncb, SO_SNDBUF, TCP_BUFFER_SIZE);
-
+#endif
         /* atomic keepalive */
         tcp_set_keepalive(ncb, 1);
         tcp_set_keepalive_value(ncb, 30, 5, 6);
@@ -462,29 +463,6 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
     do {
         retval = -1;
 
-        /* get the socket status of tcp_info to check the socket tcp statues */
-        if (tcp_save_info(ncb, &ktcp) >= 0) {
-            if (ktcp.tcpi_state != TCP_CLOSE) {
-                nis_call_ecr("[nshost.tcp.connect2] state illegal,link:%lld, kernel states:%s.", link, tcp_state2name(ktcp.tcpi_state));
-                break;
-            }
-        }
-
-        if ((NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_write, NULL, &tcp_tx_syn)) ||
-            (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_read, NULL, &tcp_rx_syn)) ||
-            (NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_error, NULL, &tcp_rx_syn))) {
-            nis_call_ecr("[nshost.tcp.connect2] link:%lld multithreading double call is not allowed.", link);
-            break;
-        }
-
-        /* try no more than 3 times of tcp::syn */
-        optval = 3;
-        setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
-
-        ncb->remot_addr.sin_family = PF_INET;
-        ncb->remot_addr.sin_port = htons(port);
-        ncb->remot_addr.sin_addr.s_addr = inet_addr(ipstr);
-
         /* queue object into epoll manage befor syscall @connect,
            epoll_wait will get a EPOLLOUT signal when syn success.
            so, file descriptor must be set to asynchronous now.
@@ -494,11 +472,33 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
            if attach not in time, error information maybe lost, then cause the file-descriptor leak.
 
            ncb object willbe destroy on fatal. */
-        retval = io_attach(ncb, EPOLLOUT | EPOLLIN);
+        retval = io_attach(ncb, EPOLLOUT);
         if ( retval < 0) {
             objclos(link);
             break;
         }
+
+        /* get the socket status of tcp_info to check the socket tcp statues */
+        if (tcp_save_info(ncb, &ktcp) >= 0) {
+            if (ktcp.tcpi_state != TCP_CLOSE) {
+                nis_call_ecr("[nshost.tcp.connect2] state illegal,link:%lld, kernel states:%s.", link, tcp_state2name(ktcp.tcpi_state));
+                break;
+            }
+        }
+
+        /* double check the tx_syn routine */
+        if ((NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_write, NULL, &tcp_tx_syn))) {
+            nis_call_ecr("[nshost.tcp.connect2] link:%lld multithreading double call is not allowed.", link);
+            break;
+        }
+
+        /* try no more than 3 times for tcp::syn */
+        optval = 3;
+        setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
+
+        ncb->remot_addr.sin_family = PF_INET;
+        ncb->remot_addr.sin_port = htons(port);
+        ncb->remot_addr.sin_addr.s_addr = inet_addr(ipstr);
 
         do {
             retval = connect(ncb->sockfd, (const struct sockaddr *) &ncb->remot_addr, sizeof (struct sockaddr));
@@ -615,6 +615,8 @@ int tcp_write(HTCPLINK link, const void *origin, int cb, const nis_serializer_t 
     }
 
     do {
+        retval = -1;
+
         /* the calling thread is likely to occur as follows:
          * immediately call @tcp_write after creation, but no connection established and no listening has yet been taken
          * in this situation, @wpool::run_task maybe take a task, but @ncb->ncb_write is ineffectiveness.application may crashed.

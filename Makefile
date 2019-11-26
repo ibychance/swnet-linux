@@ -1,5 +1,5 @@
 PROGRAM=nshost.so
-VERSION=10.0.0
+VERSION=9.8.4
 
 TARGET=$(PROGRAM).$(VERSION)
 build=release
@@ -21,6 +21,27 @@ INC_DIR=-I ../libnsp/icom/
 CFLAGS+=$(INC_DIR) -fPIC -Wall -std=c89 -ansi -D_GNU_SOURCE
 LDFLAGS=-shared -lcrypt
 
+OBJCOPY=objcopy
+INSTALL_DIR=/usr/local/lib64/
+ifeq ($(arch),arm)
+	CC=arm-linux-gnueabihf-gcc
+	OBJCOPY=arm-linux-gnueabihf-objcopy
+	CFLAGS+=-mfloat-abi=hard -mfpu=neon
+	INSTALL_DIR=/usr/local/lib/
+endif
+
+ifeq ($(arch), i686)
+	CFLAGS+=-m32
+	LDFLAGS+=-m32
+	INSTALL_DIR=/usr/local/lib/
+endif
+
+ifeq ($(arch), arm64)
+	CC=aarch64-linux-gnu-gcc
+	OBJCOPY=aarch64-linux-gnu-objcopy
+	INSTALL_DIR=/usr/local/lib/aarch64-linux-gnu/
+endif
+
 MIN_GCC_VERSION = "4.9"
 GCC_VERSION := "`$(CC) -dumpversion`"
 IS_GCC_ABOVE_MIN_VERSION := $(shell expr "$(GCC_VERSION)" ">=" "$(MIN_GCC_VERSION)")
@@ -35,24 +56,6 @@ else
 	CFLAGS+=-O2
 endif
 
-INSTALL_DIR=/usr/local/lib64/
-ifeq ($(arch),arm)
-	CC=arm-linux-gnueabihf-gcc
-	CFLAGS+=-mfloat-abi=hard -mfpu=neon
-	INSTALL_DIR=/usr/local/lib/
-endif
-
-ifeq ($(arch), i686)
-	CFLAGS+=-m32
-	LDFLAGS+=-m32
-	INSTALL_DIR=/usr/local/lib/
-endif
-
-ifeq ($(arch), arm64)
-	CC=aarch64-linux-gnu-gcc
-	INSTALL_DIR=/usr/local/lib/aarch64-linux-gnu/
-endif
-
 # define the build middle directory
 BUILD_DIR=tmp
 OBJS_DIR=$(BUILD_DIR)/objs
@@ -63,13 +66,16 @@ DIRS=./ ../libnsp/com/
 VPATH = $(DIRS)
 # construct the object output files
 OBJS=$(addprefix $(OBJS_DIR)/,$(patsubst %.$(SRC_EXT),%.o,$(notdir $(SRCS))))
-DEPS=$(addprefix $(DEPS_DIR)/, $(patsubst %.$(SRC_EXT),%.d,$(notdir $(SRCS))))
+DEPS=$(addprefix $(DEPS_DIR)/,$(patsubst %.$(SRC_EXT),%.d,$(notdir $(SRCS))))
 
-$(TARGET):$(OBJS)
+$(TARGET):$(PROGRAM)
+	#$(OBJCOPY) --only-keep-debug $(PROGRAM) $(PROGRAM).debuginfo
+	#$(OBJCOPY) --strip-unneeded $(PROGRAM) $(TARGET)
+	#rm -f $(PROGRAM)
+	cp -f $(PROGRAM) $(TARGET)
+
+$(PROGRAM):$(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
-
-#%.o:%.$(SRC_EXT)
-#	$(CC) -c $< $(CFLAGS)  -o $@
 
 $(OBJS_DIR)/%.o:%.$(SRC_EXT)
 	@if [ ! -d $(OBJS_DIR) ]; then mkdir -p $(OBJS_DIR); fi;
