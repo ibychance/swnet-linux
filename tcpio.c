@@ -392,13 +392,12 @@ int tcp_tx_syn(ncb_t *ncb)
                 return -1;
             }
 
-            ncb_post_connected(ncb);
-            nis_call_ecr("[nshost.tcp.tcp_tx_syn] link:%lld connection established.", ncb->hld);
-
             /* follow tcp rx/tx event */
             posix__atomic_set(ncb->ncb_read, &tcp_rx);
             posix__atomic_set(ncb->ncb_write, &tcp_tx);
 
+            nis_call_ecr("[nshost.tcp.tcp_tx_syn] link:%lld connection established.", ncb->hld);
+            ncb_post_connected(ncb);
             return 0;
         }
 
