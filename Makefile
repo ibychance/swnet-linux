@@ -1,9 +1,11 @@
 PROGRAM=nshost.so
-VERSION=9.8.4
+VERSION=.9.8.4
+DETACHED=.detached
+DEBUGINFO=.debuginfo
 
-TARGET=$(PROGRAM).$(VERSION)
+TARGET=$(PROGRAM)$(VERSION)
 build=release
-arch=ia64
+arch=IA64
 SRC_EXT=c
 SYS_WIDTH=$(shell getconf LONG_BIT)
 
@@ -56,7 +58,7 @@ else
 	CFLAGS+=-O2
 endif
 
-# define the build middle directory
+# define the middle directory for build
 BUILD_DIR=tmp
 OBJS_DIR=$(BUILD_DIR)/objs
 DEPS_DIR=$(BUILD_DIR)/deps
@@ -69,9 +71,6 @@ OBJS=$(addprefix $(OBJS_DIR)/,$(patsubst %.$(SRC_EXT),%.o,$(notdir $(SRCS))))
 DEPS=$(addprefix $(DEPS_DIR)/,$(patsubst %.$(SRC_EXT),%.d,$(notdir $(SRCS))))
 
 $(TARGET):$(PROGRAM)
-	#$(OBJCOPY) --only-keep-debug $(PROGRAM) $(PROGRAM).debuginfo
-	#$(OBJCOPY) --strip-unneeded $(PROGRAM) $(TARGET)
-	#rm -f $(PROGRAM)
 	cp -f $(PROGRAM) $(TARGET)
 
 $(PROGRAM):$(OBJS)
@@ -90,7 +89,7 @@ $(DEPS_DIR)/%.d:%.$(SRC_EXT)
 
 -include $(DEPS)
 
-.PHONY:clean all install
+.PHONY:clean all install detach
 
 all:
 	$(TARGET)
@@ -102,3 +101,7 @@ clean:
 install:
 	install -m644 $(TARGET) $(INSTALL_DIR)
 	ln -sf $(INSTALL_DIR)$(TARGET) $(INSTALL_DIR)$(PROGRAM)
+
+detach:
+	$(OBJCOPY) --only-keep-debug $(PROGRAM) $(PROGRAM)$(DEBUGINFO)
+	$(OBJCOPY) --strip-unneeded $(PROGRAM) $(PROGRAM)$(DETACHED)
