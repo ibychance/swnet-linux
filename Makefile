@@ -1,5 +1,5 @@
 PROGRAM=nshost.so
-VERSION=10.0.0
+VERSION=9.8.4
 
 TARGET=$(PROGRAM).$(VERSION)
 build=release
