@@ -25,7 +25,7 @@ LDFLAGS=-shared -lcrypt
 
 OBJCOPY=objcopy
 INSTALL_DIR=/usr/local/lib64/
-ifeq ($(arch),arm)
+ifeq ($(arch), $(filter $(arch),arm arm32))
 	CC=arm-linux-gnueabihf-gcc
 	OBJCOPY=arm-linux-gnueabihf-objcopy
 	CFLAGS+=-mfloat-abi=hard -mfpu=neon
@@ -38,7 +38,7 @@ ifeq ($(arch), i686)
 	INSTALL_DIR=/usr/local/lib/
 endif
 
-ifeq ($(arch), arm64)
+ifeq ($(arch), $(filter $(arch),arm64 aarch64))
 	CC=aarch64-linux-gnu-gcc
 	OBJCOPY=aarch64-linux-gnu-objcopy
 	INSTALL_DIR=/usr/local/lib/aarch64-linux-gnu/
