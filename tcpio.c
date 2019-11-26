@@ -359,9 +359,21 @@ int tcp_tx_syn(ncb_t *ncb)
 {
     int e;
     socklen_t addrlen;
+    struct tcp_info ktcp;
 
     while (1) {
         if( 0 == __tcp_poll_syn(ncb->sockfd, &e)) {
+
+            /* in 3.4 kernel, when socket file-descriptor attach to epoll with EPOLLOUT flag, a EPOLLOUT event will happen immediately.
+                this situation can be avoided by judging the kernel-tcp-state
+                the connection is considered successful only when the state is switched to TCP_ESTABLISHED */
+            if (tcp_save_info(ncb, &ktcp) >= 0) {
+                if (ktcp.tcpi_state != TCP_ESTABLISHED) {
+                    nis_call_ecr("[nshost.tcp.tcp_tx_syn] state illegal,link:%lld, kernel states:%s.", ncb->hld, tcp_state2name(ktcp.tcpi_state));
+                    break;
+                }
+            }
+
             /* set other options */
             tcp_update_opts(ncb);
 
