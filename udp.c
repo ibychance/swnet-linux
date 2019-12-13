@@ -233,18 +233,22 @@ int udp_write(HUDPLINK link, const void *origin, int cb, const char* ipstr, uint
         }
 
         /*
-         * when the IO blocking is existed, we can't send data immediately,
-         * only way to handle this situation is queued data into @wpool.
-         * otherwise, the wrong operation may broken the output sequence
+         * 1. when the IO state is blocking, any send or write call certain to be fail immediately,
          *
-         * in case of -EAGAIN return by @udp_txn, means the write operation cannot be complete right now,
-         * insert @node into the tail of @fifo queue, be careful, in this case, memory of @buffer and @node cannot be destroy until asynchronous completed
+         * 2. the meaning of -EAGAIN return by @tcp_txn is send or write operation cannot be complete immediately,
+         *      IO state should change to blocking now
          *
-         * just insert @node into tail of @fifo queue,  awaken write thread is not necessary.
-         * don't worry about the task thread notify, when success calling to @ncb_set_blocking, ensure that the @EPOLLOUT event can being captured by IO thread
+         * one way to handle the above two aspects, queue data to the tail of fifo manager, preserve the sequence of output order
+         * in this case, memory of @buffer and @node cannot be destroy until asynchronous completed
          *
-         * the return value by calling @fifo_queue maybe -EBUSY
-         * in this case means the cache queue is full, no more items canbe insert into @fifo of this ncb, package will be drop
+         * after @fifo_queue success called, IO blocking flag is set, and EPOLLOUT event has been associated with ncb object.
+         * wpool thread canbe awaken by any kernel cache writable event trigger
+         *
+         * meaning of return value by function call:
+         *  -EINVAL: input parameter is invalidate
+         *  -EBUSY:fifo cache is full for insert
+         *  >0 : the actual size after @node has been queued
+         *   0: impossible, in theory
          */
         retval = fifo_queue(ncb, node);
         if (retval < 0) {

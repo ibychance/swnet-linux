@@ -5,7 +5,7 @@
 
 #define MAXIMUM_FIFO_SIZE       (100)
 
-void fifo_init(ncb_t *ncb) 
+void fifo_init(ncb_t *ncb)
 {
     struct tx_fifo *fifo;
 
@@ -18,7 +18,7 @@ void fifo_init(ncb_t *ncb)
     }
 }
 
-void fifo_uninit(ncb_t *ncb) 
+void fifo_uninit(ncb_t *ncb)
 {
     struct tx_node *node;
     struct tx_fifo *fifo;
@@ -39,13 +39,13 @@ void fifo_uninit(ncb_t *ncb)
     }
 }
 
-int fifo_queue(ncb_t *ncb, struct tx_node *node) 
+int fifo_queue(ncb_t *ncb, struct tx_node *node)
 {
     int n;
     struct tx_fifo *fifo;
 
     if (!ncb || !node) {
-        return -1;
+        return -EINVAL;
     }
 
     fifo = &ncb->fifo;
@@ -59,9 +59,8 @@ int fifo_queue(ncb_t *ncb, struct tx_node *node)
         }
         list_add_tail(&node->link, &fifo->head);
 
-        /* queue item into fifo.
-         * it is ensure the EAGAIN event was happened.
-         * the calling thread should change the epoll to EPOLLOUT mode */
+        /* previous Tx request can not complete immediately trigger this function call,
+         * so, the IO blocking flag should set, likewise, EPOLLOUT event should assicoated with this @ncb object */
         if (0 == fifo->blocking) {
             n = io_modify(ncb, EPOLLIN | EPOLLOUT);
             if ( n < 0) {
@@ -80,7 +79,7 @@ int fifo_queue(ncb_t *ncb, struct tx_node *node)
     return n;
 }
 
-int fifo_top(ncb_t *ncb, struct tx_node **node) 
+int fifo_top(ncb_t *ncb, struct tx_node **node)
 {
     struct tx_node *front;
     struct tx_fifo *fifo;
@@ -101,7 +100,7 @@ int fifo_top(ncb_t *ncb, struct tx_node **node)
     return ((NULL == front) ? -1 : 0);
 }
 
-int fifo_pop(ncb_t *ncb, struct tx_node **node) 
+int fifo_pop(ncb_t *ncb, struct tx_node **node)
 {
     struct tx_node *front;
     struct tx_fifo *fifo;
@@ -121,7 +120,8 @@ int fifo_pop(ncb_t *ncb, struct tx_node **node)
         INIT_LIST_HEAD(&front->link);
         remain = --fifo->size;
 
-        /* the calling thread should change the epoll to EPOLLIN mode */
+        /* after certain no any other items in the queue but the IO blocking state are still presences,
+         * the IO blocking flag should cancel and EPOLLOUT event should disassociation with this @ncb object */
         if ((0 == remain) && (1 == fifo->blocking)) {
             fifo->blocking = 0;
             io_modify(ncb, EPOLLIN);
@@ -145,7 +145,7 @@ int fifo_pop(ncb_t *ncb, struct tx_node **node)
     return 0;
 }
 
-int fifo_is_blocking(ncb_t *ncb) 
+int fifo_is_blocking(ncb_t *ncb)
 {
     struct tx_fifo *fifo;
     int blocking;

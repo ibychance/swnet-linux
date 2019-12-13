@@ -418,7 +418,7 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
         }
 
         /*
-         * ensuer all file descriptor in asynchronous mode,
+         * set file descriptor in asynchronous mode,
          * and than, queue object into epoll manager
          *
          * on success, MUST attach this file descriptor to epoll as early as possible.
@@ -510,13 +510,13 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
         }
 
         /*
-         *  queue object into epoll manage befor syscall @connect,
+         *  queue object to epoll manage befor syscall @connect,
          *  epoll_wait will get a EPOLLOUT signal when syn success.
-         *  so, file descriptor must be set to asynchronous now.
+         *  so, file descriptor MUST certain be in asynchronous mode before next stage
          *
          *  attach MUST early than connect(2) call,
          *  in some case, very short time after connect(2) called, the EPOLLRDHUP event has been arrived,
-         *  if attach not in time, error information maybe lost, then cause the file-descriptor leak.
+         *  if attach not in time, error information maybe lost, then bring the file-descriptor leak.
          *
          *  ncb object willbe destroy on fatal.
          *
@@ -720,18 +720,24 @@ int tcp_write(HTCPLINK link, const void *origin, int cb, const nis_serializer_t 
         }
 
         /*
-         * when the IO blocking is existed, we can't send data immediately,
-         * only way to handler this situation is queued data into @wpool.
-         * otherwise, the wrong operation may broken the output sequence
+         * 1. when the IO state is blocking, any send or write call certain to be fail immediately,
          *
-         * in case of -EAGAIN return by @tcp_txn, means the write operation cannot be complete right now,
-         * insert @node into the tail of @fifo queue, be careful, in this case, memory of @buffer and @node cannot be destroy until asynchronous completed
+         * 2. the meaning of -EAGAIN return by @tcp_txn is send or write operation cannot be complete immediately,
+         *      IO state should change to blocking now
          *
-         * just insert @node into tail of @fifo queue,  awaken write thread is not necessary.
-         * don't worry about the task thread notify, when success calling to @ncb_set_blocking, ensure that the @EPOLLOUT event can being captured by IO thread
+         * one way to handle the above two aspects, queue data to the tail of fifo manager, preserve the sequence of output order
+         * in this case, memory of @buffer and @node cannot be destroy until asynchronous completed
          *
-         * the return value by calling @fifo_queue maybe -EBUSY
-         * in this case means the cache queue is full, no more items canbe insert into @fifo of this ncb, package will be drop
+         * after @fifo_queue success called, IO blocking flag is set, and EPOLLOUT event has been associated with ncb object.
+         * wpool thread canbe awaken by any kernel cache writable event trigger
+         *
+         * meaning of return value by function call:
+         *  -EINVAL: input parameter is invalidate
+         *  -EBUSY:fifo cache is full for insert
+         *  >0 : the actual size after @node has been queued
+         *   0: impossible, in theory
+         *
+         * on failure of function call, @node and it's owned buffer MUST be free
          */
         retval = fifo_queue(ncb, node);
         if (retval < 0) {
