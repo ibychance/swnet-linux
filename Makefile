@@ -1,5 +1,5 @@
 PROGRAM=nshost.so
-VERSION=.9.8.5
+VERSION=.9.9.1
 DETACHED=.detached
 DEBUGINFO=.debuginfo
 
