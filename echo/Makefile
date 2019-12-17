@@ -13,7 +13,7 @@ OBJS=$(patsubst %.c,%.o,$(SRCS))
 
 CFLAGS+=-I ./ -I ../ -I ../../libnsp/icom/
 
-CFLAGS+=-Wall -std=gnu99 -D_GNU_SOURCE #-Werror
+CFLAGS+=-Wall -std=gnu99 -D_GNU_SOURCE
 
 ifeq ($(build),debug)
 	CFLAGS+=-g3 -fstack-protector-all
@@ -21,7 +21,6 @@ else
 	CFLAGS+=-O2
 endif
 
-LD_ARCH_PATH=/usr/local/lib64/
 COMPILER=gcc
 CC=$(COMPILER)
 OBJCOPY=objcopy

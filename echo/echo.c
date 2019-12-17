@@ -8,6 +8,8 @@
 
 #include <stdio.h>
 
+#include "object.h"
+
 #define ECHO(fmt, arg...) log__save("nshost.echo", kLogLevel_Info, kLogTarget_Stdout | kLogTarget_Filesystem, fmt, ##arg)
 
 int display(HTCPLINK link, const unsigned char *data, int size)
@@ -113,38 +115,14 @@ int echo_client_startup(const char *host, uint16_t port)
 			break;
 		}
 
-		n = 165536;
-		while(1) {
-			tcp_write(client, text, n, NULL);
+		while ( NULL != (p = fgets(text, sizeof(text), stdin)) ) {
+			n = strlen(text);
+			if (tcp_write(client, text, n, NULL) < 0) {
+				break;
+			}
 		}
-		// while ( NULL != (p = fgets(text, sizeof(text), stdin)) ) {
-		// 	n = strlen(text);
-		// 	if (tcp_write(client, text, n, NULL) < 0) {
-		// 		break;
-		// 	}
-		// }
 	} while( 0 );
 
-	return 1;
-}
-
-int echo_client_startup2(const char *host, uint16_t port)
-{
-	HTCPLINK client[2];
-	int i;
-
-	for (i = 0; i < 2; i++) {
-		client[i] = tcp_create(&tcp_client_callback, NULL, 0);
-		if (INVALID_HTCPLINK == client[i]) {
-			break;
-		}
-
-		if (tcp_connect2(client[i], host, port) < 0) {
-			break;
-		}
-	}
-
-	posix__hang();
 	return 1;
 }
 
