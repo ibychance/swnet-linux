@@ -15,7 +15,7 @@ struct tx_node {
 extern void fifo_init(ncb_t *ncb);
 extern void fifo_uninit(ncb_t *ncb);
 
-/* atomic operation to get the top node of current fifo,
+/* atomic implememnt get the top node of current fifo,
  *	@node MUST be a effective pointer to retrieve the queued item.
  *	calling thread with responsibility to manage the memory buffer return by *node
  */
@@ -26,7 +26,7 @@ extern int fifo_top(ncb_t *ncb, struct tx_node **node);
  *	@fifo_queue be responsible for associated object @ncb with EPOLLOUT event, and storage data buffer @node->data to the tail of fifo queue */
 extern int fifo_queue(ncb_t *ncb, struct tx_node *node);
 
-/* atomic operation to get the top node of current fifo and then pop it out,
+/* atomic implememnt to get the top node of current fifo and then pop it out,
  * 	in this procedure, after certain no any other items in the queue but the IO blocking state are still presences
  *	@fifo_pop be responsible for disassociation object @ncb with EPOLLOUT event.
  *  notes:

@@ -638,10 +638,10 @@ int tcp_write(HTCPLINK link, const void *origin, int cb, const nis_serializer_t 
     do {
         retval = -1;
 
-        /* the calling thread is likely to occur as follows:
-         * immediately call @tcp_write after creation, but no connection established and no listening has yet been taken
+        /* the following situation maybe occur when tcp_write called:
+         * immediately call @tcp_write after @tcp_create, but no connection established and no listening has yet been taken
          * in this situation, @wpool::run_task maybe take a task, but @ncb->ncb_write is ineffectiveness.application may crashed.
-         * Judging these two parameters to ensure their effectiveness
+         * examine these two parameters to ensure their effectiveness
          */
         if (!ncb->ncb_write || !ncb->ncb_read) {
             retval = -EINVAL;
@@ -656,7 +656,8 @@ int tcp_write(HTCPLINK link, const void *origin, int cb, const nis_serializer_t 
             }
         }
 
-        /* if template.builder is specified then use it, otherwise, indicate the packet size by input parameter @cb */
+        /* if @template.builder is not null then use it, otherwise,
+            indicate that calling thread want to specify the packet length through input parameter @cb */
         if (!(*ncb->u.tcp.template.builder_) || (ncb->attr & LINKATTR_TCP_NO_BUILD)) {
             packet_length = cb;
             if (NULL == (buffer = (unsigned char *) malloc(packet_length))) {

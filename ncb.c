@@ -12,7 +12,7 @@ static int nl_count = 0;
 static void ncb_post_preclose(const ncb_t *ncb);
 static void ncb_post_closed(const ncb_t *ncb);
 
-/* ncb uninit proc will dereference all ncb object and try to going to close step.
+/* ncb uninit proc will dereference all ncb object and try to going to close phase.
  */
 void ncb_uninit(int protocol)
 {

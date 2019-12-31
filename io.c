@@ -201,7 +201,7 @@ static int __io_init(struct io_object_block *iobptr, int nprocs)
             continue;
         }
 
-        /* active field as a judge of operational effectiveness, as well as a control symbol of operation  */
+        /* @actived is the flag for io thread terminate */
         epoptr->actived = YES;
         if (posix__pthread_create(&epoptr->threadfd, &__epoll_proc, epoptr) < 0) {
             nis_call_ecr("[nshost.io.__io_init] fatal error occurred syscall pthread_create(3), error:%d", errno);

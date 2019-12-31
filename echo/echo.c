@@ -131,6 +131,24 @@ int echo_client_startup(const char *host, uint16_t port)
 int main(int argc, char **argv)
 {
 	int type;
+	int i;
+
+	objhld_t obj[100000];
+	for (i = 0; i < 100000; i++) {
+		obj[i] = objallo2(4);
+		*((int *)objrefr(obj[i])) = i;
+		objdefr(obj[i]);
+	}
+
+	for (i = 100000; i < 100005; i++) {
+		if (!objrefr(i)) {
+			printf("ref %d failed\n", i);
+		}
+	}
+
+	for (i = 0; i < 100000; i++) {
+		objclos(obj[i]);
+	}
 
 	if (check_args(argc, argv) < 0) {
 		return -1;

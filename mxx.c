@@ -113,6 +113,7 @@ nis_event_callback_t nis_checr(const nis_event_callback_t ecr)
     return __sync_lock_test_and_set(&current_ecr, ecr);
 }
 
+/* the ecr usually use for diagnose low-level error */
 void nis_call_ecr(const char *fmt,...)
 {
     nis_event_callback_t ecr = NULL;

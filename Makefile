@@ -14,7 +14,7 @@ SRCS=./fifo.c ./io.c ./mxx.c ./ncb.c ./tcp.c ./tcpal.c \
 
 SRCS+=../libnsp/com/avltree.c ../libnsp/com/logger.c ../libnsp/com/posix_ifos.c ../libnsp/com/posix_string.c \
 		../libnsp/com/posix_time.c ../libnsp/com/hash.c ../libnsp/com/object.c ../libnsp/com/posix_naos.c \
-		../libnsp/com/posix_thread.c ../libnsp/com/posix_wait.c
+		../libnsp/com/posix_thread.c ../libnsp/com/posix_wait.c ../libnsp/cfifo.c
 
 #SRCS=$(foreach dir, $(DIRS), $(wildcard $(dir)/*.$(SRC_EXT)))
 #OBJS=$(addprefix $(OBJS_DIR)/,$(patsubst %.$(SRC_EXT),%.o,$(notdir $(SRCS))))
@@ -97,6 +97,7 @@ all:
 clean:
 	rm -rf $(OBJS_DIR) $(DEPS_DIR)
 	rm -f $(PROGRAM)*
+	rm -f ./*.o
 
 install:
 	install -m644 $(TARGET) $(INSTALL_DIR)
