@@ -50,7 +50,7 @@ static void display_author_information()
 {
     static const char *author_context =
             "nshost echo 1,1,0,0\n"
-            "Copyright (C) 2017 neo.anderson\n"
+            "Copyright (C) 2017 Jerry.Anderson\n"
             "For bug reporting instructions, please see:\n"
             "<http://www.nshost.com.cn/>.\n"
             "For help, type \"help\".\n"

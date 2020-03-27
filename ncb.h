@@ -124,7 +124,7 @@ void ncb_uninit(int protocol);
 extern
 int ncb_allocator(void *udata, const void *ctx, int ctxcb);
 extern
-void ncb_destructor(objhld_t ignore, void */*ncb_t * */ncb);
+void ncb_deconstruct(objhld_t ignore, void */*ncb_t * */ncb);
 
 extern
 int ncb_set_rcvtimeo(const ncb_t *ncb, const struct timeval *timeo);

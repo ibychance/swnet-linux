@@ -70,8 +70,8 @@ void tcp_update_opts(const ncb_t *ncb)
          /proc/sys/net/ipv4/tcp_me
          /proc/sys/net/ipv4/tcp_wmem
          /proc/sys/net/ipv4/tcp_rmem */
-        ncb_set_window_size(ncb, SO_RCVBUF, TCP_BUFFER_SIZE);
-        ncb_set_window_size(ncb, SO_SNDBUF, TCP_BUFFER_SIZE);
+        ncb_set_window_size(ncb, SO_RCVBUF, 65536);
+        ncb_set_window_size(ncb, SO_SNDBUF, 65536);
 #endif
         /* atomic keepalive */
         tcp_set_keepalive(ncb, 1);
@@ -137,7 +137,7 @@ HTCPLINK tcp_create(tcp_io_callback_t callback, const char* ipstr, uint16_t port
         return -1;
     }
 
-    hld = objallo(sizeof(ncb_t), &ncb_allocator, &ncb_destructor, NULL, 0);
+    hld = objallo(sizeof(ncb_t), &ncb_allocator, &ncb_deconstruct, NULL, 0);
     if (hld < 0) {
         nis_call_ecr("[nshost.tcp.create] insufficient resource for allocate inner object.");
         close(fd);
@@ -401,6 +401,10 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
         optval = 3;
         setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
 
+        /* set other options */
+        /* On individual connections, the socket buffer size must be set prior to the listen(2) or connect(2) calls in order to have it take effect. */
+        tcp_update_opts(ncb);
+
         addr_to.sin_family = PF_INET;
         addr_to.sin_port = htons(port);
         addr_to.sin_addr.s_addr = inet_addr(ipstr);
@@ -428,9 +432,6 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
             objclos(link);
             break;
         }
-
-        /* set other options */
-        tcp_update_opts(ncb);
 
         /* save address information after connect successful */
         addrlen = sizeof (addr_to);

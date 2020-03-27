@@ -96,7 +96,7 @@ HUDPLINK udp_create(udp_io_callback_t callback, const char* ipstr, uint16_t port
         return -1;
     }
 
-    hld = objallo(sizeof ( ncb_t), &ncb_allocator, &ncb_destructor, NULL, 0);
+    hld = objallo(sizeof ( ncb_t), &ncb_allocator, &ncb_deconstruct, NULL, 0);
     if (hld < 0) {
         nis_call_ecr("[nshost.udp.create] insufficient resource for allocate inner object");
         close(fd);

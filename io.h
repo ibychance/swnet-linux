@@ -4,7 +4,7 @@
 /*
  *  Kernel IO Events and internal scheduling
  *  related to EPOLL publication and notification of its concerns
- *  neo.anderson 2017-01-18
+ *  Jerry.Anderson 2017-01-18
  */
 
 extern

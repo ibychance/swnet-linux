@@ -78,7 +78,7 @@ HARPLINK arp_create(arp_io_callback_t callback, const char *source)
         return -1;
     }
 
-    hld = objallo(sizeof ( ncb_t), &ncb_allocator, &ncb_destructor, NULL, 0);
+    hld = objallo(sizeof ( ncb_t), &ncb_allocator, &ncb_deconstruct, NULL, 0);
     if (hld < 0) {
         nis_call_ecr("[nshost.arp.create] insufficient resource for allocate inner object");
         close(fd);

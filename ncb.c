@@ -80,7 +80,7 @@ int ncb_allocator(void *udata, const void *ctx, int ctxcb)
     return 0;
 }
 
-void ncb_destructor(objhld_t ignore, void *p)
+void ncb_deconstruct(objhld_t ignore, void *p)
 {
     ncb_t *ncb;
 
@@ -137,7 +137,7 @@ void ncb_destructor(objhld_t ignore, void *p)
     /* set callback function to ineffectiveness */
     ncb->nis_callback = NULL;
 
-    nis_call_ecr("[nshost.ncb.ncb_destructor] link:%lld finalization released",ncb->hld);
+    nis_call_ecr("[nshost.ncb.ncb_deconstruct] link:%lld finalization released",ncb->hld);
 }
 
 int ncb_set_rcvtimeo(const ncb_t *ncb, const struct timeval *timeo)

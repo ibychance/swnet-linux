@@ -152,7 +152,7 @@ int __tcp_syn(ncb_t *ncb_server)
 
     /* try syscall connect(2) once, if accept socket fatal, the ncb object willbe destroy */
     if ( (retval = __tcp_syn_try(ncb_server, &clientfd, &ctrlcode)) >= 0) {
-        hld = objallo(sizeof ( ncb_t), &ncb_allocator, &ncb_destructor, NULL, 0);
+        hld = objallo(sizeof ( ncb_t), &ncb_allocator, &ncb_deconstruct, NULL, 0);
         if (hld < 0) {
             close(clientfd);
             return 0;
