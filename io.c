@@ -81,7 +81,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt)
         /* disconnect/error/reset socket states have been detect,
          * in this case, ncb it's NOT necessary */
         if ( (evts[i].events & EPOLLRDHUP) || (evts[i].events & EPOLLERR) ) {
-            nis_call_ecr("[nshost.io.__iorun] EPOLL event:%d detect on link:%lld", hld);
+            nis_call_ecr("[nshost.io.__iorun] EPOLL event:%d detect on link:%lld", evts[i], hld);
 	        objclos(hld);
             continue;
         }
