@@ -1,14 +1,10 @@
-#include "args.h"
-
 #include "nis.h"
 #include "posix_wait.h"
 #include "posix_ifos.h"
 #include "posix_naos.h"
 #include "logger.h"
 
-#include <stdio.h>
-
-#include "object.h"
+#include "args.h"
 
 #define ECHO(fmt, arg...) log__save("nshost.echo", kLogLevel_Info, kLogTarget_Stdout | kLogTarget_Filesystem, fmt, ##arg)
 
@@ -49,9 +45,7 @@ void tcp_server_callback(const struct nis_event *event, const void *data)
 			}
 			break;
 		case EVT_TCP_ACCEPTED:
-			break;
 		case EVT_CLOSED:
-			break;
 		default:
 			break;
 	}
@@ -66,13 +60,11 @@ void tcp_client_callback(const struct nis_event *event, const void *data)
 			display(event->Ln.Tcp.Link, tcpdata->e.Packet.Data, tcpdata->e.Packet.Size);
 			posix__file_write(1, "input:$ ", 8);
 			break;
-		case EVT_TCP_ACCEPTED:
-			break;
-		case EVT_CLOSED:
-			break;
 		case EVT_TCP_CONNECTED:
 			posix__file_write(1, "input:$ ", 8);
 			break;
+		case EVT_TCP_ACCEPTED:
+		case EVT_CLOSED:
 		default:
 			break;
 	}
@@ -126,29 +118,9 @@ int echo_client_startup(const char *host, uint16_t port)
 	return 1;
 }
 
-#define _SET_ECR 1
-
 int main(int argc, char **argv)
 {
 	int type;
-	int i;
-
-	objhld_t obj[100000];
-	for (i = 0; i < 100000; i++) {
-		obj[i] = objallo2(4);
-		*((int *)objrefr(obj[i])) = i;
-		objdefr(obj[i]);
-	}
-
-	for (i = 100000; i < 100005; i++) {
-		if (!objrefr(i)) {
-			printf("ref %d failed\n", i);
-		}
-	}
-
-	for (i = 0; i < 100000; i++) {
-		objclos(obj[i]);
-	}
 
 	if (check_args(argc, argv) < 0) {
 		return -1;

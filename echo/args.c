@@ -2,9 +2,6 @@
 
 #include <getopt.h>
 
-#include "compiler.h"
-
-
 static struct {
     int type;
     char host[128];
@@ -109,7 +106,8 @@ int check_args(int argc, char **argv) {
     return retval;
 }
 
-int gettype(){
+int gettype()
+{
     return __startup_parameters.type;
 }
 
