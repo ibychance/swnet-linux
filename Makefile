@@ -49,9 +49,9 @@ GCC_VERSION := "`$(CC) -dumpversion`"
 IS_GCC_ABOVE_MIN_VERSION := $(shell expr "$(GCC_VERSION)" ">=" "$(MIN_GCC_VERSION)")
 ifeq ($(build),debug)
 	ifeq "$(IS_GCC_ABOVE_MIN_VERSION)" "1"
-	    CFLAGS += -fstack-protector-strong
+	    CFLAGS+=-fstack-protector-all -fstack-check=specific -fno-omit-frame-pointer -fno-optimize-sibling-calls
 	else
-	    CFLAGS += -fstack-protector
+	    CFLAGS+=-fstack-protector
 	endif
 	CFLAGS+=-g3
 else
@@ -78,7 +78,7 @@ $(PROGRAM):$(OBJS)
 
 $(OBJS_DIR)/%.o:%.$(SRC_EXT)
 	@if [ ! -d $(OBJS_DIR) ]; then mkdir -p $(OBJS_DIR); fi;
-	$(CC) -c $< $(CFLAGS)  -o $@
+	$(CC) -c $< $(CFLAGS) -o $@
 
 $(DEPS_DIR)/%.d:%.$(SRC_EXT)
 	@if [ ! -d $(DEPS_DIR) ]; then mkdir -p $(DEPS_DIR); fi;
