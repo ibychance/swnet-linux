@@ -1,5 +1,5 @@
 PROGRAM=nshost.so
-VERSION=.9.8.5
+VERSION=.9.8.6
 DETACHED=.detached
 DEBUGINFO=.debuginfo
 
@@ -20,7 +20,7 @@ SRCS+=../libnsp/com/avltree.c ../libnsp/com/logger.c ../libnsp/com/posix_ifos.c 
 #OBJS=$(addprefix $(OBJS_DIR)/,$(patsubst %.$(SRC_EXT),%.o,$(notdir $(SRCS))))
 
 INC_DIR=-I ../libnsp/icom/
-CFLAGS+=$(INC_DIR) -fPIC -Wall -std=c89 -ansi -D_GNU_SOURCE
+CFLAGS+=$(INC_DIR) -fPIC -Wall -std=c89 -ansi -D_GNU_SOURCE -fvisibility=hidden
 LDFLAGS=-shared -lcrypt
 
 OBJCOPY=objcopy
