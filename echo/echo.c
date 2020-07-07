@@ -30,9 +30,10 @@ int display(HTCPLINK link, const unsigned char *data, int size)
 
 void tcp_server_callback(const struct nis_event *event, const void *data)
 {
-	struct nis_tcp_data *tcpdata = (struct nis_tcp_data *)data;
+	struct nis_tcp_data *tcpdata;
 	HTCPLINK link;
 
+	tcpdata = (struct nis_tcp_data *)data;
 	link = event->Ln.Tcp.Link;
 	switch(event->Event) {
 		case EVT_RECEIVEDATA:
@@ -94,7 +95,7 @@ int echo_server_startup(const char *host, uint16_t port)
 int echo_client_startup(const char *host, uint16_t port)
 {
 	HTCPLINK client;
-	char text[165536], *p;
+	char text[65535], *p;
 	size_t n;
 
 	do {
@@ -109,8 +110,10 @@ int echo_client_startup(const char *host, uint16_t port)
 
 		while ( NULL != (p = fgets(text, sizeof(text), stdin)) ) {
 			n = strlen(text);
-			if (tcp_write(client, text, n, NULL) < 0) {
-				break;
+			if ( n > 0) {
+				if (tcp_write(client, text, n, NULL) < 0) {
+					break;
+				}
 			}
 		}
 	} while( 0 );
@@ -121,6 +124,16 @@ int echo_client_startup(const char *host, uint16_t port)
 int main(int argc, char **argv)
 {
 	int type;
+
+	type = posix__is_effective_address_v4("192.168.0.1");
+	type = posix__is_effective_address_v4("257.168.0..1");
+	type = posix__is_effective_address_v4("251.252.253.254");
+	type = posix__is_effective_address_v4(".192.168.0.1");
+	type = posix__is_effective_address_v4("17.244.0.17");
+	type = posix__is_effective_address_v4("192.168.0..1");
+	type = posix__is_effective_address_v4("192.168.0.1a");
+	type = posix__is_effective_address_v4("192.168.255.2567");
+	type = posix__is_effective_address_v4("192.168.0.");
 
 	if (check_args(argc, argv) < 0) {
 		return -1;
