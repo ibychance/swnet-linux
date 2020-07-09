@@ -7,8 +7,6 @@
 
 #include "args.h"
 
-#define ECHO(fmt, arg...) log__save("nshost.echo", kLogLevel_Info, kLogTarget_Stdout | kLogTarget_Filesystem, fmt, ##arg)
-
 int display(HTCPLINK link, const unsigned char *data, int size)
 {
 	char output[1024];
@@ -75,7 +73,7 @@ void tcp_client_callback(const struct nis_event *event, const void *data)
 void nshost_ecr(const char *host_event, const char *reserved, int rescb)
 {
 	if (host_event) {
-		ECHO("%s", host_event);
+		ECHO("echo", "%s", host_event);
 	}
 }
 

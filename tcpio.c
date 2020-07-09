@@ -103,8 +103,8 @@ int __tcp_syn_dpc(ncb_t *ncb_server, ncb_t *ncb)
     }
 
     /* specify data handler proc for client ncb object */
-    posix__atomic_set(ncb->ncb_read, &tcp_rx);
-    posix__atomic_set(ncb->ncb_write, &tcp_tx);
+    posix__atomic_set(&ncb->ncb_read, &tcp_rx);
+    posix__atomic_set(&ncb->ncb_write, &tcp_tx);
 
     /* copy the context from listen fd to accepted one in needed */
     if (ncb_server->attr & LINKATTR_TCP_UPDATE_ACCEPT_CONTEXT) {
@@ -393,8 +393,8 @@ int tcp_tx_syn(ncb_t *ncb)
             }
 
             /* follow tcp rx/tx event */
-            posix__atomic_set(ncb->ncb_read, &tcp_rx);
-            posix__atomic_set(ncb->ncb_write, &tcp_tx);
+            posix__atomic_set(&ncb->ncb_read, &tcp_rx);
+            posix__atomic_set(&ncb->ncb_write, &tcp_tx);
 
             nis_call_ecr("[nshost.tcp.tcp_tx_syn] link:%lld connection established.", ncb->hld);
             ncb_post_connected(ncb);

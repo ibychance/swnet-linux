@@ -442,8 +442,8 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
         ncb_post_connected(ncb);
 
         /* set handler function pointer to Rx/Tx */
-        posix__atomic_set(ncb->ncb_read, &tcp_rx);
-        posix__atomic_set(ncb->ncb_write, &tcp_tx);
+        posix__atomic_set(&ncb->ncb_read, &tcp_rx);
+        posix__atomic_set(&ncb->ncb_write, &tcp_tx);
 
     }while( 0 );
 
@@ -592,7 +592,7 @@ int tcp_listen(HTCPLINK link, int block)
             retval = -1;
             break;
         }
-        posix__atomic_set(ncb->ncb_write, NULL);
+        posix__atomic_set(&ncb->ncb_write, NULL);
 
         /* set file descriptor to asynchronous mode and attach to it's own epoll object,
          *  ncb object willbe destroy on fatal. */

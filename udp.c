@@ -140,8 +140,8 @@ HUDPLINK udp_create(udp_io_callback_t callback, const char* ipstr, uint16_t port
         getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen);
 
         /* set data handler function pointer for Rx/Tx */
-        posix__atomic_set(ncb->ncb_read, &udp_rx);
-        posix__atomic_set(ncb->ncb_write, &udp_tx);
+        posix__atomic_set(&ncb->ncb_read, &udp_rx);
+        posix__atomic_set(&ncb->ncb_write, &udp_tx);
 
         /* attach to epoll */
         retval = io_attach(ncb, EPOLLIN);
