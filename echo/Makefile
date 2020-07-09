@@ -14,8 +14,6 @@ else
 	CFLAGS+=-O2
 endif
 
-LD_ARCH_PATH=/usr/local/lib64/
-
 ifneq ($(nshost),yes)
 	SRCS+=$(wildcard ../../libnsp/com/*.c)
 	SRCS+=$(wildcard ../*.c)
@@ -26,6 +24,7 @@ COMPILER=cc
 CC=$(COMPILER)
 OBJCOPY=objcopy
 
+LD_ARCH_PATH=/usr/local/lib64/
 ifeq ($(arch),arm)
     CC=arm-linux-gnueabihf-$(COMPILER)
     LD_ARCH_PATH:=/usr/local/lib/

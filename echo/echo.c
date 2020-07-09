@@ -125,21 +125,11 @@ int main(int argc, char **argv)
 {
 	int type;
 
-	type = posix__is_effective_address_v4("192.168.0.1");
-	type = posix__is_effective_address_v4("257.168.0..1");
-	type = posix__is_effective_address_v4("251.252.253.254");
-	type = posix__is_effective_address_v4(".192.168.0.1");
-	type = posix__is_effective_address_v4("17.244.0.17");
-	type = posix__is_effective_address_v4("192.168.0..1");
-	type = posix__is_effective_address_v4("192.168.0.1a");
-	type = posix__is_effective_address_v4("192.168.255.2567");
-	type = posix__is_effective_address_v4("192.168.0.");
-
 	if (check_args(argc, argv) < 0) {
 		return -1;
 	}
 
-	if ((type = gettype()) < 0 ){
+	if ((type = gettype()) < 0 ) {
 		return 1;
 	}
 
