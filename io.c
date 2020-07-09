@@ -93,7 +93,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt)
 
         /* system width input cache change from empty to readable */
         if (evts[i].events & EPOLLIN) {
-            posix__atomic_get(ncb->ncb_read, ncb_read);
+            ncb_read = posix__atomic_get(&ncb->ncb_read);
             if (ncb_read) {
                 if (ncb_read(ncb) < 0) {
                     nis_call_ecr("[nshost.io.__iorun] ncb read function return fatal error, this will cause link close, link:%lld", hld);

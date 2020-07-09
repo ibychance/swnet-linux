@@ -2,6 +2,7 @@
 #include "posix_wait.h"
 #include "posix_ifos.h"
 #include "posix_naos.h"
+#include "posix_atomic.h"
 #include "logger.h"
 
 #include "args.h"
