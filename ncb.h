@@ -113,6 +113,10 @@ struct _ncb {
             unsigned int ifindex;
             unsigned char source_phyaddr[6];
         } arp;
+
+        struct {
+            objhld_t trigger;
+        } pipe;
     } u;
 };
 typedef struct _ncb ncb_t;
@@ -152,6 +156,8 @@ int ncb_get_linger(const ncb_t *ncb, int *onoff, int *lin);
 
 extern
 void ncb_post_recvdata(const ncb_t *ncb,  int cb, const unsigned char *data);
+extern
+void ncb_post_pipedata(const ncb_t *ncb,  int cb, const unsigned char *data);
 extern
 void ncb_post_accepted(const ncb_t *ncb, HTCPLINK link);
 extern

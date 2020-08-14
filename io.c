@@ -12,6 +12,7 @@
 #include "ncb.h"
 #include "wpool.h"
 #include "mxx.h"
+#include "pipe.h"
 
 /* 1024 is just a hint for the kernel */
 #define EPOLL_SIZE    (1024)
@@ -21,11 +22,13 @@ struct epoll_object_block {
     boolean_t actived;
     posix__pthread_t threadfd;
     int load; /* load of current thread */
+    int pipefdw;
 } ;
 
 struct io_object_block {
     struct epoll_object_block *epoptr;
     int divisions;
+    int protocol;
 };
 
 static objhld_t tcphld = -1;
@@ -211,6 +214,15 @@ static int __io_init(struct io_object_block *iobptr, int nprocs)
         }
     }
 
+    for (i = 0; i < iobptr->divisions; i++) {
+        epoptr = &iobptr->epoptr[i];
+        /* create a pipe object for this thread */
+        epoptr->pipefdw = pipe_create(iobptr->protocol);
+        if (epoptr->pipefdw < 0) {
+            nis_call_ecr("[nshost.io.__io_init] fails create pipe object for epoll threading, error:%d", errno);
+        }
+    }
+
     return 0;
 }
 
@@ -279,6 +291,7 @@ int io_init(int protocol)
     }
 
     /* less IO threads for UDP business */
+    iobptr->protocol = protocol;
     nprocs = (IPPROTO_TCP ==protocol ) ? posix__getnprocs() :
                 (posix__getnprocs() >> 1);
     if (nprocs <= 0) {
@@ -459,4 +472,34 @@ void io_close(void *ncbptr)
         close(ncb->sockfd);
         ncb->sockfd = -1;
     }
+}
+
+int io_get_pipefd(void *ncbptr)
+{
+    ncb_t *ncb;
+    objhld_t hld;
+    struct io_object_block *iobptr;
+    int protocol;
+    int pipefd;
+
+    ncb = (ncb_t *)ncbptr;
+    assert(ncb);
+
+    protocol = ncb->protocol;
+    hld = ((IPPROTO_TCP == protocol ) ? tcphld :
+            ((IPPROTO_UDP == protocol || ETH_P_ARP == protocol) ? udphld : -1));
+    if (hld < 0) {
+        return -EPROTOTYPE;
+    }
+
+    iobptr = objrefr(hld);
+    if (!iobptr) {
+        nis_call_ecr("[nshost.io.io_attach] failed reference assicoated io object block with handle:%lld", hld);
+        return -ENOENT;
+    }
+
+    pipefd = iobptr->epoptr[ncb->hld % iobptr->divisions].pipefdw;
+
+    objdefr(hld);
+    return pipefd;
 }

@@ -4,6 +4,7 @@
 #include "fifo.h"
 #include "io.h"
 #include "wpool.h"
+#include "pipe.h"
 
 #include "posix_ifos.h"
 #include "posix_atomic.h"
@@ -610,6 +611,26 @@ int tcp_listen(HTCPLINK link, int block)
         nis_call_ecr("[nshost.tcp.listen] success listen on link:%lld", link);
         retval = 0;
     } while (0);
+
+    objdefr(link);
+    return retval;
+}
+
+int tcp_write_pipe(HTCPLINK link, const void *pipedata, int cb)
+{
+    int retval;
+    ncb_t *ncb;
+
+    if (link < 0) {
+        return -EINVAL;
+    }
+
+    retval = __tcprefr(link, &ncb);
+    if (retval < 0) {
+        return retval;
+    }
+
+    retval = pipe_write_message(ncb, pipedata, cb);
 
     objdefr(link);
     return retval;

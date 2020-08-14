@@ -4,6 +4,7 @@
 #include "fifo.h"
 #include "io.h"
 #include "wpool.h"
+#include "pipe.h"
 
 #include "posix_atomic.h"
 
@@ -169,6 +170,26 @@ void udp_destroy(HUDPLINK link)
         io_close(ncb);
         objdefr(link);
     }
+}
+
+int udp_write_pipe(HUDPLINK link, const void *pipedata, int cb)
+{
+    int retval;
+    ncb_t *ncb;
+
+    if (link < 0) {
+        return -EINVAL;
+    }
+
+    retval = __udprefr(link, &ncb);
+    if (retval < 0) {
+        return retval;
+    }
+
+    retval = pipe_write_message(ncb, pipedata, cb);
+
+    objdefr(link);
+    return retval;
 }
 
 int udp_write(HUDPLINK link, const void *origin, int cb, const char* ipstr, uint16_t port, const nis_serializer_t serializer)
