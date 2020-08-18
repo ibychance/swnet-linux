@@ -172,7 +172,7 @@ void udp_destroy(HUDPLINK link)
     }
 }
 
-int udp_write_pipe(HUDPLINK link, const void *pipedata, int cb)
+int udp_awaken(HUDPLINK link, const void *pipedata, int cb)
 {
     int retval;
     ncb_t *ncb;

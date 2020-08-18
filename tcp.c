@@ -616,7 +616,7 @@ int tcp_listen(HTCPLINK link, int block)
     return retval;
 }
 
-int tcp_write_pipe(HTCPLINK link, const void *pipedata, int cb)
+int tcp_awaken(HTCPLINK link, const void *pipedata, int cb)
 {
     int retval;
     ncb_t *ncb;
