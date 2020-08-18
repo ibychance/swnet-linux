@@ -132,7 +132,7 @@ int pipe_write_message(ncb_t *ncb, const unsigned char *data, int cb)
 		return -EINVAL;
 	}
 
-	pipefd = io_get_pipefd(ncb);
+	pipefd = io_pipefd(ncb);
 	if (pipefd <= 0 ) {
 		return -1;
 	}

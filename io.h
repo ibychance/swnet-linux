@@ -22,6 +22,6 @@ void io_detach(void *ncbptr);
 extern
 void io_close(void *ncbptr);
 extern
-int io_get_pipefd(void *ncbptr);
+int io_pipefd(void *ncbptr);
 
 #endif /* IO_H */

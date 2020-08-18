@@ -474,7 +474,7 @@ void io_close(void *ncbptr)
     }
 }
 
-int io_get_pipefd(void *ncbptr)
+int io_pipefd(void *ncbptr)
 {
     ncb_t *ncb;
     objhld_t hld;
