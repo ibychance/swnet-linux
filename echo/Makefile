@@ -14,6 +14,10 @@ else
 	CFLAGS+=-O2
 endif
 
+ifeq ($(ecr),set)
+	CFLAGS+=-D_SET_ECR=1
+endif
+
 ifneq ($(nshost),yes)
 	SRCS+=$(wildcard ../../libnsp/com/*.c)
 	SRCS+=$(wildcard ../*.c)
