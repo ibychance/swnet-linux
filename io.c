@@ -143,7 +143,6 @@ static void *__epoll_proc(void *argv)
 {
     struct epoll_event evts[EPOLL_SIZE];
     int sigcnt;
-    int errcode;
     struct epoll_object_block *epoptr;
     static const int EP_TIMEDOUT = 100;
 
@@ -155,16 +154,14 @@ static void *__epoll_proc(void *argv)
     while (YES == epoptr->actived) {
         sigcnt = epoll_wait(epoptr->epfd, evts, EPOLL_SIZE, EP_TIMEDOUT);
         if (sigcnt < 0) {
-            errcode = errno;
-
     	    /* The call was interrupted by a signal handler before either :
     	     * (1) any of the requested events occurred or
     	     * (2) the timeout expired; */
-            if (EINTR == errcode) {
+            if (EINTR == errno) {
                 continue;
             }
 
-            nis_call_ecr("[nshost.io.epoll] fatal error occurred syscall epoll_wait(2), epfd:%d, LWP:%u, error:%d", epoptr->epfd, posix__gettid(), errcode);
+            nis_call_ecr("[nshost.io.epoll] fatal error occurred syscall epoll_wait(2), epfd:%d, LWP:%u, error:%d", epoptr->epfd, posix__gettid(), errno);
             break;
         }
 
@@ -214,6 +211,7 @@ static int __io_init(struct io_object_block *iobptr, int nprocs)
         }
     }
 
+    /* function @io_attach will be invoke during @pipe_create called, so the epoll file-descriptor must create before it */
     for (i = 0; i < iobptr->divisions; i++) {
         epoptr = &iobptr->epoptr[i];
         /* create a pipe object for this thread */

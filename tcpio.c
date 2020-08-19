@@ -13,7 +13,6 @@ int __tcp_syn_try(ncb_t *ncb_server, int *clientfd, int *ctrlcode)
 {
     struct sockaddr_in addr_income;
     socklen_t addrlen;
-    int e;
 
     if (!ncb_server || !clientfd || !ctrlcode) {
         return -EINVAL;
@@ -23,9 +22,8 @@ int __tcp_syn_try(ncb_t *ncb_server, int *clientfd, int *ctrlcode)
 
     addrlen = sizeof ( addr_income);
     *clientfd = accept(ncb_server->sockfd, (struct sockaddr *) &addr_income, &addrlen);
-    e = errno;
     if (*clientfd < 0) {
-        switch (e) {
+        switch (errno) {
         /* The system call was interrupted by a signal that was caught before a valid connection arrived, or this connection has been aborted.
             in these case , this round of operation ignore, try next round accept notified by epoll */
             case EINTR:
@@ -45,8 +43,8 @@ int __tcp_syn_try(ncb_t *ncb_server, int *clientfd, int *ctrlcode)
             case ENOBUFS:
             case ENOMEM:
             case EPERM:
-                nis_call_ecr("[nshost.tcpio.__tcp_syn] non-fatal error occurred syscall accept(2), code:%d, link:%lld", e, ncb_server->hld);
-                *ctrlcode = e;
+                nis_call_ecr("[nshost.tcpio.__tcp_syn] non-fatal error occurred syscall accept(2), code:%d, link:%lld", errno, ncb_server->hld);
+                *ctrlcode = errno;
                 break;
 
         /* ERRORs: (in the any of the following cases, the listening service link will be automatic destroy)
@@ -57,7 +55,7 @@ int __tcp_syn_try(ncb_t *ncb_server, int *clientfd, int *ctrlcode)
             EOPNOTSUPP  The referenced socket is not of type SOCK_STREAM.
             EPROTO      Protocol error. */
             default:
-                nis_call_ecr("[nshost.tcpio.__tcp_syn] fatal error occurred syscall accept(2), error:%d, link:%lld", e, ncb_server->hld);
+                nis_call_ecr("[nshost.tcpio.__tcp_syn] fatal error occurred syscall accept(2), error:%d, link:%lld", errno, ncb_server->hld);
                 *ctrlcode = -1;
                 break;
         }
@@ -193,10 +191,8 @@ int __tcp_rx(ncb_t *ncb)
     int overplus;
     int offset;
     int cpcb;
-    int errcode;
 
     recvcb = recv(ncb->sockfd, ncb->u.tcp.rx_buffer, TCP_BUFFER_SIZE, 0);
-    errcode = errno;
     if (recvcb > 0) {
         cpcb = recvcb;
         overplus = recvcb;
@@ -223,16 +219,16 @@ int __tcp_rx(ncb_t *ncb)
     if (recvcb < 0) {
 
         /* A signal occurred before any data  was  transmitted, try again by next loop */
-        if (errcode == EINTR) {
+        if (errno == EINTR) {
             return 0;
         }
 
         /* no more data canbe read, waitting for next epoll edge trigger */
-        if ((errcode == EAGAIN) || (errcode == EWOULDBLOCK)) {
+        if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
             return EAGAIN;
         }
 
-        nis_call_ecr("[nshost.tcpio.__tcp_rx] fatal error occurred syscall recv(2), error:%d, link:%lld", errcode, ncb->hld );
+        nis_call_ecr("[nshost.tcpio.__tcp_rx] fatal error occurred syscall recv(2), error:%d, link:%lld", errno, ncb->hld );
         return -1;
     }
 
@@ -252,7 +248,6 @@ int tcp_rx(ncb_t *ncb)
 int tcp_txn(ncb_t *ncb, void *p)
 {
     int wcb;
-    int errcode;
     struct tx_node *node;
 
     node = (struct tx_node *)p;
@@ -267,24 +262,22 @@ int tcp_txn(ncb_t *ncb, void *p)
         }
 
         if (wcb < 0) {
-            errcode = errno;
-
             /* the write buffer is full, active EPOLLOUT and waitting for epoll event trigger
              * at this point, we need to deal with the queue header node and restore the unprocessed node back to the queue header.
              * the way 'oneshot' focus on the write operation completion point */
-            if (EAGAIN == errcode) {
+            if (EAGAIN == errno) {
                 nis_call_ecr("[nshost.tcpio.tcp_txn] syscall send(2) would block cause by kernel memory overload,link:%lld", ncb->hld);
                 return -EAGAIN;
             }
 
             /* A signal occurred before any data  was  transmitted
                 continue and send again */
-            if (EINTR == errcode) {
+            if (EINTR == errno) {
                 continue;
             }
 
             /* other error, these errors should cause link close */
-            nis_call_ecr("[nshost.tcpio.tcp_txn] fatal error occurred syscall send(2), error:%d, link:%lld",errcode, ncb->hld );
+            nis_call_ecr("[nshost.tcpio.tcp_txn] fatal error occurred syscall send(2), error:%d, link:%lld",errno, ncb->hld );
             return -1;
         }
 

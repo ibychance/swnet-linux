@@ -13,17 +13,15 @@ int __arp_rx(ncb_t *ncb)
     socklen_t addrlen;
     arp_data_t c_data;
     nis_event_t c_event;
-    int errcode;
     struct Ethernet_Head  *eth;
     struct Address_Resolution_Protocol *arp;
 
     addrlen = sizeof(remote);
     recvcb = recvfrom(ncb->sockfd, ncb->packet, NIS_P_ARP_SIZE, 0, (struct sockaddr *) &remote, &addrlen);
-    errcode = errno;
     if (recvcb > 0) {
-	if (recvcb < NIS_P_ARP_SIZE) {
-		return 0;
-	}
+    	if (recvcb < NIS_P_ARP_SIZE) {
+    		return 0;
+    	}
         eth = (struct Ethernet_Head  *)ncb->packet;
         arp = (struct Address_Resolution_Protocol *)&ncb->packet[sizeof(struct Ethernet_Head)];
         if (eth->Eth_Layer_Type == htons(ETH_P_ARP) && arp->Arp_Op_Code == htons(ARP_OP_REPLY) && ncb->nis_callback) {
@@ -47,16 +45,16 @@ int __arp_rx(ncb_t *ncb)
 
     /* ECONNRESET 104 Connection reset by peer */
     if (recvcb < 0){
-        if ((EAGAIN == errcode) || (EWOULDBLOCK == errcode)){
+        if ((EAGAIN == errno) || (EWOULDBLOCK == errno)){
             return EAGAIN;
         }
 
         /* system interrupted */
-        if (EINTR == errcode) {
+        if (EINTR == errno) {
             return 0;
         }
 
-        nis_call_ecr("[nshost.udpio.__arp_rx] fatal error occurred syscall recvfrom(2), error:%d, link:%lld", errcode, ncb->hld );
+        nis_call_ecr("[nshost.udpio.__arp_rx] fatal error occurred syscall recvfrom(2), error:%d, link:%lld", errno, ncb->hld );
         return -1;
     }
 
@@ -77,7 +75,6 @@ int arp_rx(ncb_t *ncb)
 int arp_txn(ncb_t *ncb, void *p)
 {
     int wcb;
-    int errcode;
     struct tx_node *node;
 
 	node = (struct tx_node *)p;
@@ -96,24 +93,22 @@ int arp_txn(ncb_t *ncb, void *p)
         }
 
         if (wcb < 0) {
-             errcode = errno;
-
             /* the write buffer is full, active EPOLLOUT and waitting for epoll event trigger
              * at this point, we need to deal with the queue header node and restore the unprocessed node back to the queue header.
              * the way 'oneshot' focus on the write operation completion point */
-            if (EAGAIN == errcode) {
+            if (EAGAIN == errno) {
                 nis_call_ecr("[nshost.arpio.arp_txn] syscall sendto(2) would block cause by kernel memory overload,link:%lld", ncb->hld);
                 return -EAGAIN;
             }
 
             /* A signal occurred before any data  was  transmitted
                 continue and send again */
-            if (EINTR == errcode) {
+            if (EINTR == errno) {
                 continue;
             }
 
              /* other error, these errors should cause link close */
-            nis_call_ecr("[nshost.arpio.arp_txn] fatal error occurred syscall sendto(2), error:%d, link:%lld",errcode, ncb->hld );
+            nis_call_ecr("[nshost.arpio.arp_txn] fatal error occurred syscall sendto(2), error:%d, link:%lld",errno, ncb->hld );
             return -1;
         }
 

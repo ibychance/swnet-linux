@@ -373,7 +373,6 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
     ncb_t *ncb;
     int retval;
     struct sockaddr_in addr_to;
-    int e;
     socklen_t addrlen;
     int optval;
     struct tcp_info ktcp;
@@ -413,12 +412,11 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
         /* syscall @connect can be interrupted by other signal. */
         do {
             retval = connect(ncb->sockfd, (const struct sockaddr *) &addr_to, sizeof (struct sockaddr));
-            e = errno;
-        } while((e == EINTR) && (retval < 0));
+        } while((errno == EINTR) && (retval < 0));
 
         if (retval < 0) {
             /* if this socket is already connected, or it is in listening states, sys-call failed with error EISCONN  */
-            nis_call_ecr("[nshost.tcp.connect] fatal error occurred syscall connect(2), %s:%u, error:%u, link:%lld", ipstr, port, e, link);
+            nis_call_ecr("[nshost.tcp.connect] fatal error occurred syscall connect(2), %s:%u, error:%u, link:%lld", ipstr, port, errno, link);
             break;
         }
 
@@ -456,7 +454,6 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
 {
     ncb_t *ncb;
     int retval;
-    int e;
     int optval;
     struct tcp_info ktcp;
 
@@ -501,8 +498,7 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
 
         do {
             retval = connect(ncb->sockfd, (const struct sockaddr *) &ncb->remot_addr, sizeof (struct sockaddr));
-            e = errno;
-        }while((EINTR == e) && (retval < 0));
+        }while((EINTR == errno) && (retval < 0));
 
         /* immediate success, some BSD/SystemV maybe happen */
         if ( 0 == retval) {
@@ -530,7 +526,7 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
          *   3.When the connect function is also called and the connection is successfully established,
          *       epoll will generate EPOLLOUT once, with a value of 0x4, indicating that the socket is writable
         */
-        if (e == EINPROGRESS) {
+        if (EINPROGRESS == errno ) {
             retval = io_attach(ncb, EPOLLOUT);
             if ( retval < 0) {
                 objclos(link);
@@ -538,10 +534,10 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
             break;
         }
 
-        if (EAGAIN == e) {
+        if (EAGAIN == errno) {
             nis_call_ecr("[nshost.tcp.connect2] Insufficient entries in the routing cache, link:%lld", link);
         } else {
-            nis_call_ecr("[nshost.tcp.connect2] fatal error occurred syscall connect(2) to target endpoint %s:%u, error:%d, link:%lld", ipstr, port, e, link);
+            nis_call_ecr("[nshost.tcp.connect2] fatal error occurred syscall connect(2) to target endpoint %s:%u, error:%d, link:%lld", ipstr, port, errno, link);
         }
 
     } while (0);
