@@ -141,7 +141,7 @@ int tcp_parse_pkt(ncb_t *ncb, const unsigned char *data, int cpcb)
     }
 
     /*If the number of bytes remaining is not enough to construct a complete package,
-        the number of bytes remaining is put into the buffer and the packet resolution offset is adjusted. */
+        the remain bytes are going to put into buffer and the packet resolution offset is adjusted. */
     memmove(ncb->packet + ncb->u.tcp.rx_parse_offset, cpbuff, overplus);
     ncb->u.tcp.rx_parse_offset += overplus;
     return 0;
