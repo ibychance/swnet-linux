@@ -123,11 +123,6 @@ int echo_client_startup(const char *host, uint16_t port)
 int main(int argc, char **argv)
 {
 	int type;
-	char pedir[255];
-
-	posix__getpedir2(pedir, sizeof(pedir));
-	printf(pedir);
-	return 0;
 
 	if (check_args(argc, argv) < 0) {
 		return -1;
