@@ -6,6 +6,9 @@ arch=Ia64
 RM=rm
 
 SRCS+=$(wildcard ./*.c)
+SRCS+=$(wildcard ../*.c)
+SRCS+=$(wildcard ../../libnsp/com/*.c)
+
 CFLAGS+=-I ./ -I ../../libnsp/icom/ -Wall -std=gnu99 -D_GNU_SOURCE
 
 ifeq ($(build),debug)
@@ -18,32 +21,21 @@ ifeq ($(ecr),set)
 	CFLAGS+=-D_SET_ECR=1
 endif
 
-ifneq ($(nshost),yes)
-	SRCS+=$(wildcard ../../libnsp/com/*.c)
-	SRCS+=$(wildcard ../*.c)
-endif
-
 OBJS=$(patsubst %.c,%.o,$(SRCS))
 COMPILER=cc
 CC=$(COMPILER)
 OBJCOPY=objcopy
 
-LD_ARCH_PATH=/usr/local/lib64/
 ifeq ($(arch),arm)
-    CC=arm-linux-gnueabihf-$(COMPILER)
-    LD_ARCH_PATH:=/usr/local/lib/
+    CC=arm-linux-gnueabihf-gcc
 	CFLAGS+=-mfloat-abi=hard -mfpu=neon
 endif
 
-ifeq ($(arch),arm64)
-    CC=aarch64-linux-gnu-$(COMPILER)
+ifeq ($(arch), $(filter $(arch),arm64 aarch64))
+    CC=aarch64-linux-gnu-gcc
 endif
 
-LDFLAGS=
-ifeq ($(nshost),yes)
-	LDFLAGS+=$(LD_ARCH_PATH)nshost.so -Wl,-rpath=$(LD_ARCH_PATH)
-endif
-LDFLAGS+=-ldl -lpthread -lrt -lcrypt
+LDFLAGS:=-ldl -lpthread -lrt -lcrypt
 
 all:$(TARGET)
 
