@@ -1,5 +1,5 @@
 PROGRAM=nshost.so
-VERSION=.9.8.5
+VERSION=.9.8.6
 DETACHED=.detached
 DEBUGINFO=.debuginfo
 
@@ -9,7 +9,7 @@ arch=IA64
 SRC_EXT=c
 SYS_WIDTH=$(shell getconf LONG_BIT)
 
-SRCS=./fifo.c ./io.c ./mxx.c ./ncb.c ./tcp.c ./tcpal.c \
+SRCS=./fifo.c ./io.c ./mxx.c ./ncb.c ./tcp.c ./tcpal.c ./pipe.c \
 		./tcpio.c ./udp.c ./udpio.c ./arp.c ./arpio.c ./wpool.c
 
 SRCS+=../libnsp/com/avltree.c ../libnsp/com/logger.c ../libnsp/com/posix_ifos.c ../libnsp/com/posix_string.c \
@@ -20,7 +20,7 @@ SRCS+=../libnsp/com/avltree.c ../libnsp/com/logger.c ../libnsp/com/posix_ifos.c 
 #OBJS=$(addprefix $(OBJS_DIR)/,$(patsubst %.$(SRC_EXT),%.o,$(notdir $(SRCS))))
 
 INC_DIR=-I ../libnsp/icom/
-CFLAGS+=$(INC_DIR) -fPIC -Wall -std=c89 -ansi -D_GNU_SOURCE
+CFLAGS+=$(INC_DIR) -fPIC -Wall -std=c89 -ansi -D_GNU_SOURCE -fvisibility=hidden
 LDFLAGS=-shared -lcrypt
 
 OBJCOPY=objcopy

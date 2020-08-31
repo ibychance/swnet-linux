@@ -73,7 +73,7 @@ static int __wp_exec(struct wptask *task)
         return -ENOENT;
     }
 
-    posix__atomic_get(ncb->ncb_write, ncb_write);
+    ncb_write = posix__atomic_get(&ncb->ncb_write);
     if (ncb_write) {
         /*
          * if the return value of @ncb_write equal to -1, that means system call maybe error, this link will be close

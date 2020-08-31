@@ -12,6 +12,7 @@
 #include "ncb.h"
 #include "wpool.h"
 #include "mxx.h"
+#include "pipe.h"
 
 /* 1024 is just a hint for the kernel */
 #define EPOLL_SIZE    (1024)
@@ -21,11 +22,13 @@ struct epoll_object_block {
     boolean_t actived;
     posix__pthread_t threadfd;
     int load; /* load of current thread */
+    int pipefdw;
 } ;
 
 struct io_object_block {
     struct epoll_object_block *epoptr;
     int divisions;
+    int protocol;
 };
 
 static objhld_t tcphld = -1;
@@ -81,7 +84,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt)
         /* disconnect/error/reset socket states have been detect,
          * in this case, ncb it's NOT necessary */
         if ( (evts[i].events & EPOLLRDHUP) || (evts[i].events & EPOLLERR) ) {
-            nis_call_ecr("[nshost.io.__iorun] EPOLL event:%d detect on link:%lld", evts[i], hld);
+            nis_call_ecr("[nshost.io.__iorun] EPOLL event:%d detect on link:%lld", evts[i].events, hld);
 	        objclos(hld);
             continue;
         }
@@ -93,7 +96,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt)
 
         /* system width input cache change from empty to readable */
         if (evts[i].events & EPOLLIN) {
-            posix__atomic_get(ncb->ncb_read, ncb_read);
+            ncb_read = posix__atomic_get(&ncb->ncb_read);
             if (ncb_read) {
                 if (ncb_read(ncb) < 0) {
                     nis_call_ecr("[nshost.io.__iorun] ncb read function return fatal error, this will cause link close, link:%lld", hld);
@@ -140,7 +143,6 @@ static void *__epoll_proc(void *argv)
 {
     struct epoll_event evts[EPOLL_SIZE];
     int sigcnt;
-    int errcode;
     struct epoll_object_block *epoptr;
     static const int EP_TIMEDOUT = 100;
 
@@ -152,16 +154,14 @@ static void *__epoll_proc(void *argv)
     while (YES == epoptr->actived) {
         sigcnt = epoll_wait(epoptr->epfd, evts, EPOLL_SIZE, EP_TIMEDOUT);
         if (sigcnt < 0) {
-            errcode = errno;
-
     	    /* The call was interrupted by a signal handler before either :
     	     * (1) any of the requested events occurred or
     	     * (2) the timeout expired; */
-            if (EINTR == errcode) {
+            if (EINTR == errno) {
                 continue;
             }
 
-            nis_call_ecr("[nshost.io.epoll] fatal error occurred syscall epoll_wait(2), epfd:%d, LWP:%u, error:%d", epoptr->epfd, posix__gettid(), errcode);
+            nis_call_ecr("[nshost.io.epoll] fatal error occurred syscall epoll_wait(2), epfd:%d, LWP:%u, error:%d", epoptr->epfd, posix__gettid(), errno);
             break;
         }
 
@@ -208,6 +208,16 @@ static int __io_init(struct io_object_block *iobptr, int nprocs)
             close(epoptr->epfd);
             epoptr->epfd = -1;
             epoptr->actived = NO;
+        }
+    }
+
+    /* function @io_attach will be invoke during @pipe_create called, so the epoll file-descriptor must create before it */
+    for (i = 0; i < iobptr->divisions; i++) {
+        epoptr = &iobptr->epoptr[i];
+        /* create a pipe object for this thread */
+        epoptr->pipefdw = pipe_create(iobptr->protocol);
+        if (epoptr->pipefdw < 0) {
+            nis_call_ecr("[nshost.io.__io_init] fails create pipe object for epoll threading, error:%d", errno);
         }
     }
 
@@ -279,6 +289,7 @@ int io_init(int protocol)
     }
 
     /* less IO threads for UDP business */
+    iobptr->protocol = protocol;
     nprocs = (IPPROTO_TCP ==protocol ) ? posix__getnprocs() :
                 (posix__getnprocs() >> 1);
     if (nprocs <= 0) {
@@ -459,4 +470,34 @@ void io_close(void *ncbptr)
         close(ncb->sockfd);
         ncb->sockfd = -1;
     }
+}
+
+int io_pipefd(void *ncbptr)
+{
+    ncb_t *ncb;
+    objhld_t hld;
+    struct io_object_block *iobptr;
+    int protocol;
+    int pipefd;
+
+    ncb = (ncb_t *)ncbptr;
+    assert(ncb);
+
+    protocol = ncb->protocol;
+    hld = ((IPPROTO_TCP == protocol ) ? tcphld :
+            ((IPPROTO_UDP == protocol || ETH_P_ARP == protocol) ? udphld : -1));
+    if (hld < 0) {
+        return -EPROTOTYPE;
+    }
+
+    iobptr = objrefr(hld);
+    if (!iobptr) {
+        nis_call_ecr("[nshost.io.io_attach] failed reference assicoated io object block with handle:%lld", hld);
+        return -ENOENT;
+    }
+
+    pipefd = iobptr->epoptr[ncb->hld % iobptr->divisions].pipefdw;
+
+    objdefr(hld);
+    return pipefd;
 }

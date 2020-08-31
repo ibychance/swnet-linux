@@ -4,6 +4,7 @@
 #include "fifo.h"
 #include "io.h"
 #include "wpool.h"
+#include "pipe.h"
 
 #include "posix_atomic.h"
 
@@ -140,8 +141,8 @@ HUDPLINK udp_create(udp_io_callback_t callback, const char* ipstr, uint16_t port
         getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen);
 
         /* set data handler function pointer for Rx/Tx */
-        posix__atomic_set(ncb->ncb_read, &udp_rx);
-        posix__atomic_set(ncb->ncb_write, &udp_tx);
+        posix__atomic_set(&ncb->ncb_read, &udp_rx);
+        posix__atomic_set(&ncb->ncb_write, &udp_tx);
 
         /* attach to epoll */
         retval = io_attach(ncb, EPOLLIN);
@@ -169,6 +170,26 @@ void udp_destroy(HUDPLINK link)
         io_close(ncb);
         objdefr(link);
     }
+}
+
+int udp_awaken(HUDPLINK link, const void *pipedata, int cb)
+{
+    int retval;
+    ncb_t *ncb;
+
+    if (link < 0) {
+        return -EINVAL;
+    }
+
+    retval = __udprefr(link, &ncb);
+    if (retval < 0) {
+        return retval;
+    }
+
+    retval = pipe_write_message(ncb, pipedata, cb);
+
+    objdefr(link);
+    return retval;
 }
 
 int udp_write(HUDPLINK link, const void *origin, int cb, const char* ipstr, uint16_t port, const nis_serializer_t serializer)

@@ -4,6 +4,7 @@
 #include "fifo.h"
 #include "io.h"
 #include "wpool.h"
+#include "pipe.h"
 
 #include "posix_ifos.h"
 #include "posix_atomic.h"
@@ -372,7 +373,6 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
     ncb_t *ncb;
     int retval;
     struct sockaddr_in addr_to;
-    int e;
     socklen_t addrlen;
     int optval;
     struct tcp_info ktcp;
@@ -412,12 +412,11 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
         /* syscall @connect can be interrupted by other signal. */
         do {
             retval = connect(ncb->sockfd, (const struct sockaddr *) &addr_to, sizeof (struct sockaddr));
-            e = errno;
-        } while((e == EINTR) && (retval < 0));
+        } while((errno == EINTR) && (retval < 0));
 
         if (retval < 0) {
             /* if this socket is already connected, or it is in listening states, sys-call failed with error EISCONN  */
-            nis_call_ecr("[nshost.tcp.connect] fatal error occurred syscall connect(2), %s:%u, error:%u, link:%lld", ipstr, port, e, link);
+            nis_call_ecr("[nshost.tcp.connect] fatal error occurred syscall connect(2), %s:%u, error:%u, link:%lld", ipstr, port, errno, link);
             break;
         }
 
@@ -442,8 +441,8 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
         ncb_post_connected(ncb);
 
         /* set handler function pointer to Rx/Tx */
-        posix__atomic_set(ncb->ncb_read, &tcp_rx);
-        posix__atomic_set(ncb->ncb_write, &tcp_tx);
+        posix__atomic_set(&ncb->ncb_read, &tcp_rx);
+        posix__atomic_set(&ncb->ncb_write, &tcp_tx);
 
     }while( 0 );
 
@@ -455,7 +454,6 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
 {
     ncb_t *ncb;
     int retval;
-    int e;
     int optval;
     struct tcp_info ktcp;
 
@@ -500,8 +498,7 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
 
         do {
             retval = connect(ncb->sockfd, (const struct sockaddr *) &ncb->remot_addr, sizeof (struct sockaddr));
-            e = errno;
-        }while((EINTR == e) && (retval < 0));
+        }while((EINTR == errno) && (retval < 0));
 
         /* immediate success, some BSD/SystemV maybe happen */
         if ( 0 == retval) {
@@ -529,7 +526,7 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
          *   3.When the connect function is also called and the connection is successfully established,
          *       epoll will generate EPOLLOUT once, with a value of 0x4, indicating that the socket is writable
         */
-        if (e == EINPROGRESS) {
+        if (EINPROGRESS == errno ) {
             retval = io_attach(ncb, EPOLLOUT);
             if ( retval < 0) {
                 objclos(link);
@@ -537,10 +534,10 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
             break;
         }
 
-        if (EAGAIN == e) {
+        if (EAGAIN == errno) {
             nis_call_ecr("[nshost.tcp.connect2] Insufficient entries in the routing cache, link:%lld", link);
         } else {
-            nis_call_ecr("[nshost.tcp.connect2] fatal error occurred syscall connect(2) to target endpoint %s:%u, error:%d, link:%lld", ipstr, port, e, link);
+            nis_call_ecr("[nshost.tcp.connect2] fatal error occurred syscall connect(2) to target endpoint %s:%u, error:%d, link:%lld", ipstr, port, errno, link);
         }
 
     } while (0);
@@ -592,7 +589,7 @@ int tcp_listen(HTCPLINK link, int block)
             retval = -1;
             break;
         }
-        posix__atomic_set(ncb->ncb_write, NULL);
+        posix__atomic_set(&ncb->ncb_write, NULL);
 
         /* set file descriptor to asynchronous mode and attach to it's own epoll object,
          *  ncb object willbe destroy on fatal. */
@@ -610,6 +607,26 @@ int tcp_listen(HTCPLINK link, int block)
         nis_call_ecr("[nshost.tcp.listen] success listen on link:%lld", link);
         retval = 0;
     } while (0);
+
+    objdefr(link);
+    return retval;
+}
+
+int tcp_awaken(HTCPLINK link, const void *pipedata, int cb)
+{
+    int retval;
+    ncb_t *ncb;
+
+    if (link < 0) {
+        return -EINVAL;
+    }
+
+    retval = __tcprefr(link, &ncb);
+    if (retval < 0) {
+        return retval;
+    }
+
+    retval = pipe_write_message(ncb, pipedata, cb);
 
     objdefr(link);
     return retval;

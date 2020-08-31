@@ -1,16 +1,11 @@
-#include "args.h"
-
 #include "nis.h"
 #include "posix_wait.h"
 #include "posix_ifos.h"
 #include "posix_naos.h"
+#include "posix_atomic.h"
 #include "logger.h"
 
-#include <stdio.h>
-
-#include "object.h"
-
-#define ECHO(fmt, arg...) log__save("nshost.echo", kLogLevel_Info, kLogTarget_Stdout | kLogTarget_Filesystem, fmt, ##arg)
+#include "args.h"
 
 int display(HTCPLINK link, const unsigned char *data, int size)
 {
@@ -34,9 +29,10 @@ int display(HTCPLINK link, const unsigned char *data, int size)
 
 void tcp_server_callback(const struct nis_event *event, const void *data)
 {
-	struct nis_tcp_data *tcpdata = (struct nis_tcp_data *)data;
+	struct nis_tcp_data *tcpdata;
 	HTCPLINK link;
 
+	tcpdata = (struct nis_tcp_data *)data;
 	link = event->Ln.Tcp.Link;
 	switch(event->Event) {
 		case EVT_RECEIVEDATA:
@@ -49,9 +45,7 @@ void tcp_server_callback(const struct nis_event *event, const void *data)
 			}
 			break;
 		case EVT_TCP_ACCEPTED:
-			break;
 		case EVT_CLOSED:
-			break;
 		default:
 			break;
 	}
@@ -66,13 +60,11 @@ void tcp_client_callback(const struct nis_event *event, const void *data)
 			display(event->Ln.Tcp.Link, tcpdata->e.Packet.Data, tcpdata->e.Packet.Size);
 			posix__file_write(1, "input:$ ", 8);
 			break;
-		case EVT_TCP_ACCEPTED:
-			break;
-		case EVT_CLOSED:
-			break;
 		case EVT_TCP_CONNECTED:
 			posix__file_write(1, "input:$ ", 8);
 			break;
+		case EVT_TCP_ACCEPTED:
+		case EVT_CLOSED:
 		default:
 			break;
 	}
@@ -81,7 +73,7 @@ void tcp_client_callback(const struct nis_event *event, const void *data)
 void nshost_ecr(const char *host_event, const char *reserved, int rescb)
 {
 	if (host_event) {
-		ECHO("%s", host_event);
+		ECHO("echo", "%s", host_event);
 	}
 }
 
@@ -102,7 +94,7 @@ int echo_server_startup(const char *host, uint16_t port)
 int echo_client_startup(const char *host, uint16_t port)
 {
 	HTCPLINK client;
-	char text[165536], *p;
+	char text[65535], *p;
 	size_t n;
 
 	do {
@@ -117,8 +109,10 @@ int echo_client_startup(const char *host, uint16_t port)
 
 		while ( NULL != (p = fgets(text, sizeof(text), stdin)) ) {
 			n = strlen(text);
-			if (tcp_write(client, text, n, NULL) < 0) {
-				break;
+			if ( n > 0) {
+				if (tcp_write(client, text, n, NULL) < 0) {
+					break;
+				}
 			}
 		}
 	} while( 0 );
@@ -126,35 +120,15 @@ int echo_client_startup(const char *host, uint16_t port)
 	return 1;
 }
 
-#define _SET_ECR 1
-
 int main(int argc, char **argv)
 {
 	int type;
-	int i;
-
-	objhld_t obj[100000];
-	for (i = 0; i < 100000; i++) {
-		obj[i] = objallo2(4);
-		*((int *)objrefr(obj[i])) = i;
-		objdefr(obj[i]);
-	}
-
-	for (i = 100000; i < 100005; i++) {
-		if (!objrefr(i)) {
-			printf("ref %d failed\n", i);
-		}
-	}
-
-	for (i = 0; i < 100000; i++) {
-		objclos(obj[i]);
-	}
 
 	if (check_args(argc, argv) < 0) {
 		return -1;
 	}
 
-	if ((type = gettype()) < 0 ){
+	if ((type = gettype()) < 0 ) {
 		return 1;
 	}
 

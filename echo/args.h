@@ -4,8 +4,8 @@
 #include "compiler.h"
 
 #define SESS_TYPE_UNKNOWN       (-1)
-#define SESS_TYPE_SERVER         (0)
-#define SESS_TYPE_CLIENT        (1)
+#define SESS_TYPE_SERVER         ('s')
+#define SESS_TYPE_CLIENT         ('c')
 
 extern void display_usage();
 extern int check_args(int argc, char **argv);
