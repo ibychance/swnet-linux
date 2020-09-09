@@ -82,8 +82,14 @@ int pipe_create(int protocol)
 	objhld_t hld;
 	ncb_t *ncb;
 
-	if (0 != pipe2(pipefd, O_DIRECT | O_NONBLOCK)) {
-		return -1;
+	if (0 != pipe2(pipefd, O_DIRECT | O_NONBLOCK | O_CLOEXEC)) {
+		if (errno != EINVAL) {
+			return -1;
+		}
+
+		if (0 != pipe2(pipefd, O_NONBLOCK)) {
+			return -1;
+		}
 	}
 
     hld = objallo(sizeof(ncb_t), &pipe_initialize, &pipe_unloader, NULL, 0);
