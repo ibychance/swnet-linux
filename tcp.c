@@ -170,6 +170,7 @@ HTCPLINK tcp_create(tcp_io_callback_t callback, const char* ipstr, uint16_t port
             break;
         }
 
+        nis_call_ecr("[nshost.tcp.create] success allocate link:%lld, sockfd:%d", ncb->hld, ncb->sockfd);
         objdefr(hld);
         return hld;
     } while (0);
@@ -377,7 +378,11 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
     int optval;
     struct tcp_info ktcp;
 
-    if (link < 0 || !ipstr || 0 == port ) {
+    if (link < 0 || !ipstr || 0 == port || 0xff == port ) {
+        return -EINVAL;
+    }
+
+    if (0 == ipstr[0]) {
         return -EINVAL;
     }
 
@@ -457,7 +462,11 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
     int optval;
     struct tcp_info ktcp;
 
-    if (!ipstr || 0 == port || link < 0 ) {
+    if (!ipstr || 0 == port || link < 0 || 0xff == port ) {
+        return -EINVAL;
+    }
+
+    if (0 == ipstr[0]) {
         return -EINVAL;
     }
 

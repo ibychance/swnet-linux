@@ -150,6 +150,7 @@ HUDPLINK udp_create(udp_io_callback_t callback, const char* ipstr, uint16_t port
             break;
         }
 
+        nis_call_ecr("[nshost.udp.create] success allocate link:%lld, sockfd:%d", ncb->hld, ncb->sockfd);
         objdefr(hld);
         return hld;
     } while (0);
@@ -200,6 +201,10 @@ int udp_write(HUDPLINK link, const void *origin, int cb, const char* ipstr, uint
     struct tx_node *node;
 
     if ( !ipstr || (0 == port) || (cb <= 0) || (link < 0) || (cb > MAX_UDP_UNIT) || !origin) {
+        return -EINVAL;
+    }
+
+    if (0 == ipstr[0]) {
         return -EINVAL;
     }
 
