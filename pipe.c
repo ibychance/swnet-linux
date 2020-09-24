@@ -149,7 +149,9 @@ int pipe_write_message(ncb_t *ncb, const unsigned char *data, int cb)
 		return -ENOMEM;
 	}
 
-	memcpy(pipemsg->pipedata, data, cb);
+	if (data && cb > 0) {
+		memcpy(pipemsg->pipedata, data, cb);
+	}
 	pipemsg->length = cb;
 	pipemsg->link = ncb->hld;
 
