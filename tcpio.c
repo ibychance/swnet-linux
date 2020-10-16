@@ -80,25 +80,22 @@ int __tcp_syn_dpc(ncb_t *ncb_server, ncb_t *ncb)
     getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* remote */
     getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* local */
 
-    /* set other options */
-    tcp_update_opts(ncb);
-
+    /* set options */
+    /* disable delay optimization */
+    tcp_set_nodelay(ncb, 1);
+    /* the low-level [TCP Keep-ALive] are usable. */
+    tcp_set_keepalive(ncb);
     /* acquire save TCP Info and adjust linger in the accept phase.
         l_onoff on and l_linger not zero, these settings means:
         TCP drop any data cached in the kernel buffer of this socket file descriptor when close(2) called.
         post a TCP-RST to peer, do not use FIN-FINACK, using this flag to avoid TIME_WAIT stauts */
     ncb_set_linger(ncb, 1, 0);
+    /* adjust TCP window size to mimimum require. */
+    tcp_set_buffsize(ncb);
 
-    /* allocate memory for TCP normal package */
-    if (NULL == (ncb->packet = (unsigned char *) malloc(TCP_BUFFER_SIZE))) {
-        return -ENOMEM;
-    }
-
-    /* clear the protocol head */
-    ncb->u.tcp.rx_parse_offset = 0;
-    if (NULL == (ncb->u.tcp.rx_buffer = (unsigned char *) malloc(TCP_BUFFER_SIZE))) {
-        return -ENOMEM;
-    }
+    /* this link use to receive data from remote peer,
+            so the packet and rx memory acquire to allocate now */
+    tcp_allocate_rx_buffer(ncb);
 
     /* specify data handler proc for client ncb object */
     posix__atomic_set(&ncb->ncb_read, &tcp_rx);
@@ -372,7 +369,13 @@ int tcp_tx_syn(ncb_t *ncb)
 
     while (1) {
         if( 0 == __tcp_check_syn_result(ncb->sockfd, &e)) {
-            tcp_update_opts(ncb);
+
+            /* mark normal attributes */
+            tcp_set_nodelay(ncb, 1);
+
+            /* this link use to receive data from remote peer,
+                so the packet and rx memory acquire to allocate now */
+            tcp_allocate_rx_buffer(ncb);
 
             /* get peer address information */
             addrlen = sizeof (struct sockaddr);

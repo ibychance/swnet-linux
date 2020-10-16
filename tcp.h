@@ -13,7 +13,7 @@ extern const char *TCP_KERNEL_STATE_NAME[TCP_KERNEL_STATE_LIST_SIZE];
             (((stat >= 0) && (stat < TCP_KERNEL_STATE_LIST_SIZE)) ? TCP_KERNEL_STATE_NAME[stat] : "MalformedState:"#stat)
 
 extern
-void tcp_update_opts(const ncb_t *ncb);
+int tcp_allocate_rx_buffer(ncb_t *ncb);
 
 /* inner function for thread safty */
 extern
@@ -42,6 +42,8 @@ int tcp_rx_syn(ncb_t *ncb);
 /* tcp al */
 extern
 int tcp_parse_pkt(ncb_t *ncb, const unsigned char *data, int cpcb);
+extern
+void tcp_set_buffsize(const ncb_t *ncb);
 
 /*
 for TCP_INFO socket option
@@ -102,19 +104,14 @@ int tcp_getmss(const ncb_t *ncb);
 extern
 int tcp_set_nodelay(const ncb_t *ncb, int set);
 extern
-int tcp_get_nodelay(const ncb_t *ncb, int *set);
+int tcp_get_nodelay(const ncb_t *ncb);
 extern
 int tcp_set_cork(const ncb_t *ncb, int set);
 extern
 int tcp_get_cork(const ncb_t *ncb, int *set);
-
 extern
-int tcp_set_keepalive(const ncb_t *ncb, int enable);
+int tcp_set_keepalive(const ncb_t *ncb);
 extern
-int tcp_get_keepalive(const ncb_t *ncb, int *enabled);
-extern
-int tcp_set_keepalive_value(const ncb_t *ncb, int idle, int interval, int probes);
-extern
-int tcp_get_keepalive_value(const ncb_t *ncb, int *idle, int *interval, int *probes);
+int tcp_set_syncnt(const ncb_t *ncb, int cnt);
 
 #endif

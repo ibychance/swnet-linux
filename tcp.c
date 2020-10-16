@@ -63,24 +63,67 @@ int __tcprefr( objhld_t hld, ncb_t **ncb )
     return -ENOENT;
 }
 
-void tcp_update_opts(const ncb_t *ncb)
+void tcp_set_buffsize(const ncb_t *ncb)
 {
-    if (ncb) {
-#if 0
-        /* define in:
-         /proc/sys/net/ipv4/tcp_me
-         /proc/sys/net/ipv4/tcp_wmem
-         /proc/sys/net/ipv4/tcp_rmem */
-        ncb_set_window_size(ncb, SO_RCVBUF, 65536);
-        ncb_set_window_size(ncb, SO_SNDBUF, 65536);
-#endif
-        /* atomic keepalive */
-        tcp_set_keepalive(ncb, 1);
-        tcp_set_keepalive_value(ncb, 30, 5, 6);
+    int size;
+    static const int MINIMUM_RCVBUF = 65535;
+    static const int MINIMUM_SNDBUF = 8192;
 
-        /* disable the Nginx algorithm */
-        tcp_set_nodelay(ncb, 1);
+    /* define in:
+     /proc/sys/net/ipv4/tcp_me
+     /proc/sys/net/ipv4/tcp_wmem
+     /proc/sys/net/ipv4/tcp_rmem */
+    if (ncb) {
+        if ( ncb_get_window_size(ncb, SO_RCVBUF, &size) >= 0 ) {
+             nis_call_ecr("[nshost.tcp.tcp_set_buffsize] current receive buffer size=%d", size);
+             if (size < MINIMUM_RCVBUF) {
+                ncb_set_window_size(ncb, SO_RCVBUF, MINIMUM_RCVBUF);
+             }
+        }
+
+        if ( ncb_get_window_size(ncb, SO_SNDBUF, &size) >= 0 ) {
+             nis_call_ecr("[nshost.tcp.tcp_set_buffsize] current send buffer size=%d", size);
+             if (size < MINIMUM_SNDBUF) {
+                ncb_set_window_size(ncb, SO_SNDBUF, MINIMUM_SNDBUF);
+             }
+        }
     }
+}
+
+int tcp_allocate_rx_buffer(ncb_t *ncb)
+{
+    assert(ncb);
+
+    /* allocate normal TCP package */
+    assert(!ncb->packet);
+    if (NULL == (ncb->packet = (unsigned char *) malloc(TCP_BUFFER_SIZE))) {
+        return -ENOMEM;
+    }
+
+    /* zeroization protocol head*/
+    ncb->u.tcp.rx_parse_offset = 0;
+    assert(!ncb->u.tcp.rx_buffer);
+    if (NULL == (ncb->u.tcp.rx_buffer = (unsigned char *) malloc(TCP_BUFFER_SIZE))) {
+        return -ENOMEM;
+    }
+
+    return 0;
+}
+
+static int __tcp_bind(const ncb_t *ncb)
+{
+    int retval;
+
+    assert(ncb);
+
+    retval = 0;
+    /* the user specified a explicit adpater or port to bind when invoke @tcp_create */
+    if (0 != ncb->local_addr.sin_addr.s_addr || 0 != ncb->local_addr.sin_port) {
+        /* binding on local adpater before listen */
+        retval = bind(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, sizeof(struct sockaddr));
+    }
+
+    return retval;
 }
 
 /* tcp impls */
@@ -111,30 +154,12 @@ void tcp_uninit()
 HTCPLINK tcp_create(tcp_io_callback_t callback, const char* ipstr, uint16_t port)
 {
     int fd;
-    struct sockaddr_in addrlocal;
-    int retval;
-    int optval;
     ncb_t *ncb;
     objhld_t hld;
 
     fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (fd < 0) {
         nis_call_ecr("[nshost.tcp.create] fatal error occurred syscall socket(2),error:%d", errno);
-        return -1;
-    }
-
-    /* allow port reuse */
-    optval = 1;
-    retval = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof ( optval));
-
-    /* binding address, and then allocate NCB object */
-    addrlocal.sin_addr.s_addr = ipstr ? inet_addr(ipstr) : INADDR_ANY;
-    addrlocal.sin_family = AF_INET;
-    addrlocal.sin_port = htons(port);
-    retval = bind(fd, (struct sockaddr *) &addrlocal, sizeof ( struct sockaddr));
-    if (retval < 0) {
-        nis_call_ecr("[nshost.tcp.create] fatal error occurred syscall bind(2), local endpoint %s:%u, error:%d", (ipstr ? ipstr : "0.0.0.0"), port, errno);
-        close(fd);
         return -1;
     }
 
@@ -147,37 +172,21 @@ HTCPLINK tcp_create(tcp_io_callback_t callback, const char* ipstr, uint16_t port
     ncb = objrefr(hld);
     assert(ncb);
 
-    do {
-        ncb->hld = hld;
-        ncb->sockfd = fd;
-        ncb->protocol = IPPROTO_TCP;
-        ncb->nis_callback = callback;
-        memcpy(&ncb->local_addr, &addrlocal, sizeof (addrlocal));
+    ncb->hld = hld;
+    ncb->sockfd = fd;
+    ncb->protocol = IPPROTO_TCP;
+    ncb->nis_callback = callback;
 
-        /* acquire save TCP Info and adjust linger in the creation phase. */
-        ncb_set_linger(ncb, 0, 0);
+    /* local address fill and delay use */
+    ncb->local_addr.sin_addr.s_addr = ipstr ? inet_addr(ipstr) : INADDR_ANY;
+    ncb->local_addr.sin_family = AF_INET;
+    ncb->local_addr.sin_port = htons(port);
 
-        /* allocate normal TCP package */
-        if (NULL == (ncb->packet = (unsigned char *) malloc(TCP_BUFFER_SIZE))) {
-            retval = -ENOMEM;
-            break;
-        }
-
-        /* zeroization protocol head*/
-        ncb->u.tcp.rx_parse_offset = 0;
-        if (NULL == (ncb->u.tcp.rx_buffer = (unsigned char *) malloc(TCP_BUFFER_SIZE))) {
-            retval = -ENOMEM;
-            break;
-        }
-
-        nis_call_ecr("[nshost.tcp.create] success allocate link:%lld, sockfd:%d", ncb->hld, ncb->sockfd);
-        objdefr(hld);
-        return hld;
-    } while (0);
-
+    /* acquire save TCP Info and adjust linger in the creation phase. */
+    ncb_set_linger(ncb, 0, 0);
+    nis_call_ecr("[nshost.tcp.create] success allocate link:%lld, sockfd:%d", ncb->hld, ncb->sockfd);
     objdefr(hld);
-    objclos(hld);
-    return retval;
+    return hld;
 }
 
 int tcp_settst(HTCPLINK link, const tst_t *tst)
@@ -375,7 +384,6 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
     int retval;
     struct sockaddr_in addr_to;
     socklen_t addrlen;
-    int optval;
     struct tcp_info ktcp;
 
     if (link < 0 || !ipstr || 0 == port || 0xff == port ) {
@@ -402,13 +410,17 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
             }
         }
 
-        /* try no more than 3 times of tcp::syn */
-        optval = 3;
-        setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
+        /* bind on particular local address:port tuple when need. */
+        if (__tcp_bind(ncb) < 0) {
+            nis_call_ecr("[nshost.tcp.tcp_connect] fatal error occurred __tcp_bind");
+            break;
+        }
 
-        /* set other options */
+        /* try no more than 3 times of tcp::syn */
+        tcp_set_syncnt(ncb, 3);
+
         /* On individual connections, the socket buffer size must be set prior to the listen(2) or connect(2) calls in order to have it take effect. */
-        tcp_update_opts(ncb);
+        tcp_set_buffsize(ncb);
 
         addr_to.sin_family = PF_INET;
         addr_to.sin_port = htons(port);
@@ -425,29 +437,30 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
             break;
         }
 
-        /*
-         * set file descriptor in asynchronous mode,
-         * and than, queue object into epoll manager
-         *
-         * on success, MUST attach this file descriptor to epoll as early as possible.
-         * Even so, It is also possible a close message post to calling thread early then connected message  */
-        retval = io_attach(ncb, EPOLLIN);
-        if (retval < 0) {
+        /* mark normal attributes */
+        tcp_set_nodelay(ncb, 1);
+
+        /* this link use to receive data from remote peer,
+            so the packet and rx memory acquire to allocate now */
+        tcp_allocate_rx_buffer(ncb);
+
+        /* get peer address information */
+        addrlen = sizeof (struct sockaddr);
+        getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* remote address information */
+        getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* local address information */
+
+        /* follow tcp rx/tx event */
+        posix__atomic_set(&ncb->ncb_read, &tcp_rx);
+        posix__atomic_set(&ncb->ncb_write, &tcp_tx);
+
+        /* focus EPOLLIN only */
+        if ((retval = io_attach(ncb, EPOLLIN)) < 0) {
             objclos(link);
             break;
         }
 
-        /* save address information after connect successful */
-        addrlen = sizeof (addr_to);
-        getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* remote address information */
-        getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* local address information */
-
-        /* render the connected event to up-level */
+        nis_call_ecr("[nshost.tcp.tcp_connect] link:%lld connection established.", ncb->hld);
         ncb_post_connected(ncb);
-
-        /* set handler function pointer to Rx/Tx */
-        posix__atomic_set(&ncb->ncb_read, &tcp_rx);
-        posix__atomic_set(&ncb->ncb_write, &tcp_tx);
 
     }while( 0 );
 
@@ -459,7 +472,6 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
 {
     ncb_t *ncb;
     int retval;
-    int optval;
     struct tcp_info ktcp;
 
     if (!ipstr || 0 == port || link < 0 || 0xff == port ) {
@@ -491,6 +503,12 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
             }
         }
 
+        /* bind on particular local address:port tuple when need. */
+        if (__tcp_bind(ncb) < 0) {
+            nis_call_ecr("[nshost.tcp.tcp_connect2] fatal error occurred __tcp_bind");
+            break;
+        }
+
         /* double check the tx_syn routine */
         if ((NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_write, NULL, &tcp_tx_syn))) {
             nis_call_ecr("[nshost.tcp.connect2] link:%lld multithreading double call is not allowed.", link);
@@ -498,8 +516,10 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
         }
 
         /* try no more than 3 times for tcp::syn */
-        optval = 3;
-        setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, &optval, sizeof (optval));
+        tcp_set_syncnt(ncb, 3);
+
+        /* On individual connections, the socket buffer size must be set prior to the listen(2) or connect(2) calls in order to have it take effect. */
+        tcp_set_buffsize(ncb);
 
         ncb->remot_addr.sin_family = PF_INET;
         ncb->remot_addr.sin_port = htons(port);
@@ -561,6 +581,7 @@ int tcp_listen(HTCPLINK link, int block)
     int retval;
     struct tcp_info ktcp;
     socklen_t addrlen;
+    int reuse;
 
     if (block < 0 || block >= 0x7FFF) {
         return -EINVAL;
@@ -577,10 +598,23 @@ int tcp_listen(HTCPLINK link, int block)
         /* get the socket status of tcp_info to check the socket tcp statues */
         if (tcp_save_info(ncb, &ktcp) >= 0) {
             if (ktcp.tcpi_state != TCP_CLOSE) {
-                nis_call_ecr("[nshost.tcp.listen] state illegal,link:%lld, kernel states:%s.", link, tcp_state2name(ktcp.tcpi_state));
+                nis_call_ecr("[nshost.tcp.tcp_listen] state illegal,link:%lld, kernel states:%s.", link, tcp_state2name(ktcp.tcpi_state));
                 break;
             }
         }
+
+        /* allow port reuse */
+        reuse = 1;
+        retval = setsockopt(ncb->sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+
+        /* binding on local adpater before listen */
+        if (__tcp_bind(ncb) < 0) {
+            nis_call_ecr("[nshost.tcp.tcp_listen] fatal error occurred __tcp_bind");
+            break;
+        }
+
+        /* On individual connections, the socket buffer size must be set prior to the listen(2) or connect(2) calls in order to have it take effect. */
+        tcp_set_buffsize(ncb);
 
         /*
          * '/proc/sys/net/core/somaxconn' in POSIX.1 this value default to 128
@@ -588,7 +622,7 @@ int tcp_listen(HTCPLINK link, int block)
          *  we will ignore the @block argument and use macro SOMAXCONN which defined in /usr/include/bits/socket.h anyway */
         retval = listen(ncb->sockfd, ((0 == block) || (block > SOMAXCONN)) ? SOMAXCONN : block);
         if (retval < 0) {
-            nis_call_ecr("[nshost.tcp.listen] fatal error occurred syscall listen(2),error:%u", errno);
+            nis_call_ecr("[nshost.tcp.tcp_listen] fatal error occurred syscall listen(2),error:%u", errno);
             break;
         }
 
@@ -888,15 +922,17 @@ int tcp_set_nodelay(const ncb_t *ncb, int set)
     return ncb ? setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (const void *) &set, sizeof ( set)) : -EINVAL;
 }
 
-int tcp_get_nodelay(const ncb_t *ncb, int *set)
+int tcp_get_nodelay(const ncb_t *ncb)
 {
     socklen_t optlen;
+    int nodelay;
 
-    if (ncb && set) {
-        optlen = sizeof (int);
-        return getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (void *__restrict)set, &optlen);
+    optlen = sizeof (int);
+    if ( getsockopt(ncb->sockfd, IPPROTO_TCP, TCP_NODELAY, (void *__restrict)&nodelay, &optlen) < 0 ) {
+        return -1;
     }
-    return -EINVAL;
+
+    return nodelay;
 }
 
 int tcp_set_cork(const ncb_t *ncb, int set)
@@ -915,93 +951,42 @@ int tcp_get_cork(const ncb_t *ncb, int *set)
     return -EINVAL;
 }
 
-int tcp_set_keepalive(const ncb_t *ncb, int enable)
+int tcp_set_keepalive(const ncb_t *ncb)
 {
-    return ncb ? setsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (const char *) &enable, sizeof ( enable)) : -EINVAL;
+    int optka;
+    int optkintvl;
+    int optkidle;
+    int optkcnt;
+
+    optka = 1;
+    if ( setsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (const char *)&optka, sizeof(optka)) < 0 ) {
+        return -1;
+    }
+
+    /* The time (in seconds) between individual keepalive probes */
+    optkintvl = 5;
+    if ( setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_KEEPINTVL, (const char *)&optkintvl, sizeof(optkintvl)) < 0 ) {
+        return -1;
+    }
+
+    /* The  time (in seconds) the connection needs to remain idle before TCP starts sending keepalive probes */
+    optkidle = 10;
+    if ( setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_KEEPIDLE, (const char *)&optkidle, sizeof(optkidle)) < 0 ) {
+        return -1;
+    }
+
+    /* The  time (in seconds) the connection needs to remain idle before TCP starts sending keepalive probes */
+    optkcnt = 1;
+    if ( setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_KEEPCNT, (const char *)&optkcnt, sizeof(optkcnt)) < 0 ) {
+        return -1;
+    }
+
+    return 0;
 }
 
-int tcp_get_keepalive(const ncb_t *ncb, int *enabled)
+int tcp_set_syncnt(const ncb_t *ncb, int cnt)
 {
-    socklen_t optlen;
-
-    if (ncb && enabled) {
-        optlen = sizeof(int);
-        return getsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (void *__restrict)enabled, &optlen);
-    }
-    return -EINVAL;
-}
-
-int tcp_set_keepalive_value(const ncb_t *ncb, int idle, int interval, int probes)
-{
-    int enabled;
-    if (tcp_get_keepalive(ncb, &enabled) < 0) {
-        return -1;
-    }
-
-    if (!enabled) {
-        return -1;
-    }
-
-    do {
-        /* lanuch keepalive when no data transfer during @idle */
-        if (setsockopt(ncb->sockfd, SOL_TCP, TCP_KEEPIDLE, (void *)&idle, sizeof(idle)) < 0) {
-            break;
-        }
-
-        /* the interval of each keepalive check */
-        if (setsockopt(ncb->sockfd, SOL_TCP, TCP_KEEPINTVL, (void *)&interval, sizeof(interval)) < 0) {
-            break;
-        }
-
-        /* times of allowable keepalive failures */
-        if (setsockopt(ncb->sockfd, SOL_TCP, TCP_KEEPCNT, (void *)&probes, sizeof(probes)) < 0) {
-            break;
-        }
-
-        return 0;
-    }while( 0 );
-
-    return -1;
-}
-
-int tcp_get_keepalive_value(const ncb_t *ncb,int *idle, int *interval, int *probes)
-{
-    int enabled;
-    socklen_t optlen;
-
-    if (tcp_get_keepalive(ncb, &enabled) < 0) {
-        return -1;
-    }
-
-    if (!enabled) {
-        return -1;
-    }
-
-    do {
-        optlen = sizeof(int);
-
-        if (idle) {
-            if (getsockopt(ncb->sockfd, SOL_TCP, TCP_KEEPIDLE, (void *__restrict)idle, &optlen) < 0) {
-                break;
-            }
-        }
-
-        if (interval) {
-            if (getsockopt(ncb->sockfd, SOL_TCP, TCP_KEEPINTVL, (void *__restrict)interval, &optlen) < 0) {
-                break;
-            }
-        }
-
-        if (probes) {
-            if (getsockopt(ncb->sockfd, SOL_TCP, TCP_KEEPCNT, (void *__restrict)probes, &optlen) < 0) {
-                break;
-            }
-        }
-
-        return 0;
-    }while( 0 );
-
-    return -1;
+    return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, (const void *)&cnt, sizeof(cnt));
 }
 
 int tcp_setattr(HTCPLINK link, int attr, int enable)

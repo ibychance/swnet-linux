@@ -233,7 +233,7 @@ int ncb_get_linger(const ncb_t *ncb, int *onoff, int *lin)
     }
 
     optlen = sizeof (lgr);
-    if (getsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (void *__restrict) & lgr, &optlen) < 0) {
+    if (getsockopt(ncb->sockfd, SOL_SOCKET, SO_LINGER, (void *__restrict) & lgr, &optlen) < 0) {
         return -1;
     }
 
