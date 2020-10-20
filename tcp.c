@@ -63,33 +63,6 @@ int __tcprefr( objhld_t hld, ncb_t **ncb )
     return -ENOENT;
 }
 
-void tcp_set_buffsize(const ncb_t *ncb)
-{
-    int size;
-    static const int MINIMUM_RCVBUF = 65535;
-    static const int MINIMUM_SNDBUF = 8192;
-
-    /* define in:
-     /proc/sys/net/ipv4/tcp_me
-     /proc/sys/net/ipv4/tcp_wmem
-     /proc/sys/net/ipv4/tcp_rmem */
-    if (ncb) {
-        if ( ncb_get_window_size(ncb, SO_RCVBUF, &size) >= 0 ) {
-             nis_call_ecr("[nshost.tcp.tcp_set_buffsize] current receive buffer size=%d", size);
-             if (size < MINIMUM_RCVBUF) {
-                ncb_set_window_size(ncb, SO_RCVBUF, MINIMUM_RCVBUF);
-             }
-        }
-
-        if ( ncb_get_window_size(ncb, SO_SNDBUF, &size) >= 0 ) {
-             nis_call_ecr("[nshost.tcp.tcp_set_buffsize] current send buffer size=%d", size);
-             if (size < MINIMUM_SNDBUF) {
-                ncb_set_window_size(ncb, SO_SNDBUF, MINIMUM_SNDBUF);
-             }
-        }
-    }
-}
-
 int tcp_allocate_rx_buffer(ncb_t *ncb)
 {
     assert(ncb);
@@ -112,33 +85,35 @@ int tcp_allocate_rx_buffer(ncb_t *ncb)
 
 static int __tcp_bind(const ncb_t *ncb)
 {
-    int retval;
-
     assert(ncb);
 
-    retval = 0;
     /* the user specified a explicit adpater or port to bind when invoke @tcp_create */
     if (0 != ncb->local_addr.sin_addr.s_addr || 0 != ncb->local_addr.sin_port) {
         /* binding on local adpater before listen */
-        retval = bind(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, sizeof(struct sockaddr));
+        if ( bind(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, sizeof(struct sockaddr)) < 0 ) {
+            nis_call_ecr("[nshost.tcp.bind] fatal syscall bind(2), errno:%d, link:%lld", errno, ncb->hld);
+            return -1;
+        }
     }
 
-    return retval;
+    return 0;
 }
+
+#define TCP_IMPLS_INVOCATION(foo)  foo(IPPROTO_TCP)
 
 /* tcp impls */
 int tcp_init()
 {
 	int retval;
 
-	retval = io_init(IPPROTO_TCP);
+	retval = TCP_IMPLS_INVOCATION(io_init);
 	if (0 != retval) {
 		return retval;
 	}
 
-	retval = wp_init(IPPROTO_TCP);
+	retval = TCP_IMPLS_INVOCATION(wp_init);
     if (retval < 0) {
-        io_uninit(IPPROTO_TCP);
+        TCP_IMPLS_INVOCATION(io_uninit);
     }
 
     return retval;
@@ -146,9 +121,9 @@ int tcp_init()
 
 void tcp_uninit()
 {
-    ncb_uninit(IPPROTO_TCP);
-    io_uninit(IPPROTO_TCP);
-    wp_uninit(IPPROTO_TCP);
+    TCP_IMPLS_INVOCATION(ncb_uninit);
+    TCP_IMPLS_INVOCATION(io_uninit);
+    TCP_IMPLS_INVOCATION(wp_uninit);
 }
 
 HTCPLINK tcp_create(tcp_io_callback_t callback, const char* ipstr, uint16_t port)
@@ -182,8 +157,8 @@ HTCPLINK tcp_create(tcp_io_callback_t callback, const char* ipstr, uint16_t port
     ncb->local_addr.sin_family = AF_INET;
     ncb->local_addr.sin_port = htons(port);
 
-    /* acquire save TCP Info and adjust linger in the creation phase. */
-    ncb_set_linger(ncb, 0, 0);
+    /* every TCP socket do NOT need graceful close */
+    ncb_set_linger(ncb);
     nis_call_ecr("[nshost.tcp.create] success allocate link:%lld, sockfd:%d", ncb->hld, ncb->sockfd);
     objdefr(hld);
     return hld;
@@ -410,17 +385,19 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
             }
         }
 
-        /* bind on particular local address:port tuple when need. */
-        if (__tcp_bind(ncb) < 0) {
-            nis_call_ecr("[nshost.tcp.tcp_connect] fatal error occurred __tcp_bind");
-            break;
-        }
-
+        /* set time elapse for TCP sender timeout error trigger */
+        tcp_set_user_timeout(ncb, 3000);
         /* try no more than 3 times of tcp::syn */
         tcp_set_syncnt(ncb, 3);
-
         /* On individual connections, the socket buffer size must be set prior to the listen(2) or connect(2) calls in order to have it take effect. */
-        tcp_set_buffsize(ncb);
+        ncb_set_buffsize(ncb);
+        /* mark normal attributes */
+        tcp_set_nodelay(ncb, 1);
+
+        /* bind on particular local address:port tuple when need. */
+        if ( __tcp_bind(ncb) < 0 ) {
+            break;
+        }
 
         addr_to.sin_family = PF_INET;
         addr_to.sin_port = htons(port);
@@ -437,12 +414,11 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
             break;
         }
 
-        /* mark normal attributes */
-        tcp_set_nodelay(ncb, 1);
-
         /* this link use to receive data from remote peer,
             so the packet and rx memory acquire to allocate now */
         tcp_allocate_rx_buffer(ncb);
+        /* the low-level [TCP Keep-ALive] are usable. */
+        tcp_set_keepalive(ncb);
 
         /* get peer address information */
         addrlen = sizeof (struct sockaddr);
@@ -503,9 +479,17 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
             }
         }
 
+        /* set time elapse for TCP sender timeout error trigger */
+        tcp_set_user_timeout(ncb, 3000);
+        /* try no more than 3 times for tcp::syn */
+        tcp_set_syncnt(ncb, 3);
+        /* On individual connections, the socket buffer size must be set prior to the listen(2) or connect(2) calls in order to have it take effect. */
+        ncb_set_buffsize(ncb);
+        /* mark normal attributes */
+        tcp_set_nodelay(ncb, 1);
+
         /* bind on particular local address:port tuple when need. */
         if (__tcp_bind(ncb) < 0) {
-            nis_call_ecr("[nshost.tcp.tcp_connect2] fatal error occurred __tcp_bind");
             break;
         }
 
@@ -514,12 +498,6 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
             nis_call_ecr("[nshost.tcp.connect2] link:%lld multithreading double call is not allowed.", link);
             break;
         }
-
-        /* try no more than 3 times for tcp::syn */
-        tcp_set_syncnt(ncb, 3);
-
-        /* On individual connections, the socket buffer size must be set prior to the listen(2) or connect(2) calls in order to have it take effect. */
-        tcp_set_buffsize(ncb);
 
         ncb->remot_addr.sin_family = PF_INET;
         ncb->remot_addr.sin_port = htons(port);
@@ -581,7 +559,6 @@ int tcp_listen(HTCPLINK link, int block)
     int retval;
     struct tcp_info ktcp;
     socklen_t addrlen;
-    int reuse;
 
     if (block < 0 || block >= 0x7FFF) {
         return -EINVAL;
@@ -603,19 +580,18 @@ int tcp_listen(HTCPLINK link, int block)
             }
         }
 
-        /* allow port reuse */
-        reuse = 1;
-        retval = setsockopt(ncb->sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+        /* allow port reuse(the same port number binding on different IP address) */
+        ncb_set_reuseaddr(ncb);
 
         /* binding on local adpater before listen */
         if (__tcp_bind(ncb) < 0) {
-            nis_call_ecr("[nshost.tcp.tcp_listen] fatal error occurred __tcp_bind");
             break;
         }
 
         /* On individual connections, the socket buffer size must be set prior to the listen(2) or connect(2) calls in order to have it take effect. */
-        tcp_set_buffsize(ncb);
-
+#if 0
+        ncb_set_buffsize(ncb);
+#endif
         /*
          * '/proc/sys/net/core/somaxconn' in POSIX.1 this value default to 128
          *  so,for ensure high concurrency performance in the establishment phase of the TCP connection,
@@ -810,6 +786,8 @@ int tcp_write(HTCPLINK link, const void *origin, int cb, const nis_serializer_t 
         return 0;
     } while (0);
 
+    objdefr(link);
+
     if (buffer) {
         free(buffer);
     }
@@ -818,7 +796,10 @@ int tcp_write(HTCPLINK link, const void *origin, int cb, const nis_serializer_t 
         free(node);
     }
 
-    objdefr(link);
+    if (retval < 0) {
+        objclos(link);
+    }
+
     return retval;
 }
 
@@ -960,24 +941,28 @@ int tcp_set_keepalive(const ncb_t *ncb)
 
     optka = 1;
     if ( setsockopt(ncb->sockfd, SOL_SOCKET, SO_KEEPALIVE, (const char *)&optka, sizeof(optka)) < 0 ) {
+        nis_call_ecr("fatal syscall setsockopt(2) on level:%d, name:%d, errno:%d, link:%lld", SOL_SOCKET, SO_KEEPALIVE, errno, ncb->sockfd);
         return -1;
     }
 
     /* The time (in seconds) between individual keepalive probes */
-    optkintvl = 5;
+    optkintvl = 2;
     if ( setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_KEEPINTVL, (const char *)&optkintvl, sizeof(optkintvl)) < 0 ) {
+        nis_call_ecr("fatal syscall setsockopt(2) on level:%d, name:%d, errno:%d, link:%lld", IPPROTO_TCP, TCP_KEEPINTVL, errno, ncb->sockfd);
         return -1;
     }
 
     /* The  time (in seconds) the connection needs to remain idle before TCP starts sending keepalive probes */
-    optkidle = 10;
+    optkidle = 4;
     if ( setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_KEEPIDLE, (const char *)&optkidle, sizeof(optkidle)) < 0 ) {
+        nis_call_ecr("fatal syscall setsockopt(2) on level:%d, name:%d, errno:%d, link:%lld", IPPROTO_TCP, TCP_KEEPIDLE, errno, ncb->sockfd);
         return -1;
     }
 
     /* The  time (in seconds) the connection needs to remain idle before TCP starts sending keepalive probes */
     optkcnt = 1;
     if ( setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_KEEPCNT, (const char *)&optkcnt, sizeof(optkcnt)) < 0 ) {
+        nis_call_ecr("fatal syscall setsockopt(2) on level:%d, name:%d, errno:%d, link:%lld", IPPROTO_TCP, TCP_KEEPIDLE, errno, ncb->sockfd);
         return -1;
     }
 
@@ -986,7 +971,22 @@ int tcp_set_keepalive(const ncb_t *ncb)
 
 int tcp_set_syncnt(const ncb_t *ncb, int cnt)
 {
-    return setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, (const void *)&cnt, sizeof(cnt));
+    if ( setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_SYNCNT, (const void *)&cnt, sizeof(cnt)) < 0 ) {
+        nis_call_ecr("fatal syscall setsockopt(2) on level:%d, name:%d, errno:%d, link:%lld", IPPROTO_TCP, TCP_SYNCNT, errno, ncb->sockfd);
+        return -1;
+    }
+
+    return 0;
+}
+
+int tcp_set_user_timeout(const ncb_t *ncb, unsigned int uto)
+{
+    if ( setsockopt(ncb->sockfd, IPPROTO_TCP, TCP_USER_TIMEOUT, (const char *)&uto, sizeof(uto)) < 0 ) {
+        nis_call_ecr("fatal syscall setsockopt(2) on level:%d, name:%d, errno:%d, link:%lld", IPPROTO_TCP, TCP_USER_TIMEOUT, errno, ncb->sockfd);
+        return -1;
+    }
+
+    return 0;
 }
 
 int tcp_setattr(HTCPLINK link, int attr, int enable)

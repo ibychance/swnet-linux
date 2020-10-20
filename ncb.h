@@ -131,6 +131,12 @@ extern
 void ncb_deconstruct(objhld_t ignore, void */*ncb_t * */ncb);
 
 extern
+void ncb_set_buffsize(const ncb_t *ncb);
+
+extern
+int ncb_set_reuseaddr(const ncb_t *ncb);
+
+extern
 int ncb_set_rcvtimeo(const ncb_t *ncb, const struct timeval *timeo);
 extern
 int ncb_get_rcvtimeo(const ncb_t *ncb);
@@ -150,7 +156,7 @@ extern
 int ncb_get_window_size(const ncb_t *ncb, int dir, int *size);
 
 extern
-int ncb_set_linger(const ncb_t *ncb, int onoff, int lin);
+int ncb_set_linger(const ncb_t *ncb);
 extern
 int ncb_get_linger(const ncb_t *ncb, int *onoff, int *lin);
 

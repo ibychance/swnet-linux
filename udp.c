@@ -29,33 +29,20 @@ int __udprefr( objhld_t hld, ncb_t **ncb )
     return -ENOENT;
 }
 
-static int __udp_update_opts(ncb_t *ncb)
-{
-    static const int RECV_BUFFER_SIZE = 0xFFFF;
-    static const int SEND_BUFFER_SIZE = 0xFFFF;
-
-    if (!ncb) {
-        return -EINVAL;
-    }
-
-    ncb_set_window_size(ncb, SO_RCVBUF, RECV_BUFFER_SIZE);
-    ncb_set_window_size(ncb, SO_SNDBUF, SEND_BUFFER_SIZE);
-    ncb_set_linger(ncb, 0, 1);
-    return 0;
-}
+#define UDP_IMPLS_INVOCATION(foo)   foo(IPPROTO_UDP)
 
 int udp_init()
 {
 	int retval;
 
-	retval = io_init(IPPROTO_UDP);
+	retval = UDP_IMPLS_INVOCATION(io_init);
 	if (0 != retval) {
 		return retval;
 	}
 
-    retval = wp_init(IPPROTO_UDP);
+    retval = UDP_IMPLS_INVOCATION(wp_init);
     if (retval < 0) {
-        io_uninit(IPPROTO_UDP);
+        UDP_IMPLS_INVOCATION(io_uninit);
     }
 
     return retval;
@@ -63,9 +50,9 @@ int udp_init()
 
 void udp_uninit()
 {
-    ncb_uninit(IPPROTO_UDP);
-    io_uninit(IPPROTO_UDP);
-    wp_uninit(IPPROTO_UDP);
+    UDP_IMPLS_INVOCATION(ncb_uninit);
+    UDP_IMPLS_INVOCATION(io_uninit);
+    UDP_IMPLS_INVOCATION(wp_uninit);
 }
 
 HUDPLINK udp_create(udp_io_callback_t callback, const char* ipstr, uint16_t port, int flag)
@@ -73,7 +60,6 @@ HUDPLINK udp_create(udp_io_callback_t callback, const char* ipstr, uint16_t port
     int fd;
     struct sockaddr_in addrlocal;
     int retval;
-    int optval;
     objhld_t hld;
     socklen_t addrlen;
     ncb_t *ncb;
@@ -81,19 +67,6 @@ HUDPLINK udp_create(udp_io_callback_t callback, const char* ipstr, uint16_t port
     fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (fd < 0) {
         nis_call_ecr("[nshost.udp.create] fatal error occurred syscall socket(2), error:%d", errno);
-        return -1;
-    }
-
-    optval = 1;
-    retval = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof ( optval));
-
-    addrlocal.sin_addr.s_addr = ipstr ? inet_addr(ipstr) : INADDR_ANY;
-    addrlocal.sin_family = AF_INET;
-    addrlocal.sin_port = htons(port);
-    retval = bind(fd, (struct sockaddr *) &addrlocal, sizeof ( struct sockaddr));
-    if (retval < 0) {
-        nis_call_ecr("[nshost.udp.create] fatal error occurred syscall bind(2),local endpoint %s:%u, error:%d,", (ipstr ? ipstr : "0.0.0.0"), port, errno);
-        close(fd);
         return -1;
     }
 
@@ -114,7 +87,16 @@ HUDPLINK udp_create(udp_io_callback_t callback, const char* ipstr, uint16_t port
         ncb->protocol = IPPROTO_UDP;
 
         /* setsockopt */
-        if (__udp_update_opts(ncb) < 0) {
+        ncb_set_buffsize(ncb);
+        /* allow port reuse(the same port number binding on different IP address) */
+        ncb_set_reuseaddr(ncb);
+
+        addrlocal.sin_addr.s_addr = ipstr ? inet_addr(ipstr) : INADDR_ANY;
+        addrlocal.sin_family = AF_INET;
+        addrlocal.sin_port = htons(port);
+        retval = bind(fd, (struct sockaddr *) &addrlocal, sizeof ( struct sockaddr));
+        if (retval < 0) {
+            nis_call_ecr("[nshost.udp.create] fatal error occurred syscall bind(2),local endpoint %s:%u, error:%d,", (ipstr ? ipstr : "0.0.0.0"), port, errno);
             break;
         }
 

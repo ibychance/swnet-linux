@@ -42,8 +42,6 @@ int tcp_rx_syn(ncb_t *ncb);
 /* tcp al */
 extern
 int tcp_parse_pkt(ncb_t *ncb, const unsigned char *data, int cpcb);
-extern
-void tcp_set_buffsize(const ncb_t *ncb);
 
 /*
 for TCP_INFO socket option
@@ -113,5 +111,7 @@ extern
 int tcp_set_keepalive(const ncb_t *ncb);
 extern
 int tcp_set_syncnt(const ncb_t *ncb, int cnt);
+extern
+int tcp_set_user_timeout(const ncb_t *ncb, unsigned int uto);
 
 #endif

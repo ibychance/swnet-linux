@@ -89,9 +89,9 @@ int __tcp_syn_dpc(ncb_t *ncb_server, ncb_t *ncb)
         l_onoff on and l_linger not zero, these settings means:
         TCP drop any data cached in the kernel buffer of this socket file descriptor when close(2) called.
         post a TCP-RST to peer, do not use FIN-FINACK, using this flag to avoid TIME_WAIT stauts */
-    ncb_set_linger(ncb, 1, 0);
+    ncb_set_linger(ncb);
     /* adjust TCP window size to mimimum require. */
-    tcp_set_buffsize(ncb);
+    ncb_set_buffsize(ncb);
 
     /* this link use to receive data from remote peer,
             so the packet and rx memory acquire to allocate now */
@@ -250,7 +250,7 @@ int tcp_txn(ncb_t *ncb, void *p)
     node = (struct tx_node *)p;
 
     while (node->offset < node->wcb) {
-        wcb = send(ncb->sockfd, node->data + node->offset, node->wcb - node->offset, 0);
+        wcb = send(ncb->sockfd, node->data + node->offset, node->wcb - node->offset, MSG_NOSIGNAL);
 
         /* fatal-error/connection-terminated  */
         if (0 == wcb) {
@@ -370,27 +370,26 @@ int tcp_tx_syn(ncb_t *ncb)
     while (1) {
         if( 0 == __tcp_check_syn_result(ncb->sockfd, &e)) {
 
-            /* mark normal attributes */
-            tcp_set_nodelay(ncb, 1);
-
             /* this link use to receive data from remote peer,
                 so the packet and rx memory acquire to allocate now */
             tcp_allocate_rx_buffer(ncb);
+            /* the low-level [TCP Keep-ALive] are usable. */
+            tcp_set_keepalive(ncb);
 
             /* get peer address information */
             addrlen = sizeof (struct sockaddr);
             getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* remote address information */
             getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* local address information */
 
+            /* follow tcp rx/tx event */
+            posix__atomic_set(&ncb->ncb_read, &tcp_rx);
+            posix__atomic_set(&ncb->ncb_write, &tcp_tx);
+
             /* focus EPOLLIN only */
             if (io_modify(ncb, EPOLLIN) < 0) {
                 objclos(ncb->hld);
                 return -1;
             }
-
-            /* follow tcp rx/tx event */
-            posix__atomic_set(&ncb->ncb_read, &tcp_rx);
-            posix__atomic_set(&ncb->ncb_write, &tcp_tx);
 
             nis_call_ecr("[nshost.tcp.tcp_tx_syn] link:%lld connection established.", ncb->hld);
             ncb_post_connected(ncb);

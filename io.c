@@ -71,31 +71,40 @@ enum EPOLL_EVENTS
   };
 */
 
-static void __iorun(struct epoll_event *evts, int sigcnt)
+static void __iorun(const struct epoll_event *eventptr)
 {
-    int i;
     ncb_t *ncb;
     objhld_t hld;
     int (*ncb_read)(struct _ncb *);
+    int error;
+    socklen_t errlen;
 
-    for (i = 0; i < sigcnt; i++) {
-        hld = (objhld_t)evts[i].data.u64;
+    do {
+        hld = (objhld_t)eventptr->data.u64;
+        ncb = (ncb_t *)objrefr(hld);
+        if (!ncb) {
+            break;
+        }
+
+        if (eventptr->events & EPOLLERR) {
+            errlen = sizeof(error);
+            if ( getsockopt(ncb->sockfd, SOL_SOCKET, SO_ERROR, &error, &errlen) >= 0 ) {
+                nis_call_ecr("[nshost.io.__iorun] EPOLLERR detect:%d, link:%lld", error, hld);
+            }
+            objclos(hld);
+            break;
+        }
 
         /* disconnect/error/reset socket states have been detect,
          * in this case, ncb it's NOT necessary */
-        if ( (evts[i].events & EPOLLRDHUP) || (evts[i].events & EPOLLERR) ) {
-            nis_call_ecr("[nshost.io.__iorun] EPOLL event:%d detect on link:%lld", evts[i].events, hld);
-	        objclos(hld);
-            continue;
-        }
-
-        ncb = (ncb_t *)objrefr(hld);
-        if (!ncb) {
-            continue;
+        if ( eventptr->events & EPOLLRDHUP ) {
+            nis_call_ecr("[nshost.io.__iorun] EPOLLRDHUP detect, link:%lld", hld);
+            objclos(hld);
+            break;
         }
 
         /* system width input cache change from empty to readable */
-        if (evts[i].events & EPOLLIN) {
+        if (eventptr->events & EPOLLIN) {
             ncb_read = posix__atomic_get(&ncb->ncb_read);
             if (ncb_read) {
                 if (ncb_read(ncb) < 0) {
@@ -108,7 +117,7 @@ static void __iorun(struct epoll_event *evts, int sigcnt)
         }
 
         /* system width output cache change from full to writeable */
-        if (evts[i].events & EPOLLOUT) {
+        if (eventptr->events & EPOLLOUT) {
 
             /* concern but not deal with EPOLLHUP
              * every connect request should trigger a EPOLLHUP event, no matter successful or failed
@@ -128,23 +137,24 @@ static void __iorun(struct epoll_event *evts, int sigcnt)
              * 3.When the connect function is also called and the connection is successfully established,
              *   epoll will generate EPOLLOUT once, with a value of 0x4, indicating that the socket is writable
              */
-            if ( 0 == (evts[i].events & EPOLLHUP) ) {
+            if ( 0 == (eventptr->events & EPOLLHUP) ) {
                  wp_queued(ncb);
             } else {
-                nis_call_ecr("[nshost.io.__iorun] EPOLLOUT with event:%d, link:%lld", evts[i].events, hld);
+                nis_call_ecr("[nshost.io.__iorun] EPOLLOUT with event:%d, link:%lld", eventptr->events, hld);
             }
         }
+    } while (0);
 
-        objdefr(hld);
-    }
+    objdefr(hld);
 }
 
 static void *__epoll_proc(void *argv)
 {
+    static const int EP_TIMEDOUT = 1000;
     struct epoll_event evts[EPOLL_SIZE];
     int sigcnt;
     struct epoll_object_block *epoptr;
-    static const int EP_TIMEDOUT = 100;
+    int i;
 
     epoptr = (struct epoll_object_block *)argv;
     assert(NULL != epoptr);
@@ -167,8 +177,8 @@ static void *__epoll_proc(void *argv)
 
         /* at least one signal is awakened,
             otherwise, timeout trigger. */
-        if (sigcnt > 0) {
-            __iorun(evts, sigcnt);
+        for (i = 0; i < sigcnt; i++) {
+            __iorun(&evts[i]);
         }
     }
 

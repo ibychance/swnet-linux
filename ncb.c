@@ -210,16 +210,14 @@ int ncb_get_window_size(const ncb_t *ncb, int dir, int *size)
      return -EINVAL;
 }
 
-int ncb_set_linger(const ncb_t *ncb, int onoff, int lin)
+int ncb_set_linger(const ncb_t *ncb)
 {
     struct linger lgr;
 
-    if (!ncb){
-        return -EINVAL;
-    }
+    assert(ncb);
 
-    lgr.l_onoff = onoff;
-    lgr.l_linger = lin;
+    lgr.l_onoff = 1;
+    lgr.l_linger = 0;
     return setsockopt(ncb->sockfd, SOL_SOCKET, SO_LINGER, (char *) &lgr, sizeof ( struct linger));
 }
 
@@ -246,6 +244,41 @@ int ncb_get_linger(const ncb_t *ncb, int *onoff, int *lin)
     }
 
     return 0;
+}
+
+void ncb_set_buffsize(const ncb_t *ncb)
+{
+    int size;
+    static const int MINIMUM_RCVBUF = 65535;
+    static const int MINIMUM_SNDBUF = 8192;
+
+    /* define in:
+     /proc/sys/net/ipv4/tcp_me
+     /proc/sys/net/ipv4/tcp_wmem
+     /proc/sys/net/ipv4/tcp_rmem */
+    if (ncb) {
+        if ( ncb_get_window_size(ncb, SO_RCVBUF, &size) >= 0 ) {
+             nis_call_ecr("[nshost.ncb.ncb_set_buffsize] link:%lld, current receive buffer size=%d", ncb->hld, size);
+             if (size < MINIMUM_RCVBUF) {
+                ncb_set_window_size(ncb, SO_RCVBUF, MINIMUM_RCVBUF);
+             }
+        }
+
+        if ( ncb_get_window_size(ncb, SO_SNDBUF, &size) >= 0 ) {
+             nis_call_ecr("[nshost.ncb.ncb_set_buffsize] link:%lld, current send buffer size=%d",ncb->hld, size);
+             if (size < MINIMUM_SNDBUF) {
+                ncb_set_window_size(ncb, SO_SNDBUF, MINIMUM_SNDBUF);
+             }
+        }
+    }
+}
+
+int ncb_set_reuseaddr(const ncb_t *ncb)
+{
+    int reuse;
+
+    reuse = 1;
+    return setsockopt(ncb->sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
 }
 
 static void ncb_post_preclose(const ncb_t *ncb)
