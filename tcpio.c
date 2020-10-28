@@ -43,7 +43,7 @@ int __tcp_syn_try(ncb_t *ncb_server, int *clientfd, int *ctrlcode)
             case ENOBUFS:
             case ENOMEM:
             case EPERM:
-                nis_call_ecr("[nshost.tcpio.__tcp_syn] non-fatal error occurred syscall accept(2), code:%d, link:%lld", errno, ncb_server->hld);
+                mxx_call_ecr("non-fatal error occurred syscall accept(2), code:%d, link:%lld", errno, ncb_server->hld);
                 *ctrlcode = errno;
                 break;
 
@@ -55,14 +55,14 @@ int __tcp_syn_try(ncb_t *ncb_server, int *clientfd, int *ctrlcode)
             EOPNOTSUPP  The referenced socket is not of type SOCK_STREAM.
             EPROTO      Protocol error. */
             default:
-                nis_call_ecr("[nshost.tcpio.__tcp_syn] fatal error occurred syscall accept(2), error:%d, link:%lld", errno, ncb_server->hld);
+                mxx_call_ecr("fatal error occurred syscall accept(2), error:%d, link:%lld", errno, ncb_server->hld);
                 *ctrlcode = -1;
                 break;
         }
         return -1;
     }
 
-    nis_call_ecr("[nshost.tcpio.__tcp_syn_try] accepted socket:%d", *clientfd);
+    mxx_call_ecr("accepted socket:%d", *clientfd);
     return 0;
 }
 
@@ -140,7 +140,7 @@ int __tcp_syn(ncb_t *ncb_server)
         it must be listen states when accept syscall */
     if (tcp_save_info(ncb_server, &ktcp) >= 0) {
         if (ktcp.tcpi_state != TCP_LISTEN) {
-            nis_call_ecr("[nshost.tcpio.__tcp_syn] state illegal,link:%lld, kernel states %s.", ncb_server->hld, tcp_state2name(ktcp.tcpi_state));
+            mxx_call_ecr("state illegal,link:%lld, kernel states %s.", ncb_server->hld, tcp_state2name(ktcp.tcpi_state));
             return 0;
         }
     }
@@ -208,7 +208,7 @@ int __tcp_rx(ncb_t *ncb)
 
     /* a stream socket peer has performed an orderly shutdown */
     if (0 == recvcb) {
-        nis_call_ecr("[nshost.tcpio.__tcp_rx] fatal error occurred syscall recv(2), the return value equal to zero, link:%lld", ncb->hld );
+        mxx_call_ecr("fatal error occurred syscall recv(2), the return value equal to zero, link:%lld", ncb->hld );
         return -ECONNRESET;
     }
 
@@ -225,7 +225,7 @@ int __tcp_rx(ncb_t *ncb)
             return EAGAIN;
         }
 
-        nis_call_ecr("[nshost.tcpio.__tcp_rx] fatal error occurred syscall recv(2), error:%d, link:%lld", errno, ncb->hld );
+        mxx_call_ecr("fatal error occurred syscall recv(2), error:%d, link:%lld", errno, ncb->hld );
         return -1;
     }
 
@@ -254,7 +254,7 @@ int tcp_txn(ncb_t *ncb, void *p)
 
         /* fatal-error/connection-terminated  */
         if (0 == wcb) {
-            nis_call_ecr("[nshost.tcpio.tcp_txn] fatal error occurred syscall send(2), the return value equal to zero, link:%lld", ncb->hld );
+            mxx_call_ecr("fatal error occurred syscall send(2), the return value equal to zero, link:%lld", ncb->hld );
             return -1;
         }
 
@@ -263,7 +263,7 @@ int tcp_txn(ncb_t *ncb, void *p)
              * at this point, we need to deal with the queue header node and restore the unprocessed node back to the queue header.
              * the way 'oneshot' focus on the write operation completion point */
             if (EAGAIN == errno) {
-                nis_call_ecr("[nshost.tcpio.tcp_txn] syscall send(2) would block cause by kernel memory overload,link:%lld", ncb->hld);
+                mxx_call_ecr("syscall send(2) would block cause by kernel memory overload,link:%lld", ncb->hld);
                 return -EAGAIN;
             }
 
@@ -274,7 +274,7 @@ int tcp_txn(ncb_t *ncb, void *p)
             }
 
             /* other error, these errors should cause link close */
-            nis_call_ecr("[nshost.tcpio.tcp_txn] fatal error occurred syscall send(2), error:%d, link:%lld",errno, ncb->hld );
+            mxx_call_ecr("fatal error occurred syscall send(2), error:%d, link:%lld",errno, ncb->hld );
             return -1;
         }
 
@@ -297,7 +297,7 @@ int tcp_tx(ncb_t *ncb)
     /* get the socket status of tcp_info to check the socket tcp statues */
     if (tcp_save_info(ncb, &ktcp) >= 0) {
         if (ktcp.tcpi_state != TCP_ESTABLISHED) {
-            nis_call_ecr("[nshost.tcpio.tcp_tx] state illegal,link:%lld, kernel states:%s.", ncb->hld, tcp_state2name(ktcp.tcpi_state));
+            mxx_call_ecr("state illegal,link:%lld, kernel states:%s.", ncb->hld, tcp_state2name(ktcp.tcpi_state));
             return -1;
         }
     }
@@ -391,7 +391,7 @@ int tcp_tx_syn(ncb_t *ncb)
                 return -1;
             }
 
-            nis_call_ecr("[nshost.tcp.tcp_tx_syn] link:%lld connection established.", ncb->hld);
+            mxx_call_ecr("link:%lld connection established.", ncb->hld);
             ncb_post_connected(ncb);
             return 0;
         }
@@ -414,7 +414,7 @@ int tcp_tx_syn(ncb_t *ncb)
              * ulimit -n overflow(open file cout lg then 1024 in default) */
             case ECONNREFUSED:
             default:
-                nis_call_ecr("[nshost.tcpio.tcp_tx_syn] fatal error occurred syscall poll(2), error:%d, link %lld.", e, ncb->hld);
+                mxx_call_ecr("fatal error occurred syscall poll(2), error:%d, link %lld.", e, ncb->hld);
                 return -1;
         }
     }
@@ -441,9 +441,9 @@ int tcp_rx_syn(ncb_t *ncb)
         if (0 == error) {
             return 0;
         }
-        nis_call_ecr("[nshost.tcpio.tcp_rx_syn] error by syscall getsockopt(2), error:%d,link:%lld", error, ncb->hld);
+        mxx_call_ecr("error by syscall getsockopt(2), error:%d,link:%lld", error, ncb->hld);
     } else {
-        nis_call_ecr("[nshost.tcpio.tcp_rx_syn] fatal error occurred syscall getsockopt(2), error:%d,link:%lld", errno, ncb->hld);
+        mxx_call_ecr("fatal error occurred syscall getsockopt(2), error:%d,link:%lld", errno, ncb->hld);
     }
 
     return -1;

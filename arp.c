@@ -74,13 +74,13 @@ HARPLINK arp_create(arp_io_callback_t callback, const char *source)
 
     fd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ARP));
     if (fd < 0) {
-        nis_call_ecr("[nshost.arp.create] fatal error occurred syscall socket(2), error:%d", errno);
+        mxx_call_ecr("fatal error occurred syscall socket(2), error:%d", errno);
         return -1;
     }
 
     hld = objallo(sizeof ( ncb_t), &ncb_allocator, &ncb_deconstruct, NULL, 0);
     if (hld < 0) {
-        nis_call_ecr("[nshost.arp.create] insufficient resource for allocate inner object");
+        mxx_call_ecr("insufficient resource for allocate inner object");
         close(fd);
         return -1;
     }
@@ -133,7 +133,7 @@ void arp_destroy(HARPLINK link)
     /* it should be the last reference operation of this object no matter how many ref-count now. */
     ncb = objreff(link);
     if (ncb) {
-        nis_call_ecr("[nshost.arp.destroy] link:%lld order to destroy", ncb->hld);
+        mxx_call_ecr("link:%lld order to destroy", ncb->hld);
         io_close(ncb);
         objdefr(link);
     }

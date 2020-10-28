@@ -26,7 +26,7 @@ int nis_getver(swnet_version_t *version)
     version->major_ = 9;
     version->minor_ = 7;
     version->revision_ = 6;
-    nis_call_ecr("[nshost.mxx.nis_getver] current version %d.%d.%d", version->major_, version->minor_, version->revision_);
+    mxx_call_ecr("current version %d.%d.%d", version->major_, version->minor_, version->revision_);
     return 0;
 }
 
@@ -36,7 +36,7 @@ char *nis_lgethost(char *name, int cb)
         if (0 == gethostname(name, cb)) {
             return name;
         } else {
-            nis_call_ecr("[nshost.mxx.nis_lgethost] fatal error occurred syscall gethostname(2), error:%u", errno);
+            mxx_call_ecr("fatal error occurred syscall gethostname(2), error:%u", errno);
         }
     }
     return name;

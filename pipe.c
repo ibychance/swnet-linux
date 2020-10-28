@@ -94,7 +94,7 @@ int pipe_create(int protocol)
 
     hld = objallo(sizeof(ncb_t), &pipe_initialize, &pipe_unloader, NULL, 0);
     if (hld < 0) {
-        nis_call_ecr("[nshost.pipe.create] insufficient resource for allocate inner object");
+        mxx_call_ecr("insufficient resource for allocate inner object");
         close(pipefd[0]);
         close(pipefd[1]);
         return -1;

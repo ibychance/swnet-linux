@@ -66,13 +66,13 @@ HUDPLINK udp_create(udp_io_callback_t callback, const char* ipstr, uint16_t port
 
     fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (fd < 0) {
-        nis_call_ecr("[nshost.udp.create] fatal error occurred syscall socket(2), error:%d", errno);
+       mxx_call_ecr("fatal error occurred syscall socket(2), error:%d", errno);
         return -1;
     }
 
     hld = objallo(sizeof ( ncb_t), &ncb_allocator, &ncb_deconstruct, NULL, 0);
     if (hld < 0) {
-        nis_call_ecr("[nshost.udp.create] insufficient resource for allocate inner object");
+       mxx_call_ecr("insufficient resource for allocate inner object");
         close(fd);
         return -1;
     }
@@ -96,7 +96,7 @@ HUDPLINK udp_create(udp_io_callback_t callback, const char* ipstr, uint16_t port
         addrlocal.sin_port = htons(port);
         retval = bind(fd, (struct sockaddr *) &addrlocal, sizeof ( struct sockaddr));
         if (retval < 0) {
-            nis_call_ecr("[nshost.udp.create] fatal error occurred syscall bind(2),local endpoint %s:%u, error:%d,", (ipstr ? ipstr : "0.0.0.0"), port, errno);
+           mxx_call_ecr("fatal error occurred syscall bind(2),local endpoint %s:%u, error:%d,", (ipstr ? ipstr : "0.0.0.0"), port, errno);
             break;
         }
 
@@ -132,7 +132,7 @@ HUDPLINK udp_create(udp_io_callback_t callback, const char* ipstr, uint16_t port
             break;
         }
 
-        nis_call_ecr("[nshost.udp.create] success allocate link:%lld, sockfd:%d", ncb->hld, ncb->sockfd);
+       mxx_call_ecr("success allocate link:%lld, sockfd:%d", ncb->hld, ncb->sockfd);
         objdefr(hld);
         return hld;
     } while (0);
@@ -149,7 +149,7 @@ void udp_destroy(HUDPLINK link)
     /* it should be the last reference operation of this object no matter how many ref-count now. */
     ncb = objreff(link);
     if (ncb) {
-        nis_call_ecr("[nshost.udp.destroy] link:%lld order to destroy", ncb->hld);
+        mxx_call_ecr("link:%lld order to destroy", ncb->hld);
         io_close(ncb);
         objdefr(link);
     }

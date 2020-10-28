@@ -52,7 +52,7 @@ void ncb_uninit(int protocol)
 
     if (hlds && nl_count_proto > 0) {
         for (i = 0 ; i < nl_count_proto; i++) {
-            nis_call_ecr("[nshost.ncb.ncb_uninit] link:%lld close by ncb uninit", ncb->hld);
+            mxx_call_ecr("link:%lld close by ncb uninit", ncb->hld);
             objclos(hlds[i]);
         }
         free(hlds);
@@ -137,7 +137,7 @@ void ncb_deconstruct(objhld_t ignore, void *p)
     /* set callback function to ineffectiveness */
     ncb->nis_callback = NULL;
 
-    nis_call_ecr("[nshost.ncb.ncb_deconstruct] link:%lld finalization released",ncb->hld);
+    mxx_call_ecr("link:%lld finalization released",ncb->hld);
 }
 
 int ncb_set_rcvtimeo(const ncb_t *ncb, const struct timeval *timeo)
@@ -258,14 +258,14 @@ void ncb_set_buffsize(const ncb_t *ncb)
      /proc/sys/net/ipv4/tcp_rmem */
     if (ncb) {
         if ( ncb_get_window_size(ncb, SO_RCVBUF, &size) >= 0 ) {
-             nis_call_ecr("[nshost.ncb.ncb_set_buffsize] link:%lld, current receive buffer size=%d", ncb->hld, size);
+             mxx_call_ecr("link:%lld, current receive buffer size=%d", ncb->hld, size);
              if (size < MINIMUM_RCVBUF) {
                 ncb_set_window_size(ncb, SO_RCVBUF, MINIMUM_RCVBUF);
              }
         }
 
         if ( ncb_get_window_size(ncb, SO_SNDBUF, &size) >= 0 ) {
-             nis_call_ecr("[nshost.ncb.ncb_set_buffsize] link:%lld, current send buffer size=%d",ncb->hld, size);
+             mxx_call_ecr("link:%lld, current send buffer size=%d",ncb->hld, size);
              if (size < MINIMUM_SNDBUF) {
                 ncb_set_window_size(ncb, SO_SNDBUF, MINIMUM_SNDBUF);
              }

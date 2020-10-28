@@ -117,7 +117,7 @@ static void *__wp_run(void *p)
     int retval;
 
     wpptr = (struct wpool *)p;
-    nis_call_ecr("[nshost.wpool.init] LWP:%u startup.", posix__gettid());
+    mxx_call_ecr("LWP:%u startup.", posix__gettid());
 
     while (wpptr->actived) {
         retval = posix__waitfor_waitable_handle(&wpptr->signal, 10);
@@ -139,7 +139,7 @@ static void *__wp_run(void *p)
         }
     }
 
-    nis_call_ecr("[nshost.pool.wpool] LWP:%u terminated.", posix__gettid());
+    mxx_call_ecr("LWP:%u terminated.", posix__gettid());
     pthread_exit((void *) 0);
     return NULL;
 }
@@ -152,7 +152,7 @@ static int __wp_init(struct wpool *wpptr)
     wpptr->task_list_size = 0;
     wpptr->actived = 1;
     if (posix__pthread_create(&wpptr->thread, &__wp_run, (void *)wpptr) < 0 ) {
-        nis_call_ecr("[nshost.pool.__wp_init] fatal error occurred syscall pthread_create(3), error:%d", errno);
+        mxx_call_ecr("fatal error occurred syscall pthread_create(3), error:%d", errno);
         return -1;
     }
 
