@@ -191,7 +191,7 @@ int nis_getifmisc(ifmisc_t *ifv, int *cbifv)
     }
 
     freeifaddrs(ifs);
-    return 0;
+    return i;
 }
 
 int nis_cntl(objhld_t link, int cmd, ...)

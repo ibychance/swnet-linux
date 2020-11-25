@@ -36,6 +36,7 @@ static int pipe_rx(ncb_t *ncb)
 	int n;
 	struct pipe_package_head *pipepkt;
 	ncb_t *ncb_link;
+	int offset, remain;
 
 	while (1) {
 		n = read(ncb->sockfd, pipebuf, sizeof(pipebuf));
@@ -52,19 +53,21 @@ static int pipe_rx(ncb_t *ncb)
 			return -1;
 		}
 
-		if (n < sizeof(struct pipe_package_head)) {
-			continue;
-		}
+		offset = 0;
+		remain = n;
+		while (remain > sizeof(struct pipe_package_head) ) {
+			pipepkt = (struct pipe_package_head *)&pipebuf[offset];
+			if ( remain < (pipepkt->length + sizeof(struct pipe_package_head)) ) {
+				break;
+			}
 
-		pipepkt = (struct pipe_package_head *)&pipebuf[0];
-		if ( n != (pipepkt->length + sizeof(struct pipe_package_head)) ) {
-			continue;
-		}
-
-		ncb_link = objrefr(pipepkt->link);
-		if (ncb_link) {
-			ncb_post_pipedata(ncb_link, pipepkt->length, pipepkt->pipedata);
-			objdefr(pipepkt->link);
+			ncb_link = objrefr(pipepkt->link);
+			if (ncb_link) {
+				ncb_post_pipedata(ncb_link, pipepkt->length, pipepkt->pipedata);
+				objdefr(pipepkt->link);
+			}
+			remain -= (pipepkt->length + sizeof(struct pipe_package_head) );
+			offset += (pipepkt->length + sizeof(struct pipe_package_head) );
 		}
 	}
 
