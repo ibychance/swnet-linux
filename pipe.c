@@ -37,6 +37,7 @@ static int pipe_rx(ncb_t *ncb)
 	struct pipe_package_head *pipepkt;
 	ncb_t *ncb_link;
 	int offset, remain;
+	int m;
 
 	while (1) {
 		n = read(ncb->sockfd, pipebuf, sizeof(pipebuf));
@@ -57,7 +58,8 @@ static int pipe_rx(ncb_t *ncb)
 		remain = n;
 		while (remain > sizeof(struct pipe_package_head) ) {
 			pipepkt = (struct pipe_package_head *)&pipebuf[offset];
-			if ( remain < (pipepkt->length + sizeof(struct pipe_package_head)) ) {
+			m = pipepkt->length + sizeof(struct pipe_package_head);
+			if ( remain < m) {
 				break;
 			}
 
@@ -66,8 +68,8 @@ static int pipe_rx(ncb_t *ncb)
 				ncb_post_pipedata(ncb_link, pipepkt->length, pipepkt->pipedata);
 				objdefr(pipepkt->link);
 			}
-			remain -= (pipepkt->length + sizeof(struct pipe_package_head) );
-			offset += (pipepkt->length + sizeof(struct pipe_package_head) );
+			remain -= m;
+			offset += m;
 		}
 	}
 
@@ -92,6 +94,13 @@ int pipe_create(int protocol)
 
 		if (0 != pipe2(pipefd, O_NONBLOCK)) {
 			return -1;
+		}
+
+		if ( io_setfl(pipefd[0], O_DIRECT) < 0 ) {
+			mxx_call_ecr("fatal error occurred syscall fcntl(2) with O_DIRECT.error:%d", errno);
+		}
+		if ( io_setfl(pipefd[1], O_DIRECT) < 0 ) {
+			mxx_call_ecr("fatal error occurred syscall fcntl(2) with O_DIRECT.error:%d", errno);
 		}
 	}
 

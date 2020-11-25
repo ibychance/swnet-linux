@@ -323,6 +323,22 @@ void io_uninit(int protocol)
     }
 }
 
+int io_setfl(int fd, int test)
+{
+    int opt;
+
+    opt = fcntl(fd, F_GETFL);
+    if (opt < 0) {
+        mxx_call_ecr("fatal error occurred syscall fcntl(2).error:%d", errno);
+        return -1;
+    }
+    if ( 0 == (opt & test) ) {
+        return fcntl(fd, F_SETFL, opt | test);
+    }
+
+    return 0;
+}
+
 int io_fcntl(int fd)
 {
     int opt;
@@ -331,16 +347,9 @@ int io_fcntl(int fd)
         return -EINVAL;
     }
 
-    opt = fcntl(fd, F_GETFL);
-    if (opt < 0) {
-        mxx_call_ecr("fatal error occurred syscall fcntl(2) with F_GETFL.error:%d", errno);
+    if ( io_setfl(fd, O_NONBLOCK) < 0 ) {
+        mxx_call_ecr("fatal error occurred syscall fcntl(2) with F_SETFL.error:%d", errno);
         return posix__makeerror(errno);
-    }
-    if ( 0 == (opt & O_NONBLOCK )) {
-        if (fcntl(fd, F_SETFL, opt | O_NONBLOCK) < 0) {
-            mxx_call_ecr("fatal error occurred syscall fcntl(2) with F_SETFL.error:%d", errno);
-            return posix__makeerror(errno);
-        }
     }
 
     opt = fcntl(fd, F_GETFD);

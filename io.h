@@ -10,6 +10,8 @@
 extern
 int io_init(int protocol);
 extern
+int io_setfl(int fd, int test);
+extern
 int io_fcntl(int fd);
 extern
 void io_uninit(int protocol);
