@@ -93,6 +93,7 @@ int pipe_create(int protocol)
 		}
 
 		if (0 != pipe2(pipefd, O_NONBLOCK)) {
+			mxx_call_ecr("fatal error occurred syscall pipe2(2).error:%d", errno);
 			return -1;
 		}
 
