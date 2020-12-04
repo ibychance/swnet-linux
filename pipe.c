@@ -146,6 +146,7 @@ int pipe_write_message(ncb_t *ncb, const unsigned char *data, int cb)
 	struct pipe_package_head *pipemsg;
 	int pipefd;
 	int n;
+	int fr;
 
 	if (cb >= (PIPE_BUF - sizeof(struct pipe_package_head)) ) {
 		return -EINVAL;
@@ -168,5 +169,7 @@ int pipe_write_message(ncb_t *ncb, const unsigned char *data, int cb)
 	pipemsg->length = cb;
 	pipemsg->link = ncb->hld;
 
-	return write(pipefd, pipemsg, n);
+	fr = write(pipefd, pipemsg, n);
+	free(pipemsg);
+	return fr;
 }
