@@ -391,7 +391,8 @@ int tcp_tx_syn(ncb_t *ncb)
                 return -1;
             }
 
-            mxx_call_ecr("link:%lld connection established.", ncb->hld);
+            mxx_call_ecr("connection established associated binding on %s:%d, link:%lld .",
+                inet_ntoa(ncb->local_addr.sin_addr), ntohs(ncb->local_addr.sin_port), ncb->hld);
             ncb_post_connected(ncb);
             return 0;
         }

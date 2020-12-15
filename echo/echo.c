@@ -123,6 +123,7 @@ int echo_client_startup(const char *host, uint16_t port)
 int main(int argc, char **argv)
 {
 	int type;
+	HUDPLINK link;
 
 	if (check_args(argc, argv) < 0) {
 		return -1;
@@ -134,10 +135,13 @@ int main(int argc, char **argv)
 
 	log__init();
 	tcp_init();
+	udp_init();
 
 #if _SET_ECR
 	nis_checr(&nshost_ecr);
 #endif
+
+	link = udp_create(NULL, NULL, 0, 0);
 
 	if (type == SESS_TYPE_SERVER) {
 		return echo_server_startup(gethost(), getport());

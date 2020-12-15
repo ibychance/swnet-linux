@@ -435,9 +435,9 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
             break;
         }
 
-        mxx_call_ecr("link:%lld connection established.", ncb->hld);
+        mxx_call_ecr("connection established associated binding on %s:%d, link:%lld .",
+            inet_ntoa(ncb->local_addr.sin_addr), ntohs(ncb->local_addr.sin_port), ncb->hld);
         ncb_post_connected(ncb);
-
     }while( 0 );
 
     objdefr(link);
@@ -623,7 +623,7 @@ int tcp_listen(HTCPLINK link, int block)
         addrlen = sizeof(struct sockaddr);
         getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen);
 
-        mxx_call_ecr("success listen on link:%lld", link);
+        mxx_call_ecr("listen on %s:%d, link:%lld", inet_ntoa(ncb->local_addr.sin_addr), ntohs(ncb->local_addr.sin_port), link);
         retval = 0;
     } while (0);
 

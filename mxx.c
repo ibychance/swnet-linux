@@ -174,6 +174,7 @@ int nis_getifmisc(ifmisc_t *ifv, int *cbifv)
     cbacquire = count * sizeof(ifmisc_t);
     if (*cbifv < cbacquire) {
         *cbifv = cbacquire;
+        freeifaddrs(ifs);
         return -EAGAIN;
     }
 

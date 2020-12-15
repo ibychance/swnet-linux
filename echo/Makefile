@@ -35,7 +35,7 @@ ifeq ($(arch), $(filter $(arch),arm64 aarch64))
     CC=aarch64-linux-gnu-gcc
 endif
 
-LDFLAGS:=-ldl -lpthread -lrt -lcrypt
+LDFLAGS:=-ldl -lpthread -lrt -lcrypt -fPIE
 
 all:$(TARGET)
 

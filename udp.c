@@ -132,7 +132,8 @@ HUDPLINK udp_create(udp_io_callback_t callback, const char* ipstr, uint16_t port
             break;
         }
 
-       mxx_call_ecr("success allocate link:%lld, sockfd:%d", ncb->hld, ncb->sockfd);
+        mxx_call_ecr("success allocate link:%lld, sockfd:%d, binding on %s:%d",
+            ncb->hld, ncb->sockfd, inet_ntoa(ncb->local_addr.sin_addr), ntohs(ncb->local_addr.sin_port));
         objdefr(hld);
         return hld;
     } while (0);

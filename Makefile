@@ -21,20 +21,31 @@ SRCS+=../libnsp/com/avltree.c ../libnsp/com/logger.c ../libnsp/com/posix_ifos.c 
 
 INC_DIR=-I ../libnsp/icom/
 CFLAGS+=$(INC_DIR) -fPIC -Wall -std=c89 -ansi -D_GNU_SOURCE -fvisibility=hidden
-LDFLAGS=-shared -lcrypt
+
+MIN_GCC_VERSION = "4.9"
+GCC_VERSION := "`$(CC) -dumpversion`"
+IS_GCC_ABOVE_MIN_VERSION := $(shell expr "$(GCC_VERSION)" ">=" "$(MIN_GCC_VERSION)")
+ifeq "$(IS_GCC_ABOVE_MIN_VERSION)" "1"
+    CFLAGS+=-fstack-protector-all -fstack-check=specific
+else
+    CFLAGS+=-fstack-protector
+endif
+
+LDFLAGS=-shared -lcrypt -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack
 
 OBJCOPY=objcopy
 INSTALL_DIR=/usr/local/lib64/
-ifeq ($(arch), $(filter $(arch),arm arm32))
-	CC=arm-linux-gnueabihf-gcc
-	OBJCOPY=arm-linux-gnueabihf-objcopy
-	CFLAGS+=-mfloat-abi=hard -mfpu=neon
-	INSTALL_DIR=/usr/local/lib/
-endif
 
 ifeq ($(arch), i686)
 	CFLAGS+=-m32
 	LDFLAGS+=-m32
+	INSTALL_DIR=/usr/local/lib/
+endif
+
+ifeq ($(arch), $(filter $(arch),arm arm32))
+	CC=arm-linux-gnueabihf-gcc
+	OBJCOPY=arm-linux-gnueabihf-objcopy
+	CFLAGS+=-mfloat-abi=hard -mfpu=neon
 	INSTALL_DIR=/usr/local/lib/
 endif
 
@@ -44,16 +55,8 @@ ifeq ($(arch), $(filter $(arch),arm64 aarch64))
 	INSTALL_DIR=/usr/local/lib/aarch64-linux-gnu/
 endif
 
-MIN_GCC_VERSION = "4.9"
-GCC_VERSION := "`$(CC) -dumpversion`"
-IS_GCC_ABOVE_MIN_VERSION := $(shell expr "$(GCC_VERSION)" ">=" "$(MIN_GCC_VERSION)")
 ifeq ($(build),debug)
-	ifeq "$(IS_GCC_ABOVE_MIN_VERSION)" "1"
-	    CFLAGS+=-fstack-protector-all -fstack-check=specific -fno-omit-frame-pointer -fno-optimize-sibling-calls
-	else
-	    CFLAGS+=-fstack-protector
-	endif
-	CFLAGS+=-g3
+	CFLAGS+=-g3 -fno-omit-frame-pointer -fno-optimize-sibling-calls
 else
 	CFLAGS+=-O2
 endif

@@ -4,7 +4,7 @@
 #include "fifo.h"
 
 static
-int __udp_rx(ncb_t *ncb)
+int __udp_rx(ncb_t *ncb, int *n)
 {
     int recvcb;
     struct sockaddr_in remote;
@@ -24,11 +24,18 @@ int __udp_rx(ncb_t *ncb)
         if (ncb->nis_callback) {
             ncb->nis_callback(&c_event, &c_data);
         }
+
+        return 0;
     }
 
-    if (0 == recvcb) {
-       mxx_call_ecr("fatal error occurred syscall recvfrom(2),the return value equal to zero,link:%lld", ncb->hld);
-        return -1;
+    if ( 0 == recvcb ) {
+        /* Datagram sockets in various domains (e.g., the UNIX and Internet domains) permit zero-length datagrams.
+            When such a datagram is received, the return value is 0. */
+        mxx_call_ecr("fatal error occurred syscall recvfrom(2),the return value equal to zero, link:%lld", ncb->hld );
+        if ( *n++ >= 5 ) {
+            return -1;
+        }
+        return 0;
     }
 
     /* ECONNRESET 104 Connection reset by peer */
@@ -42,7 +49,7 @@ int __udp_rx(ncb_t *ncb)
             return 0;
         }
 
-       mxx_call_ecr("fatal error occurred syscall recvfrom(2), error:%d, link:%lld", errno, ncb->hld );
+        mxx_call_ecr("fatal error occurred syscall recvfrom(2), error:%d, link:%lld", errno, ncb->hld );
         return -1;
     }
 
@@ -51,10 +58,12 @@ int __udp_rx(ncb_t *ncb)
 
 int udp_rx(ncb_t *ncb)
 {
-     int retval;
+    int retval;
+    int n;
 
+    n = 0;
     do {
-        retval = __udp_rx(ncb);
+        retval = __udp_rx(ncb, &n);
     } while (0 == retval);
 
     return retval;
