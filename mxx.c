@@ -171,25 +171,30 @@ int nis_getifmisc(ifmisc_t *ifv, int *cbifv)
         }
     }
 
-    cbacquire = count * sizeof(ifmisc_t);
-    if (*cbifv < cbacquire) {
-        *cbifv = cbacquire;
-        freeifaddrs(ifs);
-        return -EAGAIN;
-    }
+    do {
+        cbacquire = count * sizeof(ifmisc_t);
+        if (*cbifv < cbacquire) {
+            *cbifv = cbacquire;
+            i = -EAGAIN;
+            break;
+        }
 
-    i = 0;
-    for (ifa = ifs; ifa != NULL; ifa = ifa->ifa_next) {
-        if (ifa->ifa_addr) {
-            if(ifa->ifa_addr->sa_family == AF_INET) {
-                strncpy(ifv[i].eth, ifa->ifa_name, sizeof(ifv[i].eth) - 1);
-                ifv[i].inet = ((struct sockaddr_in *)ifa->ifa_addr)->sin_addr.s_addr;
-                ifv[i].mask = ((struct sockaddr_in *)ifa->ifa_netmask)->sin_addr.s_addr;
-                ifv[i].boardcast = ((struct sockaddr_in *)ifa->ifa_ifu.ifu_broadaddr)->sin_addr.s_addr;
-                i++;
+        i = 0;
+        for (ifa = ifs; ifa != NULL; ifa = ifa->ifa_next) {
+            if (ifa->ifa_addr) {
+                if(ifa->ifa_addr->sa_family == AF_INET) {
+                    strncpy(ifv[i].eth, ifa->ifa_name, sizeof(ifv[i].eth) - 1);
+                    ifv[i].inet = ((struct sockaddr_in *)ifa->ifa_addr)->sin_addr.s_addr;
+                    ifv[i].mask = ((struct sockaddr_in *)ifa->ifa_netmask)->sin_addr.s_addr;
+                    ifv[i].boardcast = ((struct sockaddr_in *)ifa->ifa_ifu.ifu_broadaddr)->sin_addr.s_addr;
+                    i++;
+                    if ( i == count) {
+                        break;
+                    }
+                }
             }
         }
-    }
+    } while (0);
 
     freeifaddrs(ifs);
     return i;
