@@ -70,6 +70,7 @@ int tcp_allocate_rx_buffer(ncb_t *ncb)
     /* allocate normal TCP package */
     assert(!ncb->packet);
     if (NULL == (ncb->packet = (unsigned char *) malloc(TCP_BUFFER_SIZE))) {
+        mxx_call_ecr("fails allocate virtual memory for ncb->packet");
         return -ENOMEM;
     }
 
@@ -77,6 +78,9 @@ int tcp_allocate_rx_buffer(ncb_t *ncb)
     ncb->u.tcp.rx_parse_offset = 0;
     assert(!ncb->u.tcp.rx_buffer);
     if (NULL == (ncb->u.tcp.rx_buffer = (unsigned char *) malloc(TCP_BUFFER_SIZE))) {
+        mxx_call_ecr("fails allocate virtual memory for ncb->u.tcp.rx_buffer");
+        free(ncb->packet);
+        ncb->packet = NULL;
         return -ENOMEM;
     }
 
@@ -410,13 +414,16 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
 
         if (retval < 0) {
             /* if this socket is already connected, or it is in listening states, sys-call failed with error EISCONN  */
-           mxx_call_ecr("fatal error occurred syscall connect(2), %s:%u, error:%u, link:%lld", ipstr, port, errno, link);
+            mxx_call_ecr("fatal error occurred syscall connect(2), %s:%u, error:%u, link:%lld", ipstr, port, errno, link);
             break;
         }
 
         /* this link use to receive data from remote peer,
             so the packet and rx memory acquire to allocate now */
-        tcp_allocate_rx_buffer(ncb);
+        if ( tcp_allocate_rx_buffer(ncb) < 0 ) {
+            objclos(link);
+            break;
+        }
         /* the low-level [TCP Keep-ALive] are usable. */
         tcp_set_keepalive(ncb);
 

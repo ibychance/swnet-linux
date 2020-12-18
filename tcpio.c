@@ -95,7 +95,9 @@ int __tcp_syn_dpc(ncb_t *ncb_server, ncb_t *ncb)
 
     /* this link use to receive data from remote peer,
             so the packet and rx memory acquire to allocate now */
-    tcp_allocate_rx_buffer(ncb);
+    if ( tcp_allocate_rx_buffer(ncb) < 0 ) {
+        return -1;
+    }
 
     /* specify data handler proc for client ncb object */
     posix__atomic_set(&ncb->ncb_read, &tcp_rx);
@@ -372,7 +374,10 @@ int tcp_tx_syn(ncb_t *ncb)
 
             /* this link use to receive data from remote peer,
                 so the packet and rx memory acquire to allocate now */
-            tcp_allocate_rx_buffer(ncb);
+            if ( tcp_allocate_rx_buffer(ncb) < 0 ) {
+                objclos(ncb->hld);
+                return -1;
+            }
             /* the low-level [TCP Keep-ALive] are usable. */
             tcp_set_keepalive(ncb);
 

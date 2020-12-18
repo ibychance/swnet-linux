@@ -25,6 +25,8 @@ void ncb_uninit(int protocol)
     root = &nl_head;
     hlds = NULL;
     nl_count_proto = 0;
+    cursor = NULL;
+    n = NULL;
 
     /* duplicate all pending objects, and than try to close it */
     pthread_mutex_lock(&nl_head_locker);
