@@ -804,7 +804,11 @@ int tcp_write(HTCPLINK link, const void *origin, int cb, const nis_serializer_t 
     }
 
     if (retval < 0) {
-        objclos(link);
+        /* the error code is device busy, disable this sent operation and allow other request pending.
+            otherwise, close the session */
+        if (-EBUSY != retval) {
+            objclos(link);
+        }
     }
 
     return retval;

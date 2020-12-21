@@ -6,6 +6,7 @@
 #include "logger.h"
 
 #include "args.h"
+#include "tst.h"
 
 int display(HTCPLINK link, const unsigned char *data, int size)
 {
@@ -27,7 +28,26 @@ int display(HTCPLINK link, const unsigned char *data, int size)
 	return -1;
 }
 
-void tcp_server_callback(const struct nis_event *event, const void *data)
+void on_server_receive_data(HTCPLINK link, const unsigned char *data, int size)
+{
+	do {
+		if (size <= 1024) {
+			if (display(link, data, size) <=0 ) {
+				break;
+			}
+		}
+
+		if (tcp_write(link, data, size, NULL) < 0) {
+			//break;
+		}
+
+		return;
+	} while (0);
+
+	tcp_destroy(link);
+}
+
+void STDCALL tcp_server_callback(const struct nis_event *event, const void *data)
 {
 	struct nis_tcp_data *tcpdata;
 	HTCPLINK link;
@@ -36,13 +56,7 @@ void tcp_server_callback(const struct nis_event *event, const void *data)
 	link = event->Ln.Tcp.Link;
 	switch(event->Event) {
 		case EVT_RECEIVEDATA:
-			if (display(link, tcpdata->e.Packet.Data, tcpdata->e.Packet.Size) > 0 ) {
-				if (tcp_write(link, tcpdata->e.Packet.Data, tcpdata->e.Packet.Size, NULL) <= 0) {
-					tcp_destroy(link);
-				}
-			} else {
-				tcp_destroy(link);
-			}
+			on_server_receive_data(link, tcpdata->e.Packet.Data, tcpdata->e.Packet.Size);
 			break;
 		case EVT_TCP_ACCEPTED:
 		case EVT_CLOSED:
@@ -51,7 +65,7 @@ void tcp_server_callback(const struct nis_event *event, const void *data)
 	}
 }
 
-void tcp_client_callback(const struct nis_event *event, const void *data)
+void STDCALL tcp_client_callback(const struct nis_event *event, const void *data)
 {
 	struct nis_tcp_data *tcpdata = (struct nis_tcp_data *)data;
 
@@ -70,7 +84,7 @@ void tcp_client_callback(const struct nis_event *event, const void *data)
 	}
 }
 
-void nshost_ecr(const char *host_event, const char *reserved, int rescb)
+void STDCALL nshost_ecr(const char *host_event, const char *reserved, int rescb)
 {
 	if (host_event) {
 		ECHO("echo", "%s", host_event);
@@ -80,11 +94,24 @@ void nshost_ecr(const char *host_event, const char *reserved, int rescb)
 int echo_server_startup(const char *host, uint16_t port)
 {
 	HTCPLINK server;
+	tst_t tst;
+	int attr;
 
 	server = tcp_create(&tcp_server_callback, host, port);
 	if (INVALID_HTCPLINK == server) {
 		return 1;
 	}
+
+	tst.parser_ = &nsp__tst_parser;
+	tst.builder_ = &nsp__tst_builder;
+	tst.cb_ = sizeof(nsp__tst_head_t);
+	nis_cntl(server, NI_SETTST, &tst);
+
+	attr = nis_cntl(server, NI_GETATTR);
+    if (attr >= 0 ) {
+    	attr |=	LINKATTR_TCP_UPDATE_ACCEPT_CONTEXT;
+    	attr = nis_cntl(server, NI_SETATTR, attr);
+    }
 
 	tcp_listen(server, 100);
 	posix__hang();
@@ -123,7 +150,6 @@ int echo_client_startup(const char *host, uint16_t port)
 int main(int argc, char **argv)
 {
 	int type;
-	HUDPLINK link;
 
 	if (check_args(argc, argv) < 0) {
 		return -1;
@@ -135,13 +161,7 @@ int main(int argc, char **argv)
 
 	log__init();
 	tcp_init();
-	udp_init();
-
-#if _SET_ECR
 	nis_checr(&nshost_ecr);
-#endif
-
-	link = udp_create(NULL, NULL, 0, 0);
 
 	if (type == SESS_TYPE_SERVER) {
 		return echo_server_startup(gethost(), getport());
