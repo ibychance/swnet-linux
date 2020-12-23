@@ -8,6 +8,36 @@
 #include "args.h"
 #include "tst.h"
 
+static const unsigned char NSPDEF_OPCODE[4] = { 'N', 's', 'p', 'd' };
+
+int STDCALL nsp__tst_parser(void *dat, int cb, int *pkt_cb)
+{
+	nsp__tst_head_t *head = (nsp__tst_head_t *)dat;
+
+	if (!head) return -1;
+
+	if (0 != memcmp(NSPDEF_OPCODE, &head->op_, sizeof(NSPDEF_OPCODE))) {
+		return -1;
+	}
+
+	*pkt_cb = head->cb_;
+	return 0;
+}
+
+int STDCALL nsp__tst_builder(void *dat, int cb)
+{
+	nsp__tst_head_t *head = (nsp__tst_head_t *)dat;
+
+	if (!dat || cb <= 0) {
+		return -1;
+	}
+
+	memcpy(&head->op_, NSPDEF_OPCODE, sizeof(NSPDEF_OPCODE));
+	head->cb_ = cb;
+	return 0;
+}
+
+
 int display(HTCPLINK link, const unsigned char *data, int size)
 {
 	char output[1024];
@@ -20,133 +50,27 @@ int display(HTCPLINK link, const unsigned char *data, int size)
 	posix__ipv4tos(ip, ipstr, sizeof(ipstr));
 	offset = sprintf(output, "[income %s:%u] ", ipstr, port);
 
-	if (size < (sizeof(output) - offset) && size > 0) {
+	if (size < (sizeof(output) - offset - 1) && size > 0) {
 		memcpy(&output[offset], data, size);
-		return posix__file_write(1, output, size + offset);
+		output[offset + size] = 0;
+		printf("%s\n", output);
+		return 0;
 	}
 
 	return -1;
 }
 
-void on_server_receive_data(HTCPLINK link, const unsigned char *data, int size)
-{
-	do {
-		if (size <= 1024) {
-			if (display(link, data, size) <=0 ) {
-				break;
-			}
-		}
-
-		if (tcp_write(link, data, size, NULL) < 0) {
-			//break;
-		}
-
-		return;
-	} while (0);
-
-	tcp_destroy(link);
-}
-
-void STDCALL tcp_server_callback(const struct nis_event *event, const void *data)
-{
-	struct nis_tcp_data *tcpdata;
-	HTCPLINK link;
-
-	tcpdata = (struct nis_tcp_data *)data;
-	link = event->Ln.Tcp.Link;
-	switch(event->Event) {
-		case EVT_RECEIVEDATA:
-			on_server_receive_data(link, tcpdata->e.Packet.Data, tcpdata->e.Packet.Size);
-			break;
-		case EVT_TCP_ACCEPTED:
-		case EVT_CLOSED:
-		default:
-			break;
-	}
-}
-
-void STDCALL tcp_client_callback(const struct nis_event *event, const void *data)
-{
-	struct nis_tcp_data *tcpdata = (struct nis_tcp_data *)data;
-
-	switch(event->Event) {
-		case EVT_RECEIVEDATA:
-			display(event->Ln.Tcp.Link, tcpdata->e.Packet.Data, tcpdata->e.Packet.Size);
-			posix__file_write(1, "input:$ ", 8);
-			break;
-		case EVT_TCP_CONNECTED:
-			posix__file_write(1, "input:$ ", 8);
-			break;
-		case EVT_TCP_ACCEPTED:
-		case EVT_CLOSED:
-		default:
-			break;
-	}
-}
 
 void STDCALL nshost_ecr(const char *host_event, const char *reserved, int rescb)
 {
 	if (host_event) {
-		ECHO("echo", "%s", host_event);
+		log__save("echo", kLogLevel_Trace, kLogTarget_Filesystem, "%s", host_event);
 	}
 }
 
-int echo_server_startup(const char *host, uint16_t port)
-{
-	HTCPLINK server;
-	tst_t tst;
-	int attr;
 
-	server = tcp_create(&tcp_server_callback, host, port);
-	if (INVALID_HTCPLINK == server) {
-		return 1;
-	}
-
-	tst.parser_ = &nsp__tst_parser;
-	tst.builder_ = &nsp__tst_builder;
-	tst.cb_ = sizeof(nsp__tst_head_t);
-	nis_cntl(server, NI_SETTST, &tst);
-
-	attr = nis_cntl(server, NI_GETATTR);
-    if (attr >= 0 ) {
-    	attr |=	LINKATTR_TCP_UPDATE_ACCEPT_CONTEXT;
-    	attr = nis_cntl(server, NI_SETATTR, attr);
-    }
-
-	tcp_listen(server, 100);
-	posix__hang();
-	return 0;
-}
-
-int echo_client_startup(const char *host, uint16_t port)
-{
-	HTCPLINK client;
-	char text[65535], *p;
-	size_t n;
-
-	do {
-		client = tcp_create(&tcp_client_callback, NULL, 0);
-		if (INVALID_HTCPLINK == client) {
-			break;
-		}
-
-		if (tcp_connect2(client, host, port) < 0) {
-			break;
-		}
-
-		while ( NULL != (p = fgets(text, sizeof(text), stdin)) ) {
-			n = strlen(text);
-			if ( n > 0) {
-				if (tcp_write(client, text, n, NULL) < 0) {
-					break;
-				}
-			}
-		}
-	} while( 0 );
-
-	return 1;
-}
-
+extern int nstest_server_startup();
+extern int nstest_client_startup();
 int main(int argc, char **argv)
 {
 	int type;
@@ -160,15 +84,15 @@ int main(int argc, char **argv)
 	}
 
 	log__init();
-	tcp_init();
 	nis_checr(&nshost_ecr);
+	tcp_init();
 
 	if (type == SESS_TYPE_SERVER) {
-		return echo_server_startup(gethost(), getport());
+		return nstest_server_startup();
 	}
 
 	if (type == SESS_TYPE_CLIENT) {
-		return echo_client_startup(gethost(), getport());
+		return nstest_client_startup();
 	}
 
 	return 0;

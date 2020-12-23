@@ -1,5 +1,6 @@
-TARGET=nshost.echo
-
+TARGET=nstest
+VERSION=1.1.0
+DATE:=$(shell date -I)
 build=release
 arch=Ia64
 
@@ -43,7 +44,9 @@ $(TARGET):$(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 %.o:%.c
+	@if [ 'args.c' = $<  ]; then sed -i "s/VersionOfProgramDefinition-ChangeInMakefile/Major version:$(VERSION)(build:$(DATE))/g" $<; fi;
 	$(CC) -c $< $(CFLAGS) -o $@
+	@if [ 'args.c' = $<  ]; then sed -i "s/Major version:$(VERSION)(build:$(DATE))/VersionOfProgramDefinition-ChangeInMakefile/g" $<; fi;
 
 clean:
 	$(RM) -f $(OBJS) $(TARGET)
