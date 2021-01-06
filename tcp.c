@@ -68,26 +68,27 @@ int tcp_allocate_rx_buffer(ncb_t *ncb)
     assert(ncb);
 
     /* allocate normal TCP package */
-    assert(!ncb->packet);
-    if (NULL == (ncb->packet = (unsigned char *) malloc(TCP_BUFFER_SIZE))) {
-        mxx_call_ecr("fails allocate virtual memory for ncb->packet");
-        return -ENOMEM;
+    if (!ncb->packet) {
+        if (NULL == (ncb->packet = (unsigned char *) malloc(TCP_BUFFER_SIZE))) {
+            mxx_call_ecr("fails allocate virtual memory for ncb->packet");
+            return -ENOMEM;
+        }
     }
 
     /* zeroization protocol head*/
     ncb->u.tcp.rx_parse_offset = 0;
-    assert(!ncb->u.tcp.rx_buffer);
-    if (NULL == (ncb->u.tcp.rx_buffer = (unsigned char *) malloc(TCP_BUFFER_SIZE))) {
-        mxx_call_ecr("fails allocate virtual memory for ncb->u.tcp.rx_buffer");
-        free(ncb->packet);
-        ncb->packet = NULL;
-        return -ENOMEM;
+    if (!ncb->u.tcp.rx_buffer) {
+        if (NULL == (ncb->u.tcp.rx_buffer = (unsigned char *) malloc(TCP_BUFFER_SIZE))) {
+            mxx_call_ecr("fails allocate virtual memory for ncb->u.tcp.rx_buffer");
+            free(ncb->packet);
+            ncb->packet = NULL;
+            return -ENOMEM;
+        }
     }
-
     return 0;
 }
 
-static int __tcp_bind(const ncb_t *ncb)
+static int tcp_bind(const ncb_t *ncb)
 {
     assert(ncb);
 
@@ -166,6 +167,25 @@ HTCPLINK tcp_create(tcp_io_callback_t callback, const char* ipstr, uint16_t port
     mxx_call_ecr("success allocate link:%lld, sockfd:%d", ncb->hld, ncb->sockfd);
     objdefr(hld);
     return hld;
+}
+
+HTCPLINK tcp_create2(tcp_io_callback_t callback, const char* ipstr, uint16_t port, const tst_t *tst)
+{
+    HTCPLINK link;
+
+    link = tcp_create(callback, ipstr, port);
+    if (INVALID_HTCPLINK == link) {
+        return INVALID_HTCPLINK;
+    }
+
+    if (tst) {
+        if (tcp_settst_r(link, tst) < 0) {
+            tcp_destroy(link);
+            link = INVALID_HTCPLINK;
+        }
+    }
+
+    return link;
 }
 
 int tcp_settst(HTCPLINK link, const tst_t *tst)
@@ -362,10 +382,9 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
     ncb_t *ncb;
     int retval;
     struct sockaddr_in addr_to;
-    socklen_t addrlen;
     struct tcp_info ktcp;
 
-    if (link < 0 || !ipstr || 0 == port || 0xff == port ) {
+    if (link < 0 || !ipstr || 0 == port || 0xFFFF == port ) {
         return -EINVAL;
     }
 
@@ -399,7 +418,7 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
         tcp_set_nodelay(ncb, 1);
 
         /* bind on particular local address:port tuple when need. */
-        if ( __tcp_bind(ncb) < 0 ) {
+        if ( tcp_bind(ncb) < 0 ) {
             break;
         }
 
@@ -428,9 +447,7 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
         tcp_set_keepalive(ncb);
 
         /* get peer address information */
-        addrlen = sizeof (struct sockaddr);
-        getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* remote address information */
-        getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* local address information */
+        tcp_relate_address(ncb);
 
         /* follow tcp rx/tx event */
         posix__atomic_set(&ncb->ncb_read, &tcp_rx);
@@ -474,7 +491,7 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
         retval = -1;
 
         /* for asynchronous connect, set file-descriptor to non-blocked mode first */
-        if (io_fcntl(ncb->sockfd) < 0) {
+        if (io_fnbio(ncb->sockfd) < 0) {
             break;
         }
 
@@ -496,12 +513,12 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
         tcp_set_nodelay(ncb, 1);
 
         /* bind on particular local address:port tuple when need. */
-        if (__tcp_bind(ncb) < 0) {
+        if (tcp_bind(ncb) < 0) {
             break;
         }
 
         /* double check the tx_syn routine */
-        if ((NULL != posix__atomic_compare_ptr_xchange(&ncb->ncb_write, NULL, &tcp_tx_syn))) {
+        if ((NULL != __sync_val_compare_and_swap(&ncb->ncb_write, NULL, &tcp_tx_syn))) {
             mxx_call_ecr("link:%lld multithreading double call is not allowed.", link);
             break;
         }
@@ -532,7 +549,7 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
          *
          *  ncb object willbe destroy on fatal.
          *
-         *  EPOLLOUT adn EPOLLHUP for asynchronous connect(2):
+         *  EPOLLOUT and EPOLLHUP for asynchronous connect(2):
          *  1.When the connect function is not called locally, but the socket is attach to epoll for detection,
          *       epoll will generate an EPOLLOUT | EPOLLHUP, that is, an event with a value of 0x14
          *   2.When the local connect event occurs, but the connection fails to be established,
@@ -591,7 +608,7 @@ int tcp_listen(HTCPLINK link, int block)
         ncb_set_reuseaddr(ncb);
 
         /* binding on local adpater before listen */
-        if (__tcp_bind(ncb) < 0) {
+        if (tcp_bind(ncb) < 0) {
             break;
         }
 
@@ -1054,4 +1071,22 @@ void tcp_setattr_r(ncb_t *ncb, int attr)
 int tcp_getattr_r(ncb_t *ncb, int *attr)
 {
     return __sync_lock_test_and_set(attr, ncb->attr);
+}
+
+void tcp_relate_address(ncb_t *ncb)
+{
+    socklen_t addrlen;
+
+    assert(ncb);
+
+    /* get peer address information */
+    addrlen = sizeof (struct sockaddr);
+    /* remote address information */
+    if ( 0 != getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen) ) {
+        mxx_call_ecr("fatal error occurred syscall getpeername(2) with error:%d, on link:%lld", errno, link);
+    }
+    /* local address information */
+    if (0 != getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen) ) {
+        mxx_call_ecr("fatal error occurred syscall getsockname(2) with error:%d, on link:%lld", errno, link);
+    }
 }

@@ -288,7 +288,7 @@ int io_init(int protocol)
         return -1;
     }
 
-    if (! __sync_bool_compare_and_swap(hldptr, -1, hld)) {
+    if (!__sync_bool_compare_and_swap(hldptr, -1, hld)) {
         objclos(hld);
         return EALREADY;
     }
@@ -339,7 +339,7 @@ int io_setfl(int fd, int test)
     return 0;
 }
 
-int io_fcntl(int fd)
+int io_fnbio(int fd)
 {
     int opt;
 
@@ -380,7 +380,7 @@ int io_attach(void *ncbptr, int mask)
     ncb = (ncb_t *)ncbptr;
     assert(ncb);
 
-    retval = io_fcntl(ncb->sockfd);
+    retval = io_fnbio(ncb->sockfd);
     if ( retval < 0) {
         return retval;
     }

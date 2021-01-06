@@ -125,12 +125,9 @@ void ncb_deconstruct(objhld_t ignore, void *p)
 
     /* remove entry from global nl_head */
     pthread_mutex_lock(&nl_head_locker);
-    list_del(&ncb->nl_entry);
-    INIT_LIST_HEAD(&ncb->nl_entry);
+    list_del_init(&ncb->nl_entry);
     assert(nl_count > 0);
-    if (nl_count > 0) {
-        nl_count--;
-    }
+    nl_count--;
     pthread_mutex_unlock(&nl_head_locker);
 
     /* post close event to calling thread */

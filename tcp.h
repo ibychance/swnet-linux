@@ -24,6 +24,8 @@ extern
 void tcp_setattr_r(ncb_t *ncb, int attr);
 extern
 int tcp_getattr_r(ncb_t *ncb, int *attr);
+extern
+void tcp_relate_address(ncb_t *ncb);
 
 /* tcp io */
 extern

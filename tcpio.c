@@ -69,17 +69,12 @@ int __tcp_syn_try(ncb_t *ncb_server, int *clientfd, int *ctrlcode)
 static
 int __tcp_syn_dpc(ncb_t *ncb_server, ncb_t *ncb)
 {
-    socklen_t addrlen;
-
     if (!ncb_server || !ncb) {
         return -EINVAL;
     }
 
-    /* save local and remote address struct */
-    addrlen = sizeof(struct sockaddr);
-    getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* remote */
-    getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* local */
-
+    /* save local and remote address structure */
+    tcp_relate_address(ncb);
     /* set options */
     /* disable delay optimization */
     tcp_set_nodelay(ncb, 1);
@@ -367,7 +362,6 @@ static int __tcp_check_syn_result(int sockfd, int *err)
 int tcp_tx_syn(ncb_t *ncb)
 {
     int e;
-    socklen_t addrlen;
 
     while (1) {
         if( 0 == __tcp_check_syn_result(ncb->sockfd, &e)) {
@@ -380,12 +374,8 @@ int tcp_tx_syn(ncb_t *ncb)
             }
             /* the low-level [TCP Keep-ALive] are usable. */
             tcp_set_keepalive(ncb);
-
             /* get peer address information */
-            addrlen = sizeof (struct sockaddr);
-            getpeername(ncb->sockfd, (struct sockaddr *) &ncb->remot_addr, &addrlen); /* remote address information */
-            getsockname(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, &addrlen); /* local address information */
-
+            tcp_relate_address(ncb);
             /* follow tcp rx/tx event */
             posix__atomic_set(&ncb->ncb_read, &tcp_rx);
             posix__atomic_set(&ncb->ncb_write, &tcp_tx);

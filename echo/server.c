@@ -83,21 +83,18 @@ int nstest_server_startup()
     /* load argument from startup parameters */
     getservercontext(&context->echo, &context->mute, &context->port);
 
-    /* create TCP link */
-    server = tcp_create(&tcp_server_callback, NULL, context->port);
+    /* nail the TST and then create TCP link */
+    tst.parser_ = &nsp__tst_parser;
+    tst.builder_ = &nsp__tst_builder;
+    tst.cb_ = sizeof(nsp__tst_head_t);
+    server = tcp_create2(&tcp_server_callback, NULL, context->port, &tst);
     if (INVALID_HTCPLINK == server) {
         return 1;
     }
 
     /* nail the context to listen link */
     nis_cntl(server, NI_SETCTX, context);
-
-    /* nail the TST and allow accept update */
-    tst.parser_ = &nsp__tst_parser;
-    tst.builder_ = &nsp__tst_builder;
-    tst.cb_ = sizeof(nsp__tst_head_t);
-    nis_cntl(server, NI_SETTST, &tst);
-
+    /* allow accept update tst */
     attr = nis_cntl(server, NI_GETATTR);
     if (attr >= 0 ) {
         attr |= LINKATTR_TCP_UPDATE_ACCEPT_CONTEXT;
