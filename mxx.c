@@ -17,16 +17,20 @@
 #include "tcp.h"
 #include "udp.h"
 
+/* use command: strings nshost.so.9.9.1 | grep 'COMPILE DATE'
+    to query the compile date of specify ELF file */
+static const char *NSHOST_COMPILE_DATE="COMPILE DATE: CompileDateOfProgramDefinition-ChangeInMakefile";
 int nis_getver(swnet_version_t *version)
 {
+    size_t n;
+
     if (!version) {
         return -1;
     }
 
-    version->major_ = 9;
-    version->minor_ = 7;
-    version->revision_ = 6;
-    mxx_call_ecr("current version %d.%d.%d", version->major_, version->minor_, version->revision_);
+    n = sizeof(version->compile_date);
+    snprintf(version->compile_date, n, "%s", NSHOST_COMPILE_DATE);
+    version->compile_date[n - 1] = 0;
     return 0;
 }
 

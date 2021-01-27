@@ -32,7 +32,7 @@ else
 endif
 
 # COMPILE_TIME=$(shell date +" %Y-%m-%d %H:%M:%S")
-# COMPILE_TIME=$(shell date)
+COMPILE_TIME=$(shell date)
 # GIT_COMMIT_ID=$(shell git rev-parse HEAD)
 # LDFLAGS=-shared -lcrypt -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack -Wl,-soname,"$(TARGET) $(COMPILE_TIME)"
 LDFLAGS=-shared -lcrypt -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack
@@ -85,7 +85,9 @@ $(PROGRAM):$(OBJS)
 
 $(OBJS_DIR)/%.o:%.$(SRC_EXT)
 	@if [ ! -d $(OBJS_DIR) ]; then mkdir -p $(OBJS_DIR); fi;
+	@if [ 'mxx.c' = $<  ]; then sed -i "s/CompileDateOfProgramDefinition-ChangeInMakefile/$(COMPILE_TIME)/g" $<; fi;
 	$(CC) -c $< $(CFLAGS) -o $@
+	@if [ 'mxx.c' = $<  ]; then sed -i "s/$(COMPILE_TIME)/CompileDateOfProgramDefinition-ChangeInMakefile/g" $<; fi;
 
 $(DEPS_DIR)/%.d:%.$(SRC_EXT)
 	@if [ ! -d $(DEPS_DIR) ]; then mkdir -p $(DEPS_DIR); fi;
