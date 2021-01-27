@@ -62,7 +62,6 @@ int __tcp_syn_try(ncb_t *ncb_server, int *clientfd, int *ctrlcode)
         return -1;
     }
 
-    mxx_call_ecr("accepted socket:%d", *clientfd);
     return 0;
 }
 
@@ -153,9 +152,10 @@ int __tcp_syn(ncb_t *ncb_server)
         assert(ncb);
         ncb->sockfd = clientfd;
         ncb->hld = hld;
-
         ncb->protocol = IPPROTO_TCP;
         ncb->nis_callback = ncb_server->nis_callback;
+
+        mxx_call_ecr("accepted link:%lld, socket:%d ", hld, clientfd);
 
         /* initial the client ncb object, link willbe destroy on fatal. */
         if (__tcp_syn_dpc(ncb_server, ncb) < 0) {

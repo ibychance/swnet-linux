@@ -31,7 +31,10 @@ else
     CFLAGS+=-fstack-protector
 endif
 
-LDFLAGS=-shared -lcrypt -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack
+# COMPILE_TIME=$(shell date +" %Y-%m-%d %H:%M:%S")
+COMPILE_TIME=$(shell date)
+GIT_COMMIT_ID=$(shell git rev-parse HEAD)
+LDFLAGS=-shared -lcrypt -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack -Wl,-soname,"$(TARGET) $(COMPILE_TIME)"
 
 OBJCOPY=objcopy
 INSTALL_DIR=/usr/local/lib64/
