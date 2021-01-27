@@ -32,9 +32,10 @@ else
 endif
 
 # COMPILE_TIME=$(shell date +" %Y-%m-%d %H:%M:%S")
-COMPILE_TIME=$(shell date)
-GIT_COMMIT_ID=$(shell git rev-parse HEAD)
-LDFLAGS=-shared -lcrypt -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack -Wl,-soname,"$(TARGET) $(COMPILE_TIME)"
+# COMPILE_TIME=$(shell date)
+# GIT_COMMIT_ID=$(shell git rev-parse HEAD)
+# LDFLAGS=-shared -lcrypt -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack -Wl,-soname,"$(TARGET) $(COMPILE_TIME)"
+LDFLAGS=-shared -lcrypt -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack
 
 OBJCOPY=objcopy
 INSTALL_DIR=/usr/local/lib64/
