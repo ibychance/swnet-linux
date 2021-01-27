@@ -19,7 +19,7 @@
 
 /* use command: strings nshost.so.9.9.1 | grep 'COMPILE DATE'
     to query the compile date of specify ELF file */
-static const char *NSHOST_COMPILE_DATE="COMPILE DATE: CompileDateOfProgramDefinition-ChangeInMakefile";
+static const char *COMPILE_DATE="COMPILE DATE: CompileDateOfProgramDefinition-ChangeInMakefile";
 int nis_getver(swnet_version_t *version)
 {
     size_t n;
@@ -29,7 +29,7 @@ int nis_getver(swnet_version_t *version)
     }
 
     n = sizeof(version->compile_date);
-    snprintf(version->compile_date, n, "%s", NSHOST_COMPILE_DATE);
+    snprintf(version->compile_date, n, "%s", COMPILE_DATE);
     version->compile_date[n - 1] = 0;
     return 0;
 }
