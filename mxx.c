@@ -19,9 +19,9 @@
 
 /* use command: strings nshost.so.9.9.1 | grep 'COMPILE DATE'
     to query the compile date of specify ELF file */
-static const char *COMPILE_DATE="COMPILE DATE: CompileDateOfProgramDefinition-ChangeInMakefile";
 int nis_getver(swnet_version_t *version)
 {
+    static const char COMPILE_DATE[]="COMPILE DATE: CompileDateOfProgramDefinition-ChangeInMakefile\n";
     size_t n;
 
     if (!version) {
