@@ -11,6 +11,14 @@ int __udp_rx(ncb_t *ncb, int *n)
     socklen_t addrlen;
     udp_data_t c_data;
     nis_event_t c_event;
+    int nread;
+
+    /* FIONREAD query the length of data can read in device buffer. */
+    if ( 0 == ioctl(ncb->sockfd, FIONREAD, &nread)) {
+        if (0 == nread) {
+            return EAGAIN;
+        }
+    }
 
     addrlen = sizeof (struct sockaddr_in);
     recvcb = recvfrom(ncb->sockfd, ncb->packet, MAX_UDP_UNIT, 0, (struct sockaddr *) &remote, &addrlen);
@@ -62,10 +70,8 @@ int udp_rx(ncb_t *ncb)
     int n;
 
     n = 0;
-    do {
-        retval = __udp_rx(ncb, &n);
-    } while (0 == retval);
-
+    while (0 == (retval = __udp_rx(ncb, &n)))
+        ;
     return retval;
 }
 

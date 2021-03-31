@@ -185,6 +185,14 @@ int __tcp_rx(ncb_t *ncb)
     int overplus;
     int offset;
     int cpcb;
+    int nread;
+
+    /* FIONREAD query the length of data can read in device buffer. */
+    if ( 0 == ioctl(ncb->sockfd, FIONREAD, &nread)) {
+        if (0 == nread) {
+            return EAGAIN;
+        }
+    }
 
     recvcb = recv(ncb->sockfd, ncb->u.tcp.rx_buffer, TCP_BUFFER_SIZE, 0);
     if (recvcb > 0) {

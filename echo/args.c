@@ -70,7 +70,7 @@ static void display_author_information()
 {
     static char author_context[512];
     sprintf(author_context, "nstest\n%s\n"
-            "Copyright (C) 2017 Jerry.Anderson\n"
+            "Copyright (C) 2017 Neo.Anderson\n"
             "For bug reporting instructions, please see:\n"
             "<http://www.nsplibrary.com.cn/>.\n"
             "For help, type \"help\".\n", VERSION_STRING);
