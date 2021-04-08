@@ -257,7 +257,7 @@ int nis_getifmac(char *eth_name, unsigned char *pyhaddr)
 
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     if(fd > 0) {
-        strncpy(ifr.ifr_name, (char *)eth_name, sizeof(ifr.ifr_name) );
+        strncpy(ifr.ifr_name, (char *)eth_name, sizeof(ifr.ifr_name) - 1 );
         if(ioctl(fd, SIOCGIFHWADDR, &ifr) >= 0) {
             memcpy(pyhaddr, ifr.ifr_hwaddr.sa_data, 6);
         }

@@ -62,7 +62,7 @@ endif
 ifeq ($(build),debug)
 	CFLAGS+=-g3 -fno-omit-frame-pointer -fno-optimize-sibling-calls
 else
-	CFLAGS+=-O2 -funroll-loops
+	CFLAGS+=-O2 -g -funroll-loops
 endif
 
 # define the middle directory for build
