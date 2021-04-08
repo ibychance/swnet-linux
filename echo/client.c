@@ -22,6 +22,8 @@ static void nstest_echo_client(HTCPLINK link)
     char text[65536];
     size_t n;
 
+    posix__file_write(STDOUT_FILENO, "input:$ ", 8);
+
     while ( NULL != (p = fgets(text, sizeof(text), stdin)) ) {
         n = strlen(text);
         if ( n > 0) {
@@ -41,7 +43,7 @@ static void STDCALL tcp_client_callback(const struct nis_event *event, const voi
         case EVT_RECEIVEDATA:
             if (__context.echo) {
                 display(event->Ln.Tcp.Link, tcpdata->e.Packet.Data, tcpdata->e.Packet.Size);
-                posix__file_write(1, "input:$ ", 8);
+                posix__file_write(STDOUT_FILENO, "input:$ ", 8);
             }
             break;
         case EVT_TCP_ACCEPTED:
@@ -83,16 +85,15 @@ int nstest_client_startup()
     tidps = NULL;
 
     do {
-        client = tcp_create(&tcp_client_callback, NULL, 0);
-        if (INVALID_HTCPLINK == client) {
-            break;
-        }
-
         /* nail the TST and allow accept update */
         tst.parser_ = &nsp__tst_parser;
         tst.builder_ = &nsp__tst_builder;
         tst.cb_ = sizeof(nsp__tst_head_t);
         nis_cntl(client, NI_SETTST, &tst);
+        client = tcp_create2(&tcp_client_callback, NULL, 0, &tst);
+        if (INVALID_HTCPLINK == client) {
+            break;
+        }
 
         if (tcp_connect(client, __context.host, __context.port) < 0) {
             break;

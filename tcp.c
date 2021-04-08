@@ -766,7 +766,7 @@ int tcp_write(HTCPLINK link, const void *origin, int cb, const nis_serializer_t 
         }
         memset(node, 0, sizeof(struct tx_node));
         node->data = buffer;
-        node->wcb = cb + ncb->u.tcp.template.cb_;
+        node->wcb = packet_length;
         node->offset = 0;
 
         if (!fifo_is_blocking(ncb)) {
