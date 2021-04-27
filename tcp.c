@@ -92,12 +92,12 @@ static int tcp_bind(const ncb_t *ncb)
 {
     assert(ncb);
 
-    /* the user specified a explicit adpater or port to bind when invoke @tcp_create */
+    /* the user specified a explicit address or port to bind when invoke @tcp_create */
     if (0 != ncb->local_addr.sin_addr.s_addr || 0 != ncb->local_addr.sin_port) {
-        /* binding on local adpater before listen */
+        /* binding on local address before listen */
         if ( bind(ncb->sockfd, (struct sockaddr *) &ncb->local_addr, sizeof(struct sockaddr)) < 0 ) {
             mxx_call_ecr("fatal syscall bind(2), errno:%d, link:%lld", errno, ncb->hld);
-            return -1;
+            return posix__makeerror(errno);
         }
     }
 
@@ -403,7 +403,8 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
         /* get the socket status of tcp_info to check the socket tcp statues */
         if (tcp_save_info(ncb, &ktcp) >= 0) {
             if (ktcp.tcpi_state != TCP_CLOSE) {
-               mxx_call_ecr("state illegal,link:%lld, kernel states:%s.", link, tcp_state2name(ktcp.tcpi_state));
+                mxx_call_ecr("state illegal,link:%lld, kernel states:%s.", link, tcp_state2name(ktcp.tcpi_state));
+                retval = ( TCP_ESTABLISHED == ktcp.tcpi_state ) ? -EISCONN : -EBADFD;
                 break;
             }
         }
@@ -418,7 +419,7 @@ int tcp_connect(HTCPLINK link, const char* ipstr, uint16_t port)
         tcp_set_nodelay(ncb, 1);
 
         /* bind on particular local address:port tuple when need. */
-        if ( tcp_bind(ncb) < 0 ) {
+        if ( (retval = tcp_bind(ncb)) < 0 ) {
             break;
         }
 
@@ -499,6 +500,7 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
         if (tcp_save_info(ncb, &ktcp) >= 0) {
             if (ktcp.tcpi_state != TCP_CLOSE) {
                 mxx_call_ecr("state illegal,link:%lld, kernel states:%s.", link, tcp_state2name(ktcp.tcpi_state));
+                retval = ( TCP_ESTABLISHED == ktcp.tcpi_state ) ? -EISCONN : -EBADFD;
                 break;
             }
         }
@@ -513,7 +515,7 @@ int tcp_connect2(HTCPLINK link, const char* ipstr, uint16_t port)
         tcp_set_nodelay(ncb, 1);
 
         /* bind on particular local address:port tuple when need. */
-        if (tcp_bind(ncb) < 0) {
+        if ( (retval = tcp_bind(ncb)) < 0) {
             break;
         }
 
@@ -600,6 +602,7 @@ int tcp_listen(HTCPLINK link, int block)
         if (tcp_save_info(ncb, &ktcp) >= 0) {
             if (ktcp.tcpi_state != TCP_CLOSE) {
                 mxx_call_ecr("state illegal,link:%lld, kernel states:%s.", link, tcp_state2name(ktcp.tcpi_state));
+                retval = EBADFD;
                 break;
             }
         }
@@ -608,7 +611,7 @@ int tcp_listen(HTCPLINK link, int block)
         ncb_set_reuseaddr(ncb);
 
         /* binding on local adpater before listen */
-        if (tcp_bind(ncb) < 0) {
+        if ( ( retval = tcp_bind(ncb)) < 0) {
             break;
         }
 
@@ -623,6 +626,7 @@ int tcp_listen(HTCPLINK link, int block)
         retval = listen(ncb->sockfd, ((0 == block) || (block > SOMAXCONN)) ? SOMAXCONN : block);
         if (retval < 0) {
             mxx_call_ecr("fatal error occurred syscall listen(2),error:%u", errno);
+            retval = posix__makeerror(errno);
             break;
         }
 
@@ -636,7 +640,7 @@ int tcp_listen(HTCPLINK link, int block)
 
         /* set file descriptor to asynchronous mode and attach to it's own epoll object,
          *  ncb object willbe destroy on fatal. */
-        if (io_attach(ncb, EPOLLIN) < 0) {
+        if ( (retval = io_attach(ncb, EPOLLIN)) < 0) {
             objclos(link);
             break;
         }
