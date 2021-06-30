@@ -21,7 +21,7 @@
     to query the compile date of specify ELF file */
 int nis_getver(swnet_version_t *version)
 {
-    static const char COMPILE_DATE[]="COMPILE DATE: CompileDateOfProgramDefinition-ChangeInMakefile\n";
+    static const char COMPILE_DATE[]="COMPILE DATE: Fri 14 May 2021 09:19:01 PM CST\n";
     size_t n;
 
     if (!version) {
@@ -211,6 +211,15 @@ int nis_cntl(objhld_t link, int cmd, ...)
     va_list ap;
     void *context;
 
+    if (link < 0) {
+        return -EINVAL;
+    }
+
+    if (NI_SINKCTX == cmd) {
+        objdefr(link);
+        return 0;
+    }
+
     ncb = objrefr(link);
     if (!ncb) {
         return -ENOENT;
@@ -241,12 +250,20 @@ int nis_cntl(objhld_t link, int cmd, ...)
         case NI_GETTST:
             retval = tcp_gettst_r(link, va_arg(ap, void *), NULL);
             break;
+        case NI_RISECTX:
+            ncb->prcontext = __sync_lock_test_and_set(&context, ncb->context);
+            *(va_arg(ap, void **) ) = context;
+            link = INVALID_OBJHLD;
+            break;
         default:
-            return -EINVAL;
+            retval = -EINVAL;
+            break;
     }
     va_end(ap);
 
-    objdefr(link);
+    if (link > 0) {
+        objdefr(link);
+    }
     return retval;
 }
 
